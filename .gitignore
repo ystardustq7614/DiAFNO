@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Training outputs
+checkpoints/
+runs/
+outputs/
+results/
+logs/
+
+# Model weights
+*.pt
+*.pth
+*.ckpt
+
+# IDE
+.vscode/
+
+# Temporary files
+*.log
+.DS_Store
