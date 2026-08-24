@@ -19,17 +19,20 @@ date: 2026-08-23
 >
 > 仅把 `InferenceWidth` 改为 `7` 或 `15` 不会得到“前 7 帧 → 后 15 帧”：当前数据集永远只取窗口的第 0、1 帧，而且骨干网络假定条件通道数与目标通道数相同。改造前必须确定是一次性生成 15 帧，还是训练单步模型并自回归滚动 15 次。
 
+> [!note] 2026-08-24 同步后状态
+> 本报告首次完成后，分支已移除 `IAFNODiff` 构造和 padding 中的强制 CUDA 绑定，新增 `load_checkpoint`、`checkpoint_path` 与 `smoke_test.py`。这些变更解决了核心模型的 CPU/device 冒烟问题，但没有改变上述单步任务定义，也没有实现 7→15 数据管线或 rollout。下文已按当前源码修正相关描述。
+
 ## 0. 分析范围与结论标记
 
 本报告完整检查了以下文件：
 
 - `IAFNO.py`：367 行；
 - `diffusion.py`：289 行；
-- `trainer.py`：255 行；
-- `utilities3.py`：309 行；
+- `trainer.py`：261 行；
+- `utilities3.py`：322 行；
 - `README.md`：29 行。
 
-同时检查了 `requirements-lock.txt` 与 `environment.yml`，但没有创建 Conda 环境，也没有执行训练。原因是当前训练路径和数据路径仍是占位字符串，13 项问题可通过静态源码完整分析；安装依赖不会补足缺失的真实数据语义。
+同时检查了 `requirements-lock.txt` 与 `environment.yml`。当前已有 CPU smoke test，但没有执行真实数据训练；训练路径和数据路径仍是占位字符串，环境安装也不能补足缺失的数据语义。
 
 下文使用三种标记：
 
@@ -75,13 +78,13 @@ flowchart TD
 关键位置：
 
 - 导入 `ElucidatedDiffusion` 与 `IAFNODiff`：`trainer.py:23-24`；
-- 数据加载及切窗：`trainer.py:72-90`；
-- 归一化统计与 `sigma_data` 计算：`trainer.py:92-127`；
-- `DataLoader`：`trainer.py:131-137`；
-- `IAFNODiff` 构造：`trainer.py:139-151`；
-- `ElucidatedDiffusion` 包装：`trainer.py:155-161`；
-- 训练与测试：`trainer.py:180-235`；
-- 每轮保存权重与损失：`trainer.py:243-255`。
+- 数据加载及切窗：`trainer.py:75-93`；
+- 归一化统计与 `sigma_data` 计算：`trainer.py:95-130`；
+- `DataLoader`：`trainer.py:134-140`；
+- `IAFNODiff` 构造：`trainer.py:142-154`；
+- `ElucidatedDiffusion` 包装：`trainer.py:158-164`；
+- 训练与测试：`trainer.py:186-241`；
+- 每轮保存权重与损失：`trainer.py:249-261`。
 
 由于没有 `if __name__ == "__main__":`，导入 `trainer.py` 也会立刻尝试加载数据并开始训练。
 
@@ -101,7 +104,7 @@ flowchart TD
 | `AFNO` | `IAFNO.py:161-226` | 对三个 token 空间轴做 FFT、分块复数线性变换、稀疏收缩和逆 FFT。 |
 | `IAFNODiff` | `IAFNO.py:230-367` | 条件拼接、扩散时间调制、patch 编解码、隐式迭代与输出重建。 |
 
-`IAFNO.py:19` 使用 `from utilities3 import *`。其中最重要的隐式依赖是 `utilities3.py:16` 的全局 `device`，它被 padding 代码 `IAFNO.py:337-345` 使用。
+`IAFNO.py:19` 仍使用 `from utilities3 import *`，但 padding 已改用 `x.new_zeros` 跟随输入的 dtype/device，不再依赖 `utilities3.py` 的全局 `device`。
 
 ### 1.4 `diffusion.py`
 
@@ -123,15 +126,15 @@ flowchart TD
 
 | 组件 | 位置 | 当前是否被主流程使用 |
 | --- | --- | --- |
-| `device` | `utilities3.py:16` | 被 `IAFNO.py` 通过星号导入间接使用。 |
-| `MatReader` | `utilities3.py:19-70` | 未使用；支持旧版 MAT 和 HDF5 MAT。 |
-| `UnitGaussianNormalizer` | `utilities3.py:73-109` | 未使用。 |
-| `GaussianNormalizer` | `utilities3.py:111-133` | 未使用。 |
-| `RangeNormalizer` | `utilities3.py:137-158` | 未使用。 |
-| `LpLoss` | `utilities3.py:161-204` | 测试阶段使用；默认返回逐样本相对 L2 后取均值。 |
-| `HsLoss` | `utilities3.py:208-272` | 未使用。 |
-| `DenseNet` | `utilities3.py:275-301` | 未使用。 |
-| `count_params` | `utilities3.py:305-309` | `trainer.py:176` 使用。 |
+| `load_checkpoint` | `utilities3.py:17-30` | 可加载纯模型 state dict，也兼容包含 optimizer/scheduler/scaler state 的字典。 |
+| `MatReader` | `utilities3.py:32-83` | 未使用；支持旧版 MAT 和 HDF5 MAT。 |
+| `UnitGaussianNormalizer` | `utilities3.py:86-121` | 未使用。 |
+| `GaussianNormalizer` | `utilities3.py:124-147` | 未使用。 |
+| `RangeNormalizer` | `utilities3.py:150-171` | 未使用。 |
+| `LpLoss` | `utilities3.py:174-218` | 测试阶段使用；默认返回逐样本相对 L2 后取均值。 |
+| `HsLoss` | `utilities3.py:221-285` | 未使用。 |
+| `DenseNet` | `utilities3.py:288-314` | 未使用。 |
+| `count_params` | `utilities3.py:318-322` | `trainer.py:182` 使用。 |
 
 ### 1.6 `README.md`
 
@@ -149,16 +152,16 @@ python trainer.py
 
 但仓库当前不能直接运行：
 
-- `np.load('your dataset')` 是占位路径，见 `trainer.py:74`；
-- 归一化信息目录是占位字符串，见 `trainer.py:94`；
-- checkpoint 保存目录是占位字符串，见 `trainer.py:243`；
-- 没有 CLI 参数、配置文件解析、主函数或恢复训练逻辑。
+- `np.load('your dataset')` 是占位路径，见 `trainer.py:77`；
+- 归一化信息目录是占位字符串，见 `trainer.py:97`；
+- checkpoint 保存目录是占位字符串，见 `trainer.py:249`；
+- 没有 CLI 参数、配置文件解析或主函数；`checkpoint_path` 提供了基础权重加载，但当前 checkpoint 保存格式不含 epoch、optimizer、scheduler 或 scaler 状态，不能视为完整断点续训。
 
 ## 3. Dataset 与 DataLoader 在哪里定义
 
 **源码确认：** 没有自定义 `Dataset` 类。虽然 `Dataset` 在 `trainer.py:10` 被导入，但没有实现或实例化。
 
-当前数据管线全部位于 `trainer.py:74-137`：
+当前数据管线全部位于 `trainer.py:77-140`：
 
 1. `np.load` 读取完整 NPY 数组；
 2. `data[0:trainset_num, ..., 0:3]` 只保留前 `trainset_num=20` 个 case 和最后一维前 3 个变量；
@@ -175,7 +178,7 @@ python trainer.py
 
 ### 4.1 原始与 DataLoader shape
 
-根据 `trainer.py:74-89` 的索引方式，源码预期原始数组为：
+根据 `trainer.py:77-92` 的索引方式，源码预期原始数组为：
 
 ```text
 [N_case, N_time, X, Y, Z, C_all]
@@ -203,7 +206,7 @@ xx, yy before rearrange: [B, 64, 65, 32, 3]
 
 ### 4.2 `ElucidatedDiffusion` 接口 shape
 
-`trainer.py:192-197` 把训练样本转成 channel-first：
+`trainer.py:198-203` 把训练样本转成 channel-first：
 
 ```text
 xx: [B, 3, 64, 65, 32]  # 条件场，即当前帧
@@ -246,7 +249,7 @@ ElucidatedDiffusion.sample:   [B, 3, 64, 65, 32]
 test rearrange 后的 pred:     [B, 64, 65, 32, 3]
 ```
 
-`ElucidatedDiffusion.sample` 最终把 `[-1, 1]` 映射回 `[0, 1]`，见 `diffusion.py:211-212`。`trainer.py:227-228` 再使用训练集的 `y_min/y_max` 恢复物理量范围。
+`ElucidatedDiffusion.sample` 最终把 `[-1, 1]` 映射回 `[0, 1]`，见 `diffusion.py:211-212`。`trainer.py:233-234` 再使用训练集的 `y_min/y_max` 恢复物理量范围。
 
 > [!warning] shape 检查不完整
 > `diffusion.py:260-263` 只显式检查 `H`、`W` 和通道数，没有检查实际 `Z` 是否等于 `image_size_z`。不过错误的 `Z` 后续通常仍会在位置 embedding、patch 重建或条件拼接处失败。
@@ -261,11 +264,11 @@ test rearrange 后的 pred:     [B, 64, 65, 32, 3]
 [case, time, x, y, z, variable]
 ```
 
-`trainer.py:83-87` 先抽取长度为 `InferenceWidth + 1` 的窗口，但 `trainer.py:89` 无条件只取 `data_set[:, 0, ...]` 和 `data_set[:, 1, ...]`。因此：
+`trainer.py:86-90` 先抽取长度为 `InferenceWidth + 1` 的窗口，但 `trainer.py:92` 无条件只取 `data_set[:, 0, ...]` 和 `data_set[:, 1, ...]`。因此：
 
 - 当前 `InferenceWidth=1` 时，得到 `t → t+1`；
 - 把 `InferenceWidth` 改大只会让临时窗口变长，模型仍只看到第 0、1 帧；
-- `InitialInterval` 只出现在文件名和日志语义中，未参与索引，见 `trainer.py:58,95`；
+- `InitialInterval` 只出现在文件名和日志语义中，未参与索引，见 `trainer.py:58,98`；
 - 进入网络后没有独立的物理时间轴，也没有对时间做 FFT/attention；当前历史长度实质上是 1。
 
 ### 6.2 扩散时间
@@ -354,14 +357,15 @@ patch_size      = [2, 2, 2]
 ### 9.1 训练前处理
 
 1. 固定随机种子 123，选择 CUDA/CPU，见 `trainer.py:26-34`；
-2. 载入 NPY 并截取前 20 个 case、前 3 个变量、前 200 个时间索引，见 `trainer.py:54,74-85`；
-3. 构造相邻帧样本并随机 80/20 划分，见 `trainer.py:83-90`；
-4. 仅从 train 输入帧计算每变量 min/max 和整体标准差 `sigma`，见 `trainer.py:105-127`；
-5. 构造 IAFNO、EDM、Adam 和 CosineAnnealingLR，见 `trainer.py:139-168`。
+2. 载入 NPY 并截取前 20 个 case、前 3 个变量、前 200 个时间索引，见 `trainer.py:54,77-88`；
+3. 构造相邻帧样本并随机 80/20 划分，见 `trainer.py:86-93`；
+4. 仅从 train 输入帧计算每变量 min/max 和整体标准差 `sigma`，见 `trainer.py:108-130`；
+5. 构造 IAFNO、EDM、Adam 和 CosineAnnealingLR，见 `trainer.py:142-171`；
+6. `checkpoint_path` 非空时加载 checkpoint，见 `trainer.py:173-174`。
 
 ### 9.2 训练循环
 
-`trainer.py:180-204`：
+`trainer.py:186-210`：
 
 - 输入与目标都做 per-variable min-max 归一化；
 - 调整成 `[B, C, X, Y, Z]`；
@@ -375,28 +379,29 @@ patch_size      = [2, 2, 2]
 
 ### 9.4 测试循环
 
-`trainer.py:206-235`：
+`trainer.py:212-241`：
 
 - 使用 `model.sample(xx)` 完成 32 步扩散采样；
 - 计算归一化空间中的 `LpLoss`；
 - 反归一化后再次计算 `LpLoss`；
 - 每轮把 checkpoint 写入新文件。
 
-注意：变量名 `mse_test` 和 `mse_real` 不准确。这里使用的是 `utilities3.py:189-204` 的相对 L2 loss，不是 MSE。
+注意：变量名 `mse_test` 和 `mse_real` 不准确。这里使用的是 `utilities3.py:202-217` 的相对 L2 loss，不是 MSE。
 
 ### 9.5 当前训练流程的源码级限制
 
 以下均由源码直接可见：
 
 - `scheduler` 被创建，但没有任何 `scheduler.step()`，学习率实际不会按 cosine schedule 更新；
-- `count` 先取真实时间长度，随后被硬编码覆盖为 200，见 `trainer.py:79-80`；
+- `count` 先取真实时间长度，随后被硬编码覆盖为 200，见 `trainer.py:82-83`；
 - min-max 除法没有 epsilon，常量变量会导致除零；
 - 归一化信息目录在保存前没有创建；
 - `pred` 的 `rearrange` 显式指定 `bs=batch_size`，最后一个不足 batch 的测试批次可能不满足该约束；
 - 每个 epoch 都保存完整权重，没有 best/last 策略；
 - `random_split` 未传入独立 generator，且只设置了 `torch.manual_seed`，结果在当前进程通常可复现，但数据切分仍不具有按时间或 case 隔离的科学含义；
-- `IAFNODiff.__init__` 在 block 构造时直接调用 `.cuda()`（`IAFNO.py:269-272`），所以尽管 `trainer.py` 声称支持 CPU，当前骨干实际上要求 CUDA；
-- `environment.yml` 包含 Linux 专用依赖和绝对 Linux prefix，不适合在当前 Windows 工作区原样创建。
+- 核心 IAFNO 的强制 `.cuda()` 与 padding 全局 device 依赖已经移除；`utilities3.py` 中遗留的 `.cuda()` 是 reader/normalizer 的可选便捷方法，不会在主流程中自动执行；
+- `environment.yml` 已无绝对 Linux prefix，但它没有声明 `xarray`，也没有给出安装 `torch==2.4.1+cu124` 所需的 wheel 来源；它与 `requirements-lock.txt` 仍不是完全等价的可复现环境；
+- `checkpoint_path` 虽把 optimizer/scheduler/scaler 传给加载器，但当前保存端只写 `model.state_dict()`，因此实际只能恢复模型权重，且不会恢复已完成 epoch。
 
 ## 10. 当前代码原本针对的数据与任务
 
@@ -420,8 +425,8 @@ patch_size      = [2, 2, 2]
 
 证据：
 
-- Dataset 只构造相邻帧 `t → t+1`，见 `trainer.py:83-90`；
-- 测试只调用一次 `model.sample(xx)`，见 `trainer.py:223`；
+- Dataset 只构造相邻帧 `t → t+1`，见 `trainer.py:86-93`；
+- 测试只调用一次 `model.sample(xx)`，见 `trainer.py:229`；
 - 预测 `pred` 没有追加到历史窗口，也没有再次作为下一步条件；
 - `diffusion.sample` 的多次循环是在同一个输出场上的扩散去噪步骤，不是多个物理时间步。
 
@@ -461,7 +466,7 @@ output:    [B, C_out,       X, Y, Z]
 | 文件 | 是否必须改 | 预计修改 |
 | --- | --- | --- |
 | `trainer.py` | 必须 | 用长度 22 的时间窗构造前 7/后 15；按 case 或连续时间块划分 train/val/test；把时间与变量展平到通道或保留明确时间轴；按任务设置变量、网格、mask、归一化和指标；加入独立 validation；实现 direct 输出 reshape 或 15 步 rollout；补 `scheduler.step()`；修正 batch 与保存逻辑。 |
-| `IAFNO.py` | 必须 | 将 `condition_channels`、`noisy_target_channels`、`out_channels` 分开；调整拼接后的 `Conv3d`、RMSNorm、time MLP 与 PatchEmbed 通道；按真实 2D/3D网格配置 `dim/dim_f/patch_size`；避免固定 `.cuda()` 和全局 `device`；必要时加入物理 lead-time 编码。 |
+| `IAFNO.py` | 必须 | 将 `condition_channels`、`noisy_target_channels`、`out_channels` 分开；调整拼接后的 `Conv3d`、RMSNorm、time MLP 与 PatchEmbed 通道；按真实 2D/3D 网格配置 `dim/dim_f/patch_size`；核心 device 绑定问题已修复；必要时再加入物理 lead-time 编码。 |
 | `diffusion.py` | 通常必须 | 将采样输出 shape 与 `target_channels` 绑定，而不是与条件通道混用；适配新的骨干条件接口；为 direct 方案输出 `15 × C_out`，或为 autoregressive 方案保持单帧并由 rollout 外层重复调用；不要使用当前不兼容的 `sample_using_dpmpp`。 |
 | `utilities3.py` | 视数据而定 | 现有工具可暂时复用；若存在 NaN/陆地 mask、面积权重或多变量尺度差异，应增加安全的 masked normalization 和任务指标。`LpLoss` 还需防止目标范数为零。 |
 | `README.md` | 实现后必须 | 写清四类数据的 schema、变量、单位、网格、7/15 窗口、训练命令、配置、checkpoint 与推理方式。 |
@@ -566,5 +571,5 @@ num_sample_steps
 4. 确认科学合理的 train/validation/test 时间边界与评价指标；
 5. 再设计统一 Dataset 接口与最小必要的 IAFNO/diffusion shape 改造。
 
-> [!done] 本轮边界
-> 本轮没有修改 `IAFNO.py`、`diffusion.py`、`trainer.py`、`utilities3.py`、`README.md` 或任何环境文件；只新增了本分析文档。
+> [!done] 分析边界
+> 初次源码分析只新增了本文档；后续同步提交修复了核心 device 管理并加入基础 checkpoint 加载和 CPU smoke test。本文档修订仅同步这些既有事实，不代表 7→15 改造已经开始。

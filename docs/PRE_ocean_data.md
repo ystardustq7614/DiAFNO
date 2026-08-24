@@ -20,10 +20,10 @@
 ```text
 /data/PRE_ocean_data/
 ├── READ.md                        # 数据集说明（标题写的是 GBA_ocean_data）
-├── metadata.json                  # 机器可读元数据（raw/ 下）
 ├── docs/
 │   └── data_dic.md                # 数据字典（描述与实测略有出入，见 §6）
 ├── raw/
+│   ├── metadata.json              # 机器可读元数据；检查脚本也兼容根目录同名文件
 │   ├── PRE-90921-V2.nc            # 静态网格文件（Gridpak，2016 年生成）
 │   └── dyn/
 │       └── coawst_avg_00001..10591.nc   # 逐日动态场，10591 个文件，2.6 TB
@@ -67,7 +67,7 @@
 
 ### 4.1 动态变量 `processed/dyn_var/`（实测核对）
 
-所有变量 float32，NaN 率与 rho 网格陆地比例（29.96%）一致。大文件用 mmap 读取。
+所有变量均为 float32。rho 网格变量的 NaN 率约 29.96%；位于交错 C 网格的原始 `u/v` 变量约为 30.7%。大文件用 mmap 读取。
 
 | 变量 | 形状 | 磁盘大小 | NaN% | min | max | mean | std |
 |---|---|---|---|---|---|---|---|
@@ -100,11 +100,12 @@
 | `lon_psi` / `lat_psi` | (399,440) | psi 点经纬度 |
 | `angle` / `f` / `pm` / `pn` | (400,441) | 旋转角 / 科氏参数 / 度量因子 |
 | `x_rho` `y_rho` `x_u` `y_u` `x_v` `y_v` | 对应网格 | 投影坐标 (m) |
-| `s_rho` / `Cs_r` | (30,) | sigma 层坐标与拉伸函数（-1..-0.983 / -0.999..-0.965） |
+| `s_rho` | (30,) | rho 点 sigma 坐标：约 -0.983（idx0，底层）到 -0.017（idx29，表层） |
+| `Cs_r` | (30,) | rho 点垂向拉伸函数；与 `s_rho` 含义不同，不能互相替代 |
 | `Cs_w` | (31,) | w 点拉伸函数（-1..0） |
 | `hc` / `Tcline` | () | 1.0 / 100.0（Vtransform=2 型坐标） |
 | `theta_s` / `theta_b` | () | 5.0 / 1.0（表层加密） |
-| `s_w` | (31,) | **文件损坏（空数组，无法读取）** |
+| `s_w` | (31,) | **processed 文件损坏（空数组，无法读取）**；应从原始 NetCDF 重新读取或按已核实的 ROMS 垂向参数重建 |
 | `meta` | object | 混杂对象数组，无法 mmap（可用 `allow_pickle=True` 读） |
 
 ### 4.3 海陆掩膜分析
@@ -121,10 +122,10 @@
 
 | 项目 | 模型要求 | PRE 数据现状 | 差距 |
 |---|---|---|---|
-| 数据形态 | 单个 .npy：`[trainset_num, nt, x, y, z, c]`，c=3 | 每变量独立 .npy：`[10591, s, η, ξ]` | 需重组、切片、选 3 通道 |
-| 网格 | 硬编码 64×66×32（`dim`），64×65×32（`dim_f`），patch 2³ | 400×441×30（sigma） | 需水平降到 64×65、垂直转成 32 层 |
-| 通道 | 3 通道（原为湍流 u,v,w） | processed 无 w；raw 有 `w`/`omega`(31 层) | 需选 (u,v,w)/(u,v,temp)/… |
-| 有效域 | 无掩膜周期盒 | 70% 湿点、陆地为 NaN | NaN 会污染 loss，需填 0 或裁剪 |
+| 数据形态 | 单个 .npy：`[trainset_num, nt, x, y, z, c]`，当前 c=3 | 每变量独立 .npy：`[10591, s, η, ξ]` | 需按任务重组和切片；Task A 选择 2 个目标通道 |
+| 网格 | 硬编码 64×66×32（`dim`），64×65×32（`dim_f`），patch 2³ | 400×441×30（sigma） | 应先按任务决定表层 2D、完整 3D 或空间 patch；不能默认把 30 层插值成 32 层，也不能在未验证物理影响时直接降到 64×65 |
+| 通道 | 3 通道（原为湍流 u,v,w） | Task A 明确预测 u/v；推荐使用同一 rho 网格上的 `u_eastward/v_northward` | 目标通道应参数化为 2，不应为迎合原模型虚构第三个变量 |
+| 有效域 | 无掩膜周期盒 | 约 70% 湿点、陆地为 NaN | 可在归一化后将无效点填 0，但必须保留 mask，并在统计、loss 和评价指标中排除陆地；仅填 0 不足以解决问题 |
 | 内存 | 单文件小、`count`≤200 | 单个 3D 变量 209 GiB 无法整体加载 | 需 mmap 分块或先构建子集 |
 | 轨迹 | 多轨迹（bs×nt） | 单条 10591 天连续轨迹 | 需按段切块构造样本 |
 
@@ -186,7 +187,7 @@
 
 ## 7. 已知问题 / 与文档不符处
 
-1. **`s_w.npy` 损坏**：128 字节、数组为 0 个元素，`np.load` 报 "cannot reshape array of size 0 into shape (31,)"。w 层坐标可从 `Cs_w.npy`(31 元素) 代替。
+1. **`s_w.npy` 损坏**：128 字节、数组为 0 个元素，`np.load` 报 "cannot reshape array of size 0 into shape (31,)"。`Cs_w` 是拉伸函数，不是 `s_w` 坐标，不能直接替代；应优先从任一原始 NetCDF 读取 `s_w`，必要时再依据已核实的 ROMS 垂向参数重建。
 2. **`meta.npy` 为 object 数组**：无法 mmap，需 `allow_pickle=True`；用途待确认（疑为导出时残留）。
 3. **`docs/data_dic.md` 中示例路径写的是 `/data0/GBA_ocean_data`**，与当前 `/data/PRE_ocean_data` 不符，且提及 lat/lon 文件名（`lat_rho.npy`/`lon_rho.npy`）与 `lon_lat_interpolation.py` 输出名（`lat.npy`/`lon.npy`）不一致——以实测 `lon_rho.npy`/`lat_rho.npy` 为准。
 4. **`rho` 存在负值、`u` 存在 7.0 m/s 量级极值**：可能为近岸/边界奇异点，统计和归一化时应关注。

@@ -1,12 +1,13 @@
 # AGENTS.md
 
-Research code (no tests, no lint config, no CI) for DiAFNO: IAFNO (Fourier-neural-operator backbone) + Elucidated diffusion model for autoregressive 3D turbulence prediction. This fork is being adapted for weather/ocean data (branch `adapt-weather-ocean`).
+Research code (one CPU smoke test, no lint config, no CI) for DiAFNO: IAFNO (Fourier-neural-operator backbone) + Elucidated diffusion model for autoregressive 3D turbulence prediction. This fork is being adapted for weather/ocean data (branch `adapt-weather-ocean`).
 
 ## Environment & run
 
-- Use the conda env `diafno` (Python 3.10, torch 2.4.1+cu124, AMP supported). Machine has 4x RTX 4090.
+- The server target is the conda env `diafno` (Python 3.10, torch 2.4.1+cu124, AMP supported) on a machine with 4x RTX 4090. A local environment may be CPU-only; verify with `torch.__version__` and `torch.cuda.is_available()` before interpreting test results.
 - Training entrypoint is `trainer.py` (run with `python trainer.py` from repo root — it is a script, not a package).
-- Verification = run a short training (`trainset_num`/`count` hyperparameters scale data size; `count` is capped at 200 by default "for fast testing").
+- Run `python smoke_test.py` for the minimal CPU device/checkpoint check. Full verification still requires a short training (`trainset_num`/`count` scale data size; `count` is capped at 200 by default "for fast testing").
+- `environment.yml` is a minimal environment description, not an exact CUDA lock: `requirements-lock.txt` records the server snapshot, including `torch==2.4.1+cu124` and `xarray`.
 
 ## trainer.py is a template — edit placeholders before running
 
@@ -26,8 +27,9 @@ These strings must be replaced or the run crashes/fails silently:
 - `diffusion.py`: EDM (`ElucidatedDiffusion`) — training loss in `forward()`, inference via `sample()` (Heun sampler); do not "fix" the commented-out self-conditioning code, it is intentionally disabled.
 - `IAFNO.py`: AFNO token mixer (FFT-based) + patch embedding. Grid is 64x65x32; y-axis is zero-padded to 66 for even patching (`dim` vs `dim_f`).
 - `utilities3.py`: shared FNO utilities (`LpLoss`, `count_params`, normalizers).
-- IAFNO.py and utilities3.py are hardcoded to CUDA (`.cuda()` calls, global `device`) — CPU-only runs will fail.
+- Core IAFNO device handling follows the model/input device; the constructor no longer forces `.cuda()`, and padding uses `x.new_zeros`. The legacy reader/normalizer helper methods in `utilities3.py` still expose optional `.cuda()` convenience methods, but they are not called by the main training path.
 - `loss.dat` (train/test/real loss per epoch) is written to the CWD; checkpoints are `test_Ep{n}.pth` per epoch (`.gitignore`d).
+- `checkpoint_path` can load a model state dict. Current saves contain only `model.state_dict()`, so optimizer/scheduler/scaler state and the completed epoch are not resumed.
 
 ## Conventions
 
