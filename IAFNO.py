@@ -268,7 +268,7 @@ class IAFNODiff(nn.Module):
 
         self.blocks = nn.ModuleList([
             Block(
-                nlayer, dim, patch_size, embed_dim, hidden_size_factor, num_blocks, in_chans).cuda()
+                nlayer, dim, patch_size, embed_dim, hidden_size_factor, num_blocks, in_chans)
             for i in range(self.ex_layer)])
 
         self.norm = norm_layer(embed_dim)
@@ -335,14 +335,14 @@ class IAFNODiff(nn.Module):
         ##### considering patch size [2,2,2] and input shape [x=64,y=65,z=32], we add a zero-information padding in y-axis to provide a smoother patching
         ##### in other words: dim_f:[64,65,32] --> dim:[64,66,32] 
         if (self.dim_f[0]!=self.dim[0]):
-            pad = torch.zeros(x.shape[0], 1, x.shape[2], x.shape[3], x.shape[4]).to(device)
-            x = torch.cat((x, pad), 1).to(device)
+            pad = x.new_zeros(x.shape[0], 1, x.shape[2], x.shape[3], x.shape[4])
+            x = torch.cat((x, pad), 1)
         if (self.dim_f[1]!=self.dim[1]):
-            pad = torch.zeros(x.shape[0], x.shape[1], 1, x.shape[3], x.shape[4]).to(device)
-            x = torch.cat((x, pad), 2).to(device)
+            pad = x.new_zeros(x.shape[0], x.shape[1], 1, x.shape[3], x.shape[4])
+            x = torch.cat((x, pad), 2)
         if (self.dim_f[2]!=self.dim[2]):
-            pad = torch.zeros(x.shape[0], x.shape[1], x.shape[2], 1, x.shape[4]).to(device)
-            x = torch.cat((x, pad), 3).to(device)
+            pad = x.new_zeros(x.shape[0], x.shape[1], x.shape[2], 1, x.shape[4])
+            x = torch.cat((x, pad), 3)
         
         x = self.forward_features(x)
         x = self.head(x)

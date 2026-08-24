@@ -69,6 +69,9 @@ sampling_steps = 32
 
 hidden_size_factor = 4
 
+# Set to a .pth file to resume; None preserves training from scratch.
+checkpoint_path = None
+
 ########## DATA Loader ##########
 
 data = np.load('your dataset')
@@ -166,6 +169,9 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=0)
 
 # Learning rate scheduler (Cosine Annealing)
 scheduler = CosineAnnealingLR(optimizer, T_max= num_epochs * len(train_loader) )  # Adjust T_max as needed
+
+if checkpoint_path is not None:
+    load_checkpoint(checkpoint_path, model, optimizer, scheduler, scaler, map_location=device)
 
 mse_train = []
 mse_test = []

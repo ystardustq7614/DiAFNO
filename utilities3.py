@@ -13,7 +13,20 @@ from functools import partial
 # Utilities
 #
 #################################################
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def load_checkpoint(path, model, optimizer=None, scheduler=None, scaler=None, map_location=None):
+    """Restore a checkpoint on the caller-selected device."""
+    checkpoint = torch.load(path, map_location=map_location)
+    model.load_state_dict(checkpoint.get('model_state_dict', checkpoint))
+
+    if optimizer is not None and 'optimizer_state_dict' in checkpoint:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    if scheduler is not None and 'scheduler_state_dict' in checkpoint:
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    if scaler is not None and 'scaler_state_dict' in checkpoint:
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+
+    return checkpoint
 
 # reading data
 class MatReader(object):
