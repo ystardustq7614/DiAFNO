@@ -1,26 +1,28 @@
 ---
-title: DiAFNO 源码分析与“前 7 帧 → 后 15 帧”改造评估
+title: DiAFNO 适配 PRE_ocean_data 的“前 7 天 → 后 15 天”预测评估
 aliases:
-  - DiAFNO 核心代码分析
-  - DiAFNO 7 帧到 15 帧改造评估
+  - DiAFNO PRE 海流预测源码分析
+  - PRE_ocean_data 7 天到 15 天改造评估
 tags:
   - DiAFNO
   - IAFNO
   - diffusion
-  - spatiotemporal-forecasting
-status: source-review
+  - PRE_ocean_data
+  - ocean-current-forecasting
+status: pre-implementation-plan
 date: 2026-08-23
+updated: 2026-08-24
 ---
 
-# DiAFNO 源码分析与“前 7 帧 → 后 15 帧”改造评估
+# DiAFNO 适配 PRE_ocean_data 的“前 7 天 → 后 15 天”预测评估
 
 > [!abstract] 结论先行
-> 当前仓库是一个面向三维湍流体数据的、条件式单步扩散预测原型。原始数组按 `[case, time, x, y, z, variable]` 使用；当前配置从每个时刻构造 `t → t+1` 样本，模型内部张量为 `[batch, channel, x, y, z] = [B, 3, 64, 65, 32]`。`IAFNODiff` 是扩散去噪网络，AFNO 只在三个空间维度做频域混合；`ElucidatedDiffusion` 负责给目标场加噪、预条件去噪和迭代采样。README 描述了 autoregressive framework，但当前 `trainer.py` 没有把预测帧回灌到下一步，因此仓库代码本身只实现了单步预测，不包含完整的 autoregressive rollout。
+> 本文只讨论一个任务：使用 PRE_ocean_data 的连续 7 个日平均流场预测未来 15 天的 `u_eastward`、`v_northward`。不覆盖其他数据集，也不设计多数据集通用框架。
 >
-> 仅把 `InferenceWidth` 改为 `7` 或 `15` 不会得到“前 7 帧 → 后 15 帧”：当前数据集永远只取窗口的第 0、1 帧，而且骨干网络假定条件通道数与目标通道数相同。改造前必须确定是一次性生成 15 帧，还是训练单步模型并自回归滚动 15 次。
+> 当前仓库是面向三维湍流数据的条件式单步扩散预测原型，只实现 `t → t+1`，没有完整的 autoregressive rollout。针对 PRE，本报告选择“7 天条件的单步模型 + 自回归滚动 15 次”作为第一版路线：输入条件通道为 `7 × 2 = 14`，每步目标通道为 2。仅修改 `InferenceWidth` 不足以完成任务，数据窗口、条件/目标通道、海陆 mask、归一化、空间网格和评估流程都需要适配。
 
 > [!note] 2026-08-24 同步后状态
-> 本报告首次完成后，分支已移除 `IAFNODiff` 构造和 padding 中的强制 CUDA 绑定，新增 `load_checkpoint`、`checkpoint_path` 与 `smoke_test.py`。这些变更解决了核心模型的 CPU/device 冒烟问题，但没有改变上述单步任务定义，也没有实现 7→15 数据管线或 rollout。下文已按当前源码修正相关描述。
+> 本报告首次完成后，分支已移除 `IAFNODiff` 构造和 padding 中的强制 CUDA 绑定，新增 `load_checkpoint`、`checkpoint_path` 与 `smoke_test.py`。这些变更解决了核心模型的 CPU/device 冒烟问题，但尚未实现 PRE 数据管线或 7→15 rollout。本文是实施前的任务收敛文档，不表示代码改造已经完成。
 
 ## 0. 分析范围与结论标记
 
@@ -32,13 +34,14 @@ date: 2026-08-23
 - `utilities3.py`：322 行；
 - `README.md`：29 行。
 
-同时检查了 `requirements-lock.txt` 与 `environment.yml`。当前已有 CPU smoke test，但没有执行真实数据训练；训练路径和数据路径仍是占位字符串，环境安装也不能补足缺失的数据语义。
+同时检查了 `requirements-lock.txt`、`environment.yml` 和 `docs/PRE_ocean_data.md`。当前已有 CPU smoke test，但没有执行真实 PRE 数据训练；训练路径和数据路径仍是占位字符串。
 
 下文使用三种标记：
 
 - **源码确认**：代码可直接证明；
 - **README 确认**：项目说明明确陈述；
-- **待数据确认**：源码和 README 都不能确定，必须检查真实文件、元数据或实验定义。
+- **PRE 文档确认**：由当前仓库的 `docs/PRE_ocean_data.md` 确认；
+- **待确认**：现有源码和数据说明都不能决定，必须由实验要求或真实样例确认。
 
 ## 1. 文件作用与调用关系
 
@@ -350,7 +353,7 @@ patch_size      = [2, 2, 2]
 - 构造历史 7 帧窗口；
 - 生成物理 lead-time 编码；
 - 把输出回灌形成 autoregressive rollout；
-- 处理不同数据源的坐标、mask 或变量。
+- 处理 PRE 曲线网格的坐标、海陆 mask 或变量。
 
 ## 9. `trainer.py` 的训练、验证、测试流程
 
@@ -432,144 +435,174 @@ patch_size      = [2, 2, 2]
 
 README 的论文级描述确实宣称 autoregressive framework，但该仓库版本没有把 rollout 循环放进 `trainer.py` 或其他文件。当前模型可以作为 autoregressive rollout 的单步算子，但“可以被外部重复调用”不等于“当前代码已经实现”。
 
-## 12. 改为“前 7 帧 → 后 15 帧”预计要改哪些文件与参数
+## 12. PRE_ocean_data 任务定义
 
-### 12.1 必须先确定的两种预测定义
+### 12.1 固定范围
 
-设每帧输入变量数为 `C_in`，目标变量数为 `C_out`。
-
-#### 方案 A：一次性直接生成未来 15 帧
+第一版只完成以下任务：
 
 ```text
-condition: [B, 7 × C_in,  X, Y, Z]
-target:    [B, 15 × C_out, X, Y, Z]
-output:    [B, 15 × C_out, X, Y, Z]
+数据集：PRE_ocean_data
+时间分辨率：日平均，frame_stride = 1 天
+输入：连续 7 天的 u_eastward、v_northward
+输出：随后 15 天的 u_eastward、v_northward
+预测方式：单步条件扩散模型，自回归滚动 15 次
+空间范围：PRE 固定区域网格
 ```
 
-优点是一次采样给出完整 15 帧，不产生逐步回灌误差；缺点是输出通道大、显存和建模难度更高，且必须明确地把通道恢复成 `[B, 15, X, Y, Z, C_out]`。
+选择 `u_eastward`、`v_northward`，而不是 ROMS 原始交错网格上的 `u`、`v`。前两者已经旋转到东西/南北方向并插值到相同的 rho 网格，shape 均为 `[10591, 30, 400, 441]`，便于作为两个对齐通道建模。
 
-#### 方案 B：7 帧条件的单步模型，自回归滚动 15 次
+当前推荐的最小可行任务是**表层流速预测**：使用垂向索引 29（资料说明索引 0 为底层、29 为表层）。这样每帧是 `[2, 400, 441]`。如果导师要求预测全部 30 层，这将成为三维海流预测任务，输入规模、输出规模、mask 和模型空间轴都需重新评估，不能作为同一配置静默切换。
+
+> [!warning] 实施前唯一需要确认的任务边界
+> “预测 `u, v`”是否明确指表层 `u_eastward/v_northward`。本文后续 shape、显存与实施路线均以表层两通道为默认；全 30 层不在当前最小版本范围内。
+
+### 12.2 选定 autoregressive 路线
+
+每个训练样本使用过去 7 天预测下一天：
 
 ```text
-condition: [B, 7 × C_in, X, Y, Z]
-target:    [B, C_out,       X, Y, Z]
-output:    [B, C_out,       X, Y, Z]
+history: [B, 7, 2, H, W]
+condition after flatten: [B, 14, H, W]
+target: [B, 2, H, W]
 ```
 
-每得到一帧，就丢弃最旧帧并把预测加入上下文，重复 15 次。它更贴近 README 的 autoregressive 表述，但需要评估误差积累，训练时还要决定是否只做 teacher forcing，或增加 rollout loss/curriculum。
+推理时重复以下操作 15 次：
+
+1. 用当前 7 帧历史预测下一帧；
+2. 移除最旧帧；
+3. 把预测帧追加到历史末尾；
+4. 保存该 lead time 的结果。
+
+最终预测 shape 为 `[B, 15, 2, H, W]`。这条路线保留了原论文/README 的自回归思想，单次生成目标仍是两通道，比一次性生成 `15 × 2 = 30` 个目标通道更接近现有代码。代价是会累积 rollout 误差，因此指标必须分别报告第 1～15 天，而不能只给一个总体平均值。
+
+第一版训练先采用单步 teacher forcing；只有在单步和 rollout 基线可运行后，再判断是否需要多步 loss、scheduled sampling 或 curriculum。当前阶段不预先加入这些复杂机制。
 
 > [!important] 为什么不能只改一个参数
-> `IAFNODiff` 当前假设加噪目标和条件各有 `in_chans` 个通道，然后直接拼接成 `2 × in_chans`。无论方案 A 还是 B，7 帧条件的通道数通常都不等于目标通道数，因此必须把 `condition_channels` 与 `target_channels` 分开建模。
+> `IAFNODiff` 当前假设加噪目标和条件各有 `in_chans` 个通道，再拼接为 `2 × in_chans`。PRE 任务的条件是 14 通道，目标只有 2 通道，因此必须把 `condition_channels`、`target_channels` 和 `out_channels` 分开。
 
-### 12.2 各文件的预计修改范围
+### 12.3 数据窗口和时间切分
 
-| 文件 | 是否必须改 | 预计修改 |
+PRE 时间范围为 1994-01-01T12 至 2022-12-30T12，共 10591 个连续日平均时刻。数据窗口必须在时间切分之后分别生成，不能先生成高度重叠的窗口再 `random_split`，否则相邻日期会跨集合泄漏。
+
+建议首轮实验使用连续年份切分：
+
+| 集合 | 建议时间范围 | 用途 |
 | --- | --- | --- |
-| `trainer.py` | 必须 | 用长度 22 的时间窗构造前 7/后 15；按 case 或连续时间块划分 train/val/test；把时间与变量展平到通道或保留明确时间轴；按任务设置变量、网格、mask、归一化和指标；加入独立 validation；实现 direct 输出 reshape 或 15 步 rollout；补 `scheduler.step()`；修正 batch 与保存逻辑。 |
-| `IAFNO.py` | 必须 | 将 `condition_channels`、`noisy_target_channels`、`out_channels` 分开；调整拼接后的 `Conv3d`、RMSNorm、time MLP 与 PatchEmbed 通道；按真实 2D/3D 网格配置 `dim/dim_f/patch_size`；核心 device 绑定问题已修复；必要时再加入物理 lead-time 编码。 |
-| `diffusion.py` | 通常必须 | 将采样输出 shape 与 `target_channels` 绑定，而不是与条件通道混用；适配新的骨干条件接口；为 direct 方案输出 `15 × C_out`，或为 autoregressive 方案保持单帧并由 rollout 外层重复调用；不要使用当前不兼容的 `sample_using_dpmpp`。 |
-| `utilities3.py` | 视数据而定 | 现有工具可暂时复用；若存在 NaN/陆地 mask、面积权重或多变量尺度差异，应增加安全的 masked normalization 和任务指标。`LpLoss` 还需防止目标范数为零。 |
-| `README.md` | 实现后必须 | 写清四类数据的 schema、变量、单位、网格、7/15 窗口、训练命令、配置、checkpoint 与推理方式。 |
-| 新的 dataset/config 文件 | 推荐但非强制 | 四类数据若格式不同，建议把读取与窗口化从 `trainer.py` 抽到一个数据模块，并用一个小型配置描述任务；在真实差异确认前不应预先搭建复杂继承体系。 |
+| train | 1994-01-01 至 2016-12-31 | 训练模型、计算归一化统计量 |
+| validation | 2017-01-01 至 2019-12-31 | 选 checkpoint 和超参数 |
+| test | 2020-01-01 至 2022-12-30 | 最终 15 天 rollout 评估 |
 
-### 12.3 需要参数化的核心项
+这是实施建议，不是数据集官方划分。若导师已有规定，应替换边界，但仍必须保持按连续时间切分。
+
+训练一个单步样本至少需要连续 8 帧；一次完整 15 天评估样本需要连续 22 帧。窗口只能在各自 split 内部构造，不得跨越边界。PRE 文档记录时间连续、无缺失日，但数据加载时仍应断言时间差为 1 天，防止文件遗漏或排序错误。
+
+### 12.4 数据 shape 与加载约定
+
+以表层任务为准，建议 Dataset 的外部接口保持清晰的时间轴：
+
+```text
+stored variable: [T, depth=30, H=400, W=441]
+surface pair:    [T, variable=2, H=400, W=441]
+history:         [7, 2, 400, 441]
+next target:     [2, 400, 441]
+rollout target:  [15, 2, 400, 441]
+mask_rho:        [400, 441]
+```
+
+只有进入模型前才把 `[7, 2]` 展平为 14 个条件通道，评估和可视化时保留时间、变量轴。这样可以避免把“第几天”和“哪个速度分量”混在难以追踪的通道索引中。
+
+处理后数据约 1.5 TB，不能整体载入内存。Dataset 应按索引读取或使用内存映射/分块存储，只取当前窗口、表层索引和两个目标变量。第一版不需要建设多数据集抽象层，只需一个专用 PRE Dataset。
+
+### 12.5 海陆 mask、NaN 与归一化
+
+`u_eastward`、`v_northward` 的陆地区域为 NaN，约占网格的 29.96%；`mask_rho` 中 1 表示海洋、0 表示陆地。不能直接把含 NaN 的数组送入 loss 或归一化器。
+
+建议处理顺序：
+
+1. 读取 `mask_rho`，并检查它与速度变量后两维完全一致；
+2. 只使用 train 时间段、仅在海洋点上分别计算 `u_eastward` 和 `v_northward` 的统计量；
+3. 第一版沿用扩散代码的数值假设，将两个变量分别归一化到 `[0, 1]`；
+4. 归一化后把陆地点填为 0，但同时保留 mask，不能把填充值当成真实海流；
+5. 训练 loss、验证指标和测试指标只在海洋点上计算；
+6. 保存统计量并在 validation/test/inference 中复用，禁止用测试集重新拟合。
+
+现有 `diffusion.py` 的 loss 不接收 mask，这属于必改接口。仅用 `nan_to_num` 消除 NaN 而不做 masked loss，会让大片陆地零值主导优化结果。
+
+### 12.6 PRE 网格对 IAFNO 的影响
+
+PRE rho 网格为 `400 × 441` 的区域曲线正交网格，约覆盖 112.315°E～115.678°E、20.896°N～23.028°N；两个方向网格尺度约 0.76 km 和 0.41 km。它不是普通等距笛卡尔周期网格。
+
+如果先做表层任务，最小代码迁移可以暂时保留现有 `Conv3d/FFT3d` 骨干并增加 singleton 轴：
+
+```text
+[B, C, H, W] → [B, C, H, W, 1]
+```
+
+此时 z 方向 `patch_size` 必须设为 1。是否改写为真正的 `Conv2d/FFT2d`，应由首次显存、速度和正确性测试决定；当前不同时维护 2D、3D 两套骨干。
+
+还需要注意三点：
+
+- `400 × 441` 远大于原型的 `64 × 65 × 32`，不能假定原 batch size、embedding 维度和 patch 配置可直接运行；
+- 441 可能不能被候选 patch size 整除，padding/cropping 必须显式记录并在输出时恢复原网格；
+- AFNO 对空间轴做 FFT，但 PRE 两个区域边界都不是天然周期边界，海岸线也不连续。边界伪影和跨陆地频域混合需要通过可视化、mask 指标和基线比较验证。
+
+`lon_rho`、`lat_rho`、`h` 和 `mask_rho` 都是可用静态场。第一版只把 mask 作为 loss/metric 必需信息；经纬度和水深是否加入条件通道，应在基础模型跑通后通过消融实验决定。
+
+## 13. 预计代码修改范围（本轮不实施）
+
+| 文件 | 是否必须改 | PRE 专用修改 |
+| --- | --- | --- |
+| `trainer.py` | 必须 | 替换占位 NPY 读取；先按连续时间切分，再构造 7 天条件/单步目标；加入 validation；实现 15 步 rollout；按 lead day 保存指标；补 `scheduler.step()` 和可靠的 checkpoint 选择。 |
+| `IAFNO.py` | 必须 | 分离 14 个条件通道与 2 个目标/输出通道；适配 `400 × 441 × 1` 及 z 向 patch size 1；根据显存测试缩放网络。 |
+| `diffusion.py` | 必须 | 采样初始噪声和输出 shape 绑定 2 个目标通道；适配新的条件接口；让训练 loss 接收并正确广播 ocean mask。 |
+| `utilities3.py` | 需要 | 提供只基于 train 海洋点的双变量归一化和 masked RMSE/MAE；修正零范数安全性。 |
+| `pre_dataset.py`（新） | 推荐 | 专门封装 PRE 的按需读取、表层选择、7/15 窗口和时间连续性检查。保持单一实现，不建立通用数据集继承体系。 |
+| `README.md` | 实现后必须 | 只记录 PRE 任务定义、目录/变量约定、时间切分、训练/推理命令、checkpoint 和指标复现方式。 |
+
+建议核心配置明确命名为：
 
 ```text
 context_frames = 7
 forecast_frames = 15
-input_variables
-target_variables
-condition_channels = 7 × C_in
-target_channels = C_out 或 15 × C_out
-spatial_shape
-patch_size
-sample_interval / lead_time
-train/val/test split boundaries
-normalization statistics and masks
-sigma_data
-num_sample_steps
+frame_stride = 1
+input_variables = [u_eastward, v_northward]
+target_variables = [u_eastward, v_northward]
+depth_index = 29
+condition_channels = 14
+target_channels = 2
+spatial_shape = [400, 441, 1]
+ocean_mask = mask_rho
 ```
 
-`InferenceWidth` 和 `InitialInterval` 当前语义与实现不一致，建议实现时换成明确的 `context_frames`、`forecast_frames`、`frame_stride` 或等价配置，不能继续让一个参数同时暗示窗口宽度、通道数和预测跨度。
+`InferenceWidth` 和 `InitialInterval` 当前语义与实现不一致。实现时应替换为上述明确配置，不能继续让一个参数同时暗示窗口宽度、通道数和预测跨度。
 
-### 12.4 四项任务的条件通道估算
+## 14. PRE 专用评估方案
 
-以下只计算用户已经明确的变量定义；带问号的行不能由源码确定。
+最低限度应包含一个不训练的 persistence baseline：把输入第 7 天的流场重复 15 次。模型若不能稳定优于该基线，不应继续增加架构复杂度。
 
-| 任务 | 已知/待确认变量 | 7 帧条件通道 | direct 15 帧目标通道 | autoregressive 单帧目标通道 |
-| --- | --- | ---: | ---: | ---: |
-| PRE | `u, v` | 14 | 30 | 2 |
-| OSTIA | `SST` | 7 | 15 | 1 |
-| Copernicus | 若为 `uo, vo`：14；若为速度标量：7 | 14 或 7 | 30 或 15 | 2 或 1 |
-| ERA5 | 若为风速标量：7；若为 `u, v` 分量：14 | 7 或 14 | 15 或 30 | 1 或 2 |
+所有指标都只在 `mask_rho == 1` 的位置计算，并逐 lead day 报告：
 
-若输入还包含静态场、海陆 mask、经纬度、深度、气压层或其他驱动变量，`C_in` 会进一步增加。
+- `u_eastward` 的 RMSE、MAE；
+- `v_northward` 的 RMSE、MAE；
+- 二维速度矢量误差 `sqrt((u_pred-u_true)^2 + (v_pred-v_true)^2)`；
+- 可选的流速大小误差；
+- 第 1、3、5、7、10、15 天的真值/预测/误差空间图。
 
-### 12.5 二维天气/海洋场与当前三维网络
+扩散采样具有随机性。首次联调可固定随机种子保证可重复；正式结果至少记录采样步数、随机种子和 checkpoint。多成员 ensemble 属于后续实验，不是第一版跑通条件。
 
-当前骨干固定使用 `Conv3d` 和三维 FFT。若某数据集实际上是二维经纬度表面场，最小可行适配是增加 singleton 轴：
+## 15. 开始改代码前的只读验收清单
 
-```text
-[B, C, latitude, longitude] → [B, C, latitude, longitude, 1]
-```
+服务器可用后，按以下顺序检查真实 PRE 文件：
 
-并把 z 方向 `patch_size` 改为 1。只有在确认四项任务长期都为二维、且三维壳层带来明显维护或计算负担时，才值得另写 `Conv2d/FFT2d` 版本。
+1. 确认 `u_eastward`、`v_northward`、`mask_rho` 的真实文件名、路径、dtype 和 shape；
+2. 抽查索引 29 确为海表层，并向导师确认任务是否只预测表层；
+3. 验证时间轴有 10591 个日平均时刻、严格递增且无断日；
+4. 验证两个速度变量都在 rho 网格上，NaN 分布与 `mask_rho == 0` 一致；
+5. 统计 train 时段海洋点的范围、均值、标准差和异常值；
+6. 用少量连续窗口验证 Dataset 输出的 history/target 日期与 shape；
+7. 先跑 persistence baseline，再进行最小 batch 的前向、loss、反向和 15 步 rollout；
+8. 根据显存实测决定全网格训练、空间 patch 训练或模型缩小方案。
 
-不过，全球经纬网格只有经度方向天然周期，纬度方向不是普通周期边界。当前 AFNO 对所有空间轴做 FFT，且 padding 用零值；是否会造成极区、海岸线和边界伪影，需要结合真实网格、mask 与实验验证，源码无法回答。
-
-## 13. 仅通过源码无法确定、必须检查真实数据的信息
-
-### 13.1 所有数据集都必须确认
-
-- 实际文件格式：NPY、NetCDF、Zarr、HDF5 或其他；
-- 每个文件和变量的精确 shape、维度顺序、dtype、时间长度；
-- 时间分辨率、是否有缺测时刻，以及“未来 15 帧”对应的真实预报时长；
-- 网格分辨率、坐标顺序、经度范围、纬度方向、是否规则网格；
-- 是否为二维表面场、三维深度/高度场，或包含多个 pressure/depth level；
-- 变量名、单位、缩放因子、offset、异常值编码；
-- NaN、陆地、海冰、海岸和无效区域 mask；
-- train/validation/test 应按年份、事件、轨迹还是空间区域划分；
-- 是否允许输入与目标使用相同变量，是否需要外生变量或静态特征；
-- 评价指标：逐变量 RMSE/MAE、ACC、谱误差、海洋面积加权、纬度面积加权、矢量方向误差等；
-- 归一化应按变量、层、网格点、季节还是全局统计；
-- 数据许可证与预处理版本是否允许四项任务统一比较。
-
-### 13.2 各任务的关键未知项
-
-#### PRE
-
-- `PRE` 数据源的完整名称和网格定义；
-- `u/v` 是表面流、风场还是其他速度分量；
-- 是否存在深度/高度层、mask 和周期边界。
-
-#### OSTIA
-
-- 使用 foundation SST、analysis SST 还是 anomaly；
-- 海冰与陆地 mask 如何处理；
-- 日频或其他频率，以及是否包含经纬度面积权重。
-
-#### Copernicus
-
-- 具体产品 ID 与版本；
-- “全球流速场”是标量速度还是 `uo/vo` 矢量；
-- 表层还是多深度层；
-- 网格、时间频率、海陆 mask 和极区覆盖。
-
-#### ERA5
-
-- “风速”是由 `u10/v10` 计算的标量，还是直接预测两个分量；
-- 使用 10 m 风、单层风，还是多气压层风；
-- 小时/日平均频率、经纬分辨率、周期与极点处理。
-
-## 14. 建议的下一轮检查顺序
-
-在开始修改代码前，最少需要为四类数据各提供一个可读取的样例文件及变量说明。建议按以下顺序做只读检查：
-
-1. 打印每类数据的维度、坐标、变量、dtype、单位、缺失比例和时间间隔；
-2. 明确 direct 15-frame 与 autoregressive 15-step 二选一；
-3. 确认四任务的 `C_in/C_out` 和二维/三维形式；
-4. 确认科学合理的 train/validation/test 时间边界与评价指标；
-5. 再设计统一 Dataset 接口与最小必要的 IAFNO/diffusion shape 改造。
-
-> [!done] 分析边界
-> 初次源码分析只新增了本文档；后续同步提交修复了核心 device 管理并加入基础 checkpoint 加载和 CPU smoke test。本文档修订仅同步这些既有事实，不代表 7→15 改造已经开始。
+> [!done] 当前结论
+> 任务已经收敛为 PRE_ocean_data 的日平均表层 `u_eastward/v_northward` 预测，推荐实现路线为“7 天条件单步模型 + 15 步自回归 rollout”。本次只修订分析文档，没有修改任何 Python 代码，也没有宣称模型已在真实数据上运行。
