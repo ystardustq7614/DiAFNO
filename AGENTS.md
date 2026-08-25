@@ -24,8 +24,17 @@ These strings must be replaced or the run crashes/fails silently:
 
 ## Architecture notes
 
-- `diffusion.py`: EDM (`ElucidatedDiffusion`) — training loss in `forward()`, inference via `sample()` (Heun sampler); do not "fix" the commented-out self-conditioning code, it is intentionally disabled.
-- `IAFNO.py`: AFNO token mixer (FFT-based) + patch embedding. Grid is 64x65x32; y-axis is zero-padded to 66 for even patching (`dim` vs `dim_f`).
+- `diffusion.py`: EDM (`ElucidatedDiffusion`) — training loss in `forward()`, inference via `sample()` (Heun sampler); do not "fix" the commented-out self-conditioning code, it is intentionally disabled. `forward(images, self_cond, mask=None)` accepts an optional broadcastable ocean mask (1=valid); when given, the denoising MSE is a per-sample mean over valid elements only.
+- `IAFNO.py`: AFNO token mixer (FFT-based) + patch embedding. Grid is 64x65x32; y-axis is zero-padded to 66 for even patching (`dim` vs `dim_f`). `IAFNODiff(..., cond_chans=None)`: noisy-target channels (`in_chans`) and external-condition channels (`cond_chans`) are decoupled — patch-embed input is `in_chans + cond_chans`; the default `cond_chans=None` reproduces the legacy doubling (`in_chans*2`).
+
+## PRE_ocean_data forecast task (pre_*.py)
+
+7-day condition (14 ch, day-major u/v interleaved) → next-day u/v (2 ch), single-step conditional diffusion; 15-day forecasts via autoregressive rollout. Plan A: raw staggered u/v collocated onto the rho grid (no rotation to east/north).
+
+- Pipeline files: `scripts/preprocess_align_uv.py` (one-time colocation, ~15-60 min, outputs `~/data_processed/PRE/aligned/{u_rho,v_rho}.npy` + `mask_uv.npy`), `pre_config.py` (side-effect-free presets `surface_smoke`/`full3d`), `pre_dataset.py` (contiguous time splits train/val/test = [0,8401)/[8401,9496)/[9496,10591); percentile-clip min-max normalization on train ocean points, cached in `~/data_processed/PRE/norm/`), `pre_trainer.py` (training entrypoint), `pre_evaluate.py` (15-step rollout + persistence baseline + masked RMSE/MAE per lead day × variable × sigma layer).
+- `pre_trainer.py`/`pre_evaluate.py` are scripts (module top-level, like trainer.py) — never import them; shared config lives in `pre_config.py`. Checkpoints: `~/checkpoints/PRE/<run_tag>/`.
+- Grids use exact-division patches so IAFNO padding never triggers: surface 400x441x1 patch (4,3,1); full3d 400x441x30 patch (4,3,2). 441 = 3²·7² constrains y-patch choices.
+- Full step-by-step run instructions and verification points: `docs/PRE_runbook.md`.
 - `utilities3.py`: shared FNO utilities (`LpLoss`, `count_params`, normalizers).
 - Core IAFNO device handling follows the model/input device; the constructor no longer forces `.cuda()`, and padding uses `x.new_zeros`. The legacy reader/normalizer helper methods in `utilities3.py` still expose optional `.cuda()` convenience methods, but they are not called by the main training path.
 - `loss.dat` (train/test/real loss per epoch) is written to the CWD; checkpoints are `test_Ep{n}.pth` per epoch (`.gitignore`d).

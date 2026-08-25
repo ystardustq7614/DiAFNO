@@ -256,7 +256,7 @@ class ElucidatedDiffusion(nn.Module):
     def noise_distribution(self, batch_size):
         return (self.P_mean + self.P_std * torch.randn((batch_size,), device = self.device)).exp()
 
-    def forward(self, images, self_cond=None):
+    def forward(self, images, self_cond=None, mask=None):
         batch_size, c, h, w, z, device, image_size_h, image_size_w, images_size_z, channels = *images.shape, images.device, self.image_size_h, self.image_size_w, self.image_size_z, self.channels
 
         assert h == image_size_h and w == image_size_w, f'height and width of image must be {image_size_h}, {image_size_w}'
@@ -282,7 +282,16 @@ class ElucidatedDiffusion(nn.Module):
         denoised = self.preconditioned_network_forward(noised_images, sigmas, self_cond)
 
         losses = F.mse_loss(denoised, images, reduction = 'none')
-        losses = reduce(losses, 'b ... -> b', 'mean')
+
+        if exists(mask):
+            # mask: broadcastable to (b, c, h, w, z), 1 = valid (ocean), 0 = land.
+            # per-sample mean over VALID elements only, so land fill values never
+            # contribute to the denoising objective.
+            losses = (losses * mask).sum(dim = (1, 2, 3, 4))
+            denom = mask.sum() * c
+            losses = losses / denom.clamp(min = 1.)
+        else:
+            losses = reduce(losses, 'b ... -> b', 'mean')
 
         losses = losses * self.loss_weight(sigmas)
 

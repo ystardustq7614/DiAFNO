@@ -241,6 +241,7 @@ class IAFNODiff(nn.Module):
             hidden_size_factor,
             dim_f, # 64 65 32
             self_condition,
+            cond_chans=None, # external-condition channels; None -> same as in_chans (legacy behavior)
             drop_rate=0.,
             drop_path_rate=0.,
             sparsity_threshold=0.01,
@@ -249,7 +250,12 @@ class IAFNODiff(nn.Module):
         super().__init__()
         self.dim = dim
         self.dim_f = dim_f
-        self.in_chans = in_chans * (2 if self_condition else 1)
+        # noisy target (in_chans) is channel-concatenated with the external condition
+        # (cond_chans); legacy default cond_chans == in_chans reproduces the old doubling.
+        if cond_chans is None:
+            cond_chans = in_chans
+        self.cond_chans = cond_chans
+        self.in_chans = in_chans + (cond_chans if self_condition else 0)
         self.out_chans = out_chans
         self.ex_layer = ex_layer
         self.nlayer = nlayer

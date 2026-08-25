@@ -98,7 +98,7 @@ lat = np.load(os.path.join(STAT, "lat_rho.npy"))
 
 fig, ax = plt.subplots(2, 2, figsize=(11, 8))
 im = ax[0, 0].imshow(mask, origin="lower", cmap="gray_r", aspect="auto")
-ax[0, 0].set_title("mask_rho (black=0 land, white=1 ocean)")
+ax[0, 0].set_title("mask_rho (black=1 ocean, white=0 land)")
 ax[0, 0].set_xlabel("经向网格索引 (xi)", fontproperties=CN_FONT); ax[0, 0].set_ylabel("纬向网格索引 (eta)", fontproperties=CN_FONT)
 cb = plt.colorbar(im, ax=ax[0, 0], ticks=[0, 1])
 cb.ax.set_yticklabels(["0 陆地 (land)", "1 海洋 (ocean)"], fontproperties=CN_FONT)
