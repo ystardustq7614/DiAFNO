@@ -17,6 +17,7 @@ import xarray as xr
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 
 DATA_ROOT = "/data/PRE_ocean_data"
 RAW_DYN = os.path.join(DATA_ROOT, "raw", "dyn")
@@ -28,7 +29,15 @@ os.makedirs(OUT, exist_ok=True)
 DYN_NC_SAMPLE = os.path.join(RAW_DYN, "coawst_avg_00001.nc")
 STAT_NC = os.path.join(DATA_ROOT, "raw", "PRE-90921-V2.nc")
 
-plt.rcParams.update({"figure.dpi": 110, "font.size": 9})
+plt.rcParams.update({
+    "figure.dpi": 110,
+    "font.size": 9,
+    "font.family": "DejaVu Sans",
+    "axes.unicode_minus": False,
+})
+
+CN_FONT = FontProperties(family=["Droid Sans Fallback", "AR PL KaitiM GB",
+                                 "AR PL SungtiL GB", "AR PL Mingti2L Big5"])
 
 
 def human(n):
@@ -90,17 +99,25 @@ lat = np.load(os.path.join(STAT, "lat_rho.npy"))
 fig, ax = plt.subplots(2, 2, figsize=(11, 8))
 im = ax[0, 0].imshow(mask, origin="lower", cmap="gray_r", aspect="auto")
 ax[0, 0].set_title("mask_rho (black=0 land, white=1 ocean)")
-ax[0, 0].set_xlabel("xi"); ax[0, 0].set_ylabel("eta")
+ax[0, 0].set_xlabel("经向网格索引 (xi)", fontproperties=CN_FONT); ax[0, 0].set_ylabel("纬向网格索引 (eta)", fontproperties=CN_FONT)
+cb = plt.colorbar(im, ax=ax[0, 0], ticks=[0, 1])
+cb.ax.set_yticklabels(["0 陆地 (land)", "1 海洋 (ocean)"], fontproperties=CN_FONT)
 hm = np.ma.masked_where(mask == 0, h)
 im = ax[0, 1].imshow(hm, origin="lower", cmap="terrain", aspect="auto")
 ax[0, 1].set_title("bathymetry h [m] (land masked)")
-plt.colorbar(im, ax=ax[0, 1])
+ax[0, 1].set_xlabel("经向网格索引 (xi)", fontproperties=CN_FONT); ax[0, 1].set_ylabel("纬向网格索引 (eta)", fontproperties=CN_FONT)
+cb = plt.colorbar(im, ax=ax[0, 1])
+cb.set_label("水深 [m]", fontproperties=CN_FONT)
 im = ax[1, 0].imshow(t0, origin="lower", cmap="RdBu_r", aspect="auto")
 ax[1, 0].set_title("temp day0 surface [C] (NaN=white, land)")
-plt.colorbar(im, ax=ax[1, 0])
+ax[1, 0].set_xlabel("经向网格索引 (xi)", fontproperties=CN_FONT); ax[1, 0].set_ylabel("纬向网格索引 (eta)", fontproperties=CN_FONT)
+cb = plt.colorbar(im, ax=ax[1, 0])
+cb.set_label("温度 [°C]", fontproperties=CN_FONT)
 im = ax[1, 1].imshow(np.ma.masked_where(mask == 0, t0), origin="lower", cmap="RdBu_r", aspect="auto")
 ax[1, 1].set_title("temp day0 surface (land masked)")
-plt.colorbar(im, ax=ax[1, 1])
+ax[1, 1].set_xlabel("经向网格索引 (xi)", fontproperties=CN_FONT); ax[1, 1].set_ylabel("纬向网格索引 (eta)", fontproperties=CN_FONT)
+cb = plt.colorbar(im, ax=ax[1, 1])
+cb.set_label("温度 [°C]", fontproperties=CN_FONT)
 fig.tight_layout()
 fp = os.path.join(OUT, "01_field_mask_sanity.png")
 fig.savefig(fp)
@@ -126,13 +143,13 @@ days = np.arange(zeta.shape[0])
 fig, ax = plt.subplots(2, 1, figsize=(11, 7))
 ax[0].plot(days, zs, lw=0.5)
 ax[0].set_title(f"zeta daily trend @ deep point ({lon[i_deep]:.2f}E,{lat[i_deep]:.2f}N)")
-ax[0].set_xlabel("day since 1994-01-01"); ax[0].set_ylabel("zeta [m]")
+ax[0].set_xlabel("自1994-01-01起的天数", fontproperties=CN_FONT); ax[0].set_ylabel("海面高度 ζ [m]", fontproperties=CN_FONT)
 # monthly means to see seasonal
 ym = zeta.shape[0] // 365
 mon = zs[:ym * 365].reshape(ym, 365).mean(axis=1)
 ax[1].plot(np.arange(ym) + 1994, mon, marker=".", lw=1)
 ax[1].set_title("annual-mean zeta")
-ax[1].set_xlabel("year"); ax[1].set_ylabel("zeta [m]")
+ax[1].set_xlabel("年份", fontproperties=CN_FONT); ax[1].set_ylabel("海面高度 ζ [m]", fontproperties=CN_FONT)
 fig.tight_layout()
 fp = os.path.join(OUT, "02_zeta_trend.png")
 fig.savefig(fp)
@@ -147,7 +164,7 @@ fig, ax = plt.subplots(figsize=(11, 4))
 ax.plot(days[::step], tt, lw=0.8, label="surface (level 29)")
 ax.plot(days[::step], tb, lw=0.8, label="bottom (level 0)")
 ax.set_title(f"temp trend @ deep point; seasonal range {np.nanmin(tt):.1f}..{np.nanmax(tt):.1f} C (surf)")
-ax.set_xlabel("day"); ax.set_ylabel("temp [C]"); ax.legend()
+ax.set_xlabel("自1994-01-01起的天数", fontproperties=CN_FONT); ax.set_ylabel("温度 [°C]", fontproperties=CN_FONT); ax.legend()
 fig.tight_layout()
 fp = os.path.join(OUT, "03_temp_trend.png")
 fig.savefig(fp)
@@ -167,12 +184,15 @@ zz = np.concatenate([zeta[d][wet] for d in day_idx[::8]])
 
 fig, axes = plt.subplots(2, 3, figsize=(13, 7))
 bins = 100
-for ax_, data, ttl in zip(axes.ravel(),
-                          [surf, bot, sal, ue, zz, ue[np.isfinite(ue)]],
-                          ["temp surface [C]", "temp bottom [C]", "salt surface [PSU]",
-                           "u_eastward surface [m/s]", "zeta [m]", "u_eastward (zoom)"]):
+for ax_, data, ttl, xlb in zip(axes.ravel(),
+                               [surf, bot, sal, ue, zz, ue[np.isfinite(ue)]],
+                               ["temp surface [C]", "temp bottom [C]", "salt surface [PSU]",
+                                "u_eastward surface [m/s]", "zeta [m]", "u_eastward (zoom)"],
+                               ["表面温度 [°C]", "底层温度 [°C]", "表面盐度 [PSU]",
+                                "东向流速 [m/s]", "海面高度 ζ [m]", "东向流速（放大）"]):
     ax_.hist(data[np.isfinite(data)], bins=bins, density=True)
     ax_.set_title(ttl)
+    ax_.set_xlabel(xlb, fontproperties=CN_FONT); ax_.set_ylabel("概率密度（对数刻度）", fontproperties=CN_FONT)
     ax_.set_yscale("log")
 fig.tight_layout()
 fp = os.path.join(OUT, "04_distributions.png")

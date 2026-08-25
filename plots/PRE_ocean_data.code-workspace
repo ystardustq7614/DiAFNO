@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"name": "PRE_ocean_data",
+			"path": "../../../../../../data/PRE_ocean_data"
+		},
+		{
+			"name": "copernicus_uv_data",
+			"path": "../../../../../../data/copernicus_uv_data"
+		},
+		{
+			"name": "era_data",
+			"path": "../../../../../../data/era_data"
+		},
+		{
+			"name": "copernicus_data",
+			"path": "../../../../../../data/sst_data/sst_missing_value_imputation/copernicus_data"
+		},
+		{
+			"name": "zyq",
+			"path": "../../.."
+		}
+	],
+	"settings": {}
+}
