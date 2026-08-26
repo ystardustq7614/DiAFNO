@@ -26,11 +26,10 @@ from diffusion import ElucidatedDiffusion
 from IAFNO import IAFNODiff
 from pre_config import PRESETS, OUT_ROOT, CONTEXT, TARGET_CH, run_tag_for
 from pre_dataset import PREUVDataset, build_mask_tensor, compute_or_load_stats
+from pre_metrics import masked_rel_l2
 
 torch.manual_seed(123)
-np.random.seed(123)
 
-DTYPE = torch.float32
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
@@ -38,6 +37,8 @@ print("Using device:", device)
 
 PRESET = "surface_smoke"   # 'surface_smoke' | 'full3d'
 cfg = PRESETS[PRESET]
+
+VAL_SEED = 1234             # fixed seed for validation diffusion sampling
 
 ########## fixed task constants ##########
 
@@ -69,11 +70,16 @@ print(f"train windows: {len(train_dataset)}   val windows: {len(val_dataset)}")
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg["batch_size"],
                                            shuffle=True, num_workers=cfg["num_workers"],
                                            pin_memory=True, drop_last=True)
-val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=cfg["batch_size"],
+# validation: fixed number of windows uniformly spread over the WHOLE val period
+# (deterministic linspace, no RNG), so checkpoints across epochs are comparable.
+val_idx = np.linspace(0, len(val_dataset) - 1, cfg["val_windows"]).astype(int)
+val_subset = torch.utils.data.Subset(val_dataset, val_idx.tolist())
+val_loader = torch.utils.data.DataLoader(val_subset, batch_size=cfg["batch_size"],
                                          shuffle=False, num_workers=cfg["num_workers"],
-                                         pin_memory=True, drop_last=True)
+                                         pin_memory=True, drop_last=False)
+print(f"val subset: {len(val_subset)} windows at indices {val_idx[0]}..{val_idx[-1]}")
 
-mask = build_mask_tensor(device, cfg["depth_index"])   # (1,1,H,W,Z)
+mask = build_mask_tensor(device, cfg["depth_index"])   # (1,2,H,W,Z) bivariate
 
 ########## model ##########
 
@@ -90,7 +96,7 @@ dm_backbone = IAFNODiff(
     hidden_size_factor=hidden_size_factor,
     dim_f=(H, W, Z),
     self_condition=True,
-).to(device).to(DTYPE)
+).to(device)
 
 model = ElucidatedDiffusion(
     dm_backbone,
@@ -106,11 +112,34 @@ optimizer = optim.Adam(model.parameters(), lr=cfg["lr"], weight_decay=0)
 scheduler = CosineAnnealingLR(optimizer, T_max=cfg["num_epochs"] * len(train_loader))
 scaler = GradScaler()
 
+########## resume (history + best_val must survive) ##########
+
+hist = {"train": [], "val_rel": [], "time": []}
+best_val = float("inf")
 start_epoch = 0
+loss_file = os.path.join(run_dir, "loss.dat")
 if checkpoint_path is not None:
     ckpt = load_checkpoint(checkpoint_path, model, optimizer, scheduler, scaler, map_location=device)
     start_epoch = ckpt.get("epoch", -1) + 1
-    print(f"resumed from {checkpoint_path} (epoch {start_epoch})")
+    best_val = ckpt.get("best_val")
+    if best_val is None:
+        # older checkpoint without best_val: recompute from loss.dat history
+        if os.path.exists(loss_file):
+            arr = np.loadtxt(loss_file).reshape(-1, 3)
+            best_val = float(arr[:start_epoch, 2].min())
+            print(f"recomputed best_val={best_val:.5f} from {loss_file}")
+        else:
+            best_val = float("inf")
+            print("WARNING: checkpoint has no best_val and loss.dat is missing; "
+                  "starting best_val from inf")
+    print(f"resumed from {checkpoint_path} (epoch {start_epoch}, best_val={best_val:.5f})")
+    if os.path.exists(loss_file):
+        arr = np.loadtxt(loss_file).reshape(-1, 3)
+        n_old = min(start_epoch, len(arr))
+        hist["time"] = list(arr[:n_old, 0])
+        hist["train"] = list(arr[:n_old, 1])
+        hist["val_rel"] = list(arr[:n_old, 2])
+        print(f"restored {n_old} epochs of history from {loss_file}")
 
 print("Model Total Params:", count_params(model))
 print(f"preset={PRESET} grid=({H},{W},{Z}) patch={cfg['patch_size']} cond_ch={COND_CH} "
@@ -124,17 +153,7 @@ def unnormalize(x):
     return x * (y_hi - y_lo) + y_lo
 
 
-def masked_rel_l2(pred, tgt):
-    """Relative L2 over ocean points only, mean over batch. pred/tgt physical units."""
-    diff2 = ((pred - tgt) * mask).sum(dim=(1, 2, 3, 4))
-    tgt2 = (tgt * tgt * mask).sum(dim=(1, 2, 3, 4))
-    return (diff2.sqrt() / tgt2.sqrt().clamp(min=1e-12)).mean().item()
-
-
 ########## training loop ##########
-
-hist = {"train": [], "val_rel": [], "time": []}
-best_val = float("inf")
 
 for ep in range(start_epoch, cfg["num_epochs"]):
     model.train()
@@ -154,18 +173,21 @@ for ep in range(start_epoch, cfg["num_epochs"]):
         train_loss += loss.item()
     train_loss /= len(train_loader)
 
-    # validation: full diffusion sampling on a few val batches, physical masked rel-L2
+    # validation: full diffusion sampling on the fixed uniform val windows.
+    # fork_rng isolates the CPU (and, on CUDA, the current device) RNG so the
+    # fixed VAL_SEED cannot perturb the training RNG stream; the training
+    # CPU/CUDA RNG state is restored on exit from the context.
     model.eval()
     val_rel, nb = 0.0, 0
-    with torch.no_grad():
+    rng_devices = [device.index] if device.type == "cuda" else []
+    with torch.no_grad(), torch.random.fork_rng(devices=rng_devices):
+        torch.manual_seed(VAL_SEED)
         for cond, target, _ in val_loader:
-            if nb >= cfg["val_batches"]:
-                break
             xx = cond.to(device, non_blocking=True)
             yy = target[:, 0].to(device, non_blocking=True)
             with autocast():
                 pred = model.sample(xx)
-            val_rel += masked_rel_l2(unnormalize(pred.float()), unnormalize(yy))
+            val_rel += masked_rel_l2(unnormalize(pred.float()), unnormalize(yy), mask)
             nb += 1
     val_rel /= max(nb, 1)
 
@@ -176,19 +198,27 @@ for ep in range(start_epoch, cfg["num_epochs"]):
     print(f"epoch {ep + 1}/{cfg['num_epochs']}  {dt:.1f}s  "
           f"train_loss {train_loss:.5f}  val_masked_relL2 {val_rel:.5f}", flush=True)
 
+    # checkpoint order: decide is_best FIRST, update best_val, then build ONE
+    # state dict that both Ep{n}.pth and best.pth share — so a new-best epoch
+    # never writes a best.pth with a stale best_val.
+    is_best = val_rel < best_val
+    if is_best:
+        best_val = val_rel
     state = {
         "epoch": ep,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict(),
         "scaler_state_dict": scaler.state_dict(),
+        "best_val": best_val,
         "config": {"preset": PRESET, **cfg, "context": CONTEXT},
     }
     torch.save(state, os.path.join(run_dir, f"Ep{ep + 1}.pth"))
-    if val_rel < best_val:
-        best_val = val_rel
+    if is_best:
         torch.save(state, os.path.join(run_dir, "best.pth"))
-    np.savetxt(os.path.join(run_dir, "loss.dat"),
+    # loss.dat always contains the FULL history (restored on resume), so a
+    # resumed run never silently overwrites previous epochs.
+    np.savetxt(loss_file,
                np.dstack((hist["time"], hist["train"], hist["val_rel"])).squeeze(),
                fmt="%16.7f")
 

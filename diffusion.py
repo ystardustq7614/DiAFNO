@@ -257,9 +257,12 @@ class ElucidatedDiffusion(nn.Module):
         return (self.P_mean + self.P_std * torch.randn((batch_size,), device = self.device)).exp()
 
     def forward(self, images, self_cond=None, mask=None):
-        batch_size, c, h, w, z, device, image_size_h, image_size_w, images_size_z, channels = *images.shape, images.device, self.image_size_h, self.image_size_w, self.image_size_z, self.channels
+        batch_size, c, h, w, z = images.shape
+        device = images.device
 
+        image_size_h, image_size_w, image_size_z, channels = self.image_size_h, self.image_size_w, self.image_size_z, self.channels
         assert h == image_size_h and w == image_size_w, f'height and width of image must be {image_size_h}, {image_size_w}'
+        assert z == image_size_z, f'depth of image must be {image_size_z}, got {z}'
         assert c == channels, 'mismatch of image channels'
 
         images = normalize_to_neg_one_to_one(images)
@@ -285,10 +288,14 @@ class ElucidatedDiffusion(nn.Module):
 
         if exists(mask):
             # mask: broadcastable to (b, c, h, w, z), 1 = valid (ocean), 0 = land.
+            # accepted forms: (1, 1, h, w, z), (1, c, h, w, z), (b, c, h, w, z).
             # per-sample mean over VALID elements only, so land fill values never
-            # contribute to the denoising objective.
+            # contribute to the denoising objective. The denominator is the per-
+            # sample valid-element count of the broadcast mask, so bivariate and
+            # batch-varying masks are counted exactly once per element.
+            mask = mask.expand_as(losses)
             losses = (losses * mask).sum(dim = (1, 2, 3, 4))
-            denom = mask.sum() * c
+            denom = mask.sum(dim = (1, 2, 3, 4))
             losses = losses / denom.clamp(min = 1.)
         else:
             losses = reduce(losses, 'b ... -> b', 'mean')

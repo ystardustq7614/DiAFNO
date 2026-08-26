@@ -12,26 +12,10 @@ import torch.fft
 import torch.nn as nn
 import torch.nn.functional as F
 
-import numpy as np
-from torchvision import transforms
-
-import matplotlib.pyplot as plt
-from utilities3 import *
-
-
-import operator
-from functools import reduce
-from functools import partial
-
-from timeit import default_timer
-import scipy.io
-import os
-
 from einops import rearrange
-from timm.models.layers import DropPath, trunc_normal_
+from timm.models.layers import DropPath
 
 torch.manual_seed(123)
-np.random.seed(123)
 
 ################################################################################################################################
 
@@ -120,8 +104,8 @@ class Mlp(nn.Module):
 
 class Block(nn.Module):
     def __init__(
-            self, nlayer, dim, patch_size, embed_dim, hidden_size_factor, num_blocks, in_chans, 
-            drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, double_skip=True
+            self, embed_dim, hidden_size_factor, num_blocks,
+            drop_path=0., norm_layer=nn.LayerNorm, double_skip=True
         ):
         super().__init__()
         hidden_features = embed_dim * 4
@@ -254,30 +238,20 @@ class IAFNODiff(nn.Module):
         # (cond_chans); legacy default cond_chans == in_chans reproduces the old doubling.
         if cond_chans is None:
             cond_chans = in_chans
-        self.cond_chans = cond_chans
         self.in_chans = in_chans + (cond_chans if self_condition else 0)
         self.out_chans = out_chans
         self.ex_layer = ex_layer
         self.nlayer = nlayer
         self.patch_size = patch_size
         self.self_condition = self_condition
-        norm_layer = partial(nn.LayerNorm, eps=1e-6)
         self.patch_embed = PatchEmbed(dim, patch_size, embed_dim, self.in_chans)
         self.pos_embed = nn.Parameter(torch.zeros(1, dim[0] // patch_size[0], dim[1] // patch_size[1], dim[2] // patch_size[2], embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, ex_layer)]
-
-        self.h = self.dim[0] // self.patch_size[0]
-        self.w = self.dim[1] // self.patch_size[1]
-        self.z = self.dim[2] // self.patch_size[2]
-
         self.blocks = nn.ModuleList([
-            Block(
-                nlayer, dim, patch_size, embed_dim, hidden_size_factor, num_blocks, in_chans)
+            Block(embed_dim, hidden_size_factor, num_blocks)
             for i in range(self.ex_layer)])
 
-        self.norm = norm_layer(embed_dim)
         self.head = nn.Linear(embed_dim, self.out_chans*self.patch_size[0]*self.patch_size[1]*self.patch_size[2], bias=False)
 
         sinu_pos_emb = SinusoidalPosEmb(self.in_chans, theta = 10000)
@@ -296,7 +270,6 @@ class IAFNODiff(nn.Module):
         self.downproj = nn.Conv3d(2*self.in_chans, self.in_chans, 3, padding = 1)
 
     def forward_features(self, x):
-        B = x.shape[0]
         x = self.patch_embed(x)
         x = x + self.pos_embed
         x = self.pos_drop(x)

@@ -11,19 +11,49 @@ Colocation (NaN-aware mean of the two adjacent faces; one-sided at boundaries):
     v_rho[r,c] = mean_valid(v[r-1,c], v[r,c])   (r=1..398)
     v_rho[0,c] = v[0,c];  v_rho[399,c] = v[398,c]
 
+No rotation is applied: u_rho/v_rho keep the raw grid-xi/eta component
+semantics, only the sampling location moves to the rho points.
+
+Bivariate validity masks are derived from mask_u/mask_v with the SAME stencil
+(a rho point is valid iff at least one of its two adjacent face cells is
+valid, one-sided at the boundary), so aligned NaN pattern == mask == 0 exactly:
+    mask_u_rho.npy : (400, 441) validity of u_rho
+    mask_v_rho.npy : (400, 441) validity of v_rho
+    mask_uv.npy    : mask_u_rho & mask_v_rho & mask_rho (kept for compatibility)
+
 Output (land kept as NaN, float32):
     <DST>/u_rho.npy, <DST>/v_rho.npy : (10591, 30, 400, 441)
-    <DST>/mask_uv.npy               : (400, 441) effective mask
-                                      (mask_rho==1 AND both aligned u/v have data)
+    <DST>/mask_u_rho.npy, <DST>/mask_v_rho.npy, <DST>/mask_uv.npy
+    <DST>/ocean_time.npy             : (10591,) datetime64[D] date view, verified from
+                                      the authoritative ocean_time metadata of the
+                                      raw NetCDF files (strictly increasing,
+                                      exactly 24 h apart).
+    <DST>/ocean_time_seconds.npy     : (10591,) datetime64[s] precise verified times
+                                      (never downcast to days before verification).
 
-Also verifies raw-NaN vs mask_u/mask_v consistency and prints ocean-point stats
-on a day subsample (to track the raw-u ~7 m/s outlier).
+Hard checks (fail-fast, never just print):
+    * raw u/v NaN pattern must equal (mask == 0) for EVERY day and EVERY layer;
+      the first violating (t, s, r, c) is reported and the run stops.
+    * mask shapes/values, field dtypes and input shapes are asserted.
+    * the ocean_time series must contain exactly T strictly increasing
+      timestamps spaced by exactly 24 h (verify_daily_time).
+
+The raw and aligned u/v extrema are recorded WITH their (day, layer, row, col)
+location and value; extrema are not automatically treated as outliers.
 """
 import os
 import time
 import numpy as np
+import netCDF4
 
-SRC = "/data2/user/zyq/datasets/PRE/processed"
+SRC_CANDIDATES = [
+    "/data2/user/zyq/datasets/PRE/processed",
+    "/data/PRE_ocean_data/processed",
+]
+RAW_DYN_CANDIDATES = [
+    "/data2/user/zyq/datasets/PRE/raw/dyn",
+    "/data/PRE_ocean_data/raw/dyn",
+]
 DST = "/data2/user/zyq/data_processed/PRE/aligned"
 CHUNK = 50  # days per chunk
 
@@ -41,25 +71,202 @@ def colocate(a, b):
     return out
 
 
+def u_rho_mask(mask_u):
+    """(R, C-1) u-grid mask -> (R, C) rho mask under the u colocation stencil."""
+    R, C = mask_u.shape
+    out = np.empty((R, C + 1), np.bool_)
+    out[:, 1:C] = mask_u[:, :-1] | mask_u[:, 1:]
+    out[:, 0] = mask_u[:, 0]
+    out[:, C] = mask_u[:, -1]
+    return out
+
+
+def v_rho_mask(mask_v):
+    """(R-1, C) v-grid mask -> (R, C) rho mask under the v colocation stencil."""
+    R, C = mask_v.shape
+    out = np.empty((R + 1, C), np.bool_)
+    out[1:R, :] = mask_v[:-1, :] | mask_v[1:, :]
+    out[0, :] = mask_v[0, :]
+    out[R, :] = mask_v[-1, :]
+    return out
+
+
+class ExtremumTracker:
+    """Global min/max of a streaming array plus the location of each extremum.
+
+    arr chunks have shape (t_len, S, R, C); the global (t, s, r, c) of the first
+    occurrence is recorded. NaN cells (land) are ignored.
+    """
+
+    def __init__(self, name):
+        self.name = name
+        self.min_val = np.inf
+        self.max_val = -np.inf
+        self.min_loc = None  # (t, s, r, c)
+        self.max_loc = None
+
+    def update(self, arr, t0):
+        flat = np.asarray(arr).ravel()
+        if flat.size == 0:
+            return
+        mn = float(np.nanmin(flat))
+        mx = float(np.nanmax(flat))
+        if mn < self.min_val:
+            i = int(np.nanargmin(flat))
+            self.min_val = mn
+            self.min_loc = self._loc(i, arr.shape, t0)
+        if mx > self.max_val:
+            i = int(np.nanargmax(flat))
+            self.max_val = mx
+            self.max_loc = self._loc(i, arr.shape, t0)
+
+    @staticmethod
+    def _loc(i, shape, t0):
+        t_len, s, r, c = shape
+        t, rem = divmod(i, s * r * c)
+        s_, rem = divmod(rem, r * c)
+        r_, c_ = divmod(rem, c)
+        return (t0 + int(t), int(s_), int(r_), int(c_))
+
+    def report(self):
+        m = f"[extrema] {self.name}:"
+        if self.min_loc is not None:
+            m += (f" min={self.min_val:.5f} at (t={self.min_loc[0]}, s={self.min_loc[1]}, "
+                  f"r={self.min_loc[2]}, c={self.min_loc[3]})")
+            m += (f" max={self.max_val:.5f} at (t={self.max_loc[0]}, s={self.max_loc[1]}, "
+                  f"r={self.max_loc[2]}, c={self.max_loc[3]})")
+        else:
+            m += " no finite values"
+        return m
+
+
+def check_nan_vs_mask(arr, mask, name, t0):
+    """Fail hard if any (day, layer) of arr has a NaN pattern != (mask == 0)."""
+    bad = np.isnan(arr) != (mask == 0)[None, None]
+    if bad.any():
+        i = int(np.argmax(bad))
+        t_len, s, r, c = arr.shape
+        t, rem = divmod(i, s * r * c)
+        s_, rem = divmod(rem, r * c)
+        r_, c_ = divmod(rem, c)
+        day = t0 + t
+        raise RuntimeError(
+            f"{name} NaN/mask mismatch at (t={day}, s={s_}, r={r_}, c={c_}): "
+            f"field NaN={bool(np.isnan(arr[t, s_, r_, c_]))} but mask=={int(mask[r_, c_])}; "
+            f"dynamic missing data or mask inconsistency, not masked away.")
+
+
+def verify_daily_time(times):
+    """Fail hard unless `times` is a 1-D datetime64 array of exactly daily steps.
+
+    Adjacent timestamps must differ by EXACTLY 24 h (checked at datetime64[s]
+    precision, so 23/25-hour gaps fail). On success returns `times` unchanged.
+    The error reports the failing index, the two neighbouring timestamps and
+    the actual interval.
+    """
+    times = np.asarray(times)
+    if times.ndim != 1 or times.size == 0:
+        raise RuntimeError(f"expected a non-empty 1-D datetime64 array, got shape {times.shape}")
+    secs = times.astype("datetime64[s]").astype(np.int64)
+    day = 24 * 3600
+    gaps = np.diff(secs)
+    bad = gaps != day
+    if bad.any():
+        j = int(np.argmax(bad))
+        raise RuntimeError(
+            f"ocean_time not daily at index {j}: {times[j]} -> {times[j + 1]} "
+            f"(actual interval {int(gaps[j]) / 3600.0:g} h, expected 24 h)")
+    return times
+
+
+def extract_and_verify_time():
+    """Read authoritative ocean_time from every raw NetCDF and cache the times.
+
+    Verifies exactly T timestamps, strictly increasing, exactly 24 h apart.
+    Raw times are kept at datetime64[s] precision (never downcast to days
+    before verification); the date view is saved separately:
+        ocean_time.npy         : (T,) datetime64[D]  date view (compat)
+        ocean_time_seconds.npy : (T,) datetime64[s]  precise verified times
+    Returns the precise (T,) datetime64[s] array.
+    """
+    files = sorted(f for f in os.listdir(RAW_DYN) if f.endswith(".nc"))
+    if len(files) != T:
+        raise RuntimeError(f"expected {T} raw NetCDF files in {RAW_DYN}, found {len(files)}")
+
+    times = np.empty(T, dtype="datetime64[s]")
+    units = None
+    t0_wall = time.time()
+    for i, fn in enumerate(files):
+        fp = os.path.join(RAW_DYN, fn)
+        with netCDF4.Dataset(fp) as ds:
+            ot = ds.variables["ocean_time"]
+            if units is None:
+                units = getattr(ot, "units", None)
+            vals = np.asarray(ot[:]).reshape(-1)
+            if vals.size != 1:
+                raise RuntimeError(f"{fp}: ocean_time has {vals.size} entries, expected 1")
+            times[i] = np.datetime64(
+                netCDF4.num2date(float(vals[0]), units, only_use_python_datetimes=True))
+        if (i + 1) % 2000 == 0 or i + 1 == T:
+            print(f"[time] {i + 1}/{T} files read ({time.time() - t0_wall:.0f}s)", flush=True)
+
+    verify_daily_time(times)
+    print(f"[time] verified {T} strictly increasing daily timestamps "
+          f"{times[0]} .. {times[-1]} (units: {units})", flush=True)
+    np.save(os.path.join(DST, "ocean_time.npy"), times.astype("datetime64[D]"))
+    np.save(os.path.join(DST, "ocean_time_seconds.npy"), times)
+    return times
+
+
 def main():
+    global SRC, RAW_DYN
+    SRC = next((p for p in SRC_CANDIDATES if os.path.isdir(p)), None)
+    if SRC is None:
+        raise RuntimeError(f"processed data dir not found (tried {SRC_CANDIDATES})")
+    RAW_DYN = next((p for p in RAW_DYN_CANDIDATES if os.path.isdir(p)), None)
+    if RAW_DYN is None:
+        raise RuntimeError(f"raw NetCDF dir not found (tried {RAW_DYN_CANDIDATES}); "
+                           f"cannot verify ocean_time metadata")
     os.makedirs(DST, exist_ok=True)
+
     u = np.load(os.path.join(SRC, "dyn_var", "u.npy"), mmap_mode="r")
     v = np.load(os.path.join(SRC, "dyn_var", "v.npy"), mmap_mode="r")
-    assert u.shape == (T, S, H, W - 1), u.shape
-    assert v.shape == (T, S, H - 1, W), v.shape
+    assert u.shape == (T, S, H, W - 1), f"u shape {u.shape}"
+    assert v.shape == (T, S, H - 1, W), f"v shape {v.shape}"
+    assert u.dtype == np.float32, f"u dtype {u.dtype}"
+    assert v.dtype == np.float32, f"v dtype {v.dtype}"
 
-    # --- one-time consistency check: raw NaN pattern vs mask_u/mask_v (day 0, layer 0)
+    mask_rho = np.load(os.path.join(SRC, "stat_var", "mask_rho.npy"))
     mask_u = np.load(os.path.join(SRC, "stat_var", "mask_u.npy"))
     mask_v = np.load(os.path.join(SRC, "stat_var", "mask_v.npy"))
-    u0_nan = np.isnan(np.asarray(u[0, 0]))
-    v0_nan = np.isnan(np.asarray(v[0, 0]))
-    print(f"raw u NaN == (mask_u==0): {np.array_equal(u0_nan, mask_u == 0)}")
-    print(f"raw v NaN == (mask_v==0): {np.array_equal(v0_nan, mask_v == 0)}", flush=True)
+    assert mask_rho.shape == (H, W), f"mask_rho shape {mask_rho.shape}"
+    assert mask_u.shape == (H, W - 1), f"mask_u shape {mask_u.shape}"
+    assert mask_v.shape == (H - 1, W), f"mask_v shape {mask_v.shape}"
+    for name, m in (("mask_rho", mask_rho), ("mask_u", mask_u), ("mask_v", mask_v)):
+        assert set(np.unique(m)).issubset({0, 1}), f"{name} values {np.unique(m)}"
+
+    m_u_rho = u_rho_mask(mask_u)
+    m_v_rho = v_rho_mask(mask_v)
+    m_uv = m_u_rho & m_v_rho & (mask_rho == 1)
+    np.save(os.path.join(DST, "mask_u_rho.npy"), m_u_rho.astype(np.uint8))
+    np.save(os.path.join(DST, "mask_v_rho.npy"), m_v_rho.astype(np.uint8))
+    np.save(os.path.join(DST, "mask_uv.npy"), m_uv.astype(np.uint8))
+    print(f"[mask] mask_u_rho ocean pts: {m_u_rho.sum()}  "
+          f"mask_v_rho: {m_v_rho.sum()}  mask_uv: {m_uv.sum()}", flush=True)
+
+    # --- full NaN-vs-mask consistency on day 0 layer 0 before the long loop ---
+    check_nan_vs_mask(np.asarray(u[0:1, 0:1]), mask_u, "u", 0)
+    check_nan_vs_mask(np.asarray(v[0:1, 0:1]), mask_v, "v", 0)
+
+    extract_and_verify_time()
 
     u_out = np.lib.format.open_memmap(
         os.path.join(DST, "u_rho.npy"), mode="w+", dtype=np.float32, shape=(T, S, H, W))
     v_out = np.lib.format.open_memmap(
         os.path.join(DST, "v_rho.npy"), mode="w+", dtype=np.float32, shape=(T, S, H, W))
+
+    tr_u, tr_v = ExtremumTracker("u raw"), ExtremumTracker("v raw")
+    tr_ur, tr_vr = ExtremumTracker("u_rho"), ExtremumTracker("v_rho")
 
     t0 = time.time()
     n_chunks = (T + CHUNK - 1) // CHUNK
@@ -68,6 +275,11 @@ def main():
         uc = np.asarray(u[ts:te])  # (t,s,400,440)
         vc = np.asarray(v[ts:te])  # (t,s,399,441)
         tlen = te - ts
+
+        check_nan_vs_mask(uc, mask_u, "u", ts)
+        check_nan_vs_mask(vc, mask_v, "v", ts)
+        tr_u.update(uc, ts)
+        tr_v.update(vc, ts)
 
         ub = np.empty((tlen, S, H, W), np.float32)
         vb = np.empty((tlen, S, H, W), np.float32)
@@ -80,42 +292,30 @@ def main():
         vb[:, :, 0, :] = vc[:, :, 0, :]
         vb[:, :, H - 1, :] = vc[:, :, -1, :]
 
+        if ci == 0:
+            assert (np.isnan(ub) == (m_u_rho == 0)[None, None]).all(), \
+                "u_rho NaN pattern does not match mask_u_rho"
+            assert (np.isnan(vb) == (m_v_rho == 0)[None, None]).all(), \
+                "v_rho NaN pattern does not match mask_v_rho"
+
         u_out[ts:te] = ub
         v_out[ts:te] = vb
         u_out.flush()
         v_out.flush()
 
+        tr_ur.update(ub, ts)
+        tr_vr.update(vb, ts)
+
         dt = time.time() - t0
         eta = dt / (ci + 1) * (n_chunks - ci - 1)
-        print(f"[{ci + 1}/{n_chunks}] days {ts}:{te}  elapsed {dt / 60:.1f} min  ETA {eta / 60:.1f} min",
-              flush=True)
+        print(f"[{ci + 1}/{n_chunks}] days {ts}:{te}  elapsed {dt / 60:.1f} min  "
+              f"ETA {eta / 60:.1f} min", flush=True)
         del uc, vc, ub, vb
 
-    # --- effective mask: ocean & both variables have data (checked on 3 spread days)
-    mask_rho = np.load(os.path.join(SRC, "stat_var", "mask_rho.npy")) == 1
-    eff = mask_rho.copy()
-    for t in (0, T // 2, T - 1):
-        eff &= ~np.isnan(np.asarray(u_out[t, 0]))
-        eff &= ~np.isnan(np.asarray(v_out[t, 0]))
-        eff &= ~np.isnan(np.asarray(u_out[t, S - 1]))
-        eff &= ~np.isnan(np.asarray(v_out[t, S - 1]))
-    np.save(os.path.join(DST, "mask_uv.npy"), eff.astype(np.uint8))
-    n_lost = int((mask_rho & ~eff).sum())
-    print(f"mask_rho ocean pts: {mask_rho.sum()}  effective pts: {eff.sum()}  "
-          f"ocean-but-no-data pts: {n_lost}", flush=True)
-
-    # --- sanity stats on a day subsample (ocean points only)
-    rng_days = range(0, T, 500)
-    for name, arr in (("u_rho", u_out), ("v_rho", v_out)):
-        vals = []
-        for t in rng_days:
-            a = np.asarray(arr[t])  # (s,H,W)
-            vals.append(a[:, eff])
-        vals = np.concatenate(vals, axis=1).ravel()
-        print(f"{name}: n={vals.size}  min={vals.min():.4f}  max={vals.max():.4f}  "
-              f"mean={vals.mean():.4f}  std={vals.std():.4f}  "
-              f"p0.1={np.percentile(vals, 0.1):.4f}  p99.9={np.percentile(vals, 99.9):.4f}",
-              flush=True)
+    print(tr_u.report(), flush=True)
+    print(tr_v.report(), flush=True)
+    print(tr_ur.report(), flush=True)
+    print(tr_vr.report(), flush=True)
 
     print(f"DONE. total elapsed {(time.time() - t0) / 60:.1f} min", flush=True)
 

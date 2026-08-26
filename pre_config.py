@@ -18,7 +18,7 @@ PRESETS = {
         train_stride=1,            # window subsampling on train split
         max_train_windows=None,    # set e.g. 2000 for a faster dry run
         sampling_steps=32,
-        val_batches=4,             # diffusion-sample validation batches per epoch
+        val_windows=24,            # uniform val windows per epoch (whole val period)
         lr=1e-3,
     ),
     # full 3D: 30 sigma layers, 400/4 x 441/3 x 30/2 = 100x147x15 = 220,500 tokens.
@@ -36,7 +36,7 @@ PRESETS = {
         train_stride=1,
         max_train_windows=None,
         sampling_steps=32,
-        val_batches=2,
+        val_windows=16,
         lr=1e-3,
     ),
 }
