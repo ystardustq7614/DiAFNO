@@ -31,9 +31,13 @@ Output (land kept as NaN, float32):
     <DST>/ocean_time_seconds.npy     : (10591,) datetime64[s] precise verified times
                                       (never downcast to days before verification).
 
-Hard checks (fail-fast, never just print):
-    * raw u/v NaN pattern must equal (mask == 0) for EVERY day and EVERY layer;
-      the first violating (t, s, r, c) is reported and the run stops.
+Mask policy (the provided masks are authoritative):
+    * NaN where mask == 1 (ocean cell without data) is DYNAMIC MISSING DATA:
+      fail hard at the first (t, s, r, c), checked for every day and layer.
+    * a value where mask == 0 (e.g. the 45 static land-boundary u-faces of
+      this dataset) is DISCARDED (set to NaN before colocation) and counted;
+      per-variable totals are reported at the end. After enforcement the
+      aligned NaN pattern == mask == 0 exactly (asserted on the first chunk).
     * mask shapes/values, field dtypes and input shapes are asserted.
     * the ocean_time series must contain exactly T strictly increasing
       timestamps spaced by exactly 24 h (verify_daily_time).
@@ -140,20 +144,39 @@ class ExtremumTracker:
         return m
 
 
-def check_nan_vs_mask(arr, mask, name, t0):
-    """Fail hard if any (day, layer) of arr has a NaN pattern != (mask == 0)."""
-    bad = np.isnan(arr) != (mask == 0)[None, None]
-    if bad.any():
-        i = int(np.argmax(bad))
+def enforce_land_mask(arr, mask, name, t0, discarded):
+    """Enforce the (authoritative) land mask on a raw chunk, in place.
+
+    Two mismatch directions are handled differently:
+      * NaN where mask == 1 (ocean cell without data): dynamic missing data —
+        fail hard with the first (t, s, r, c); never masked away silently.
+      * value where mask == 0 (land cell carrying a value, e.g. static
+        boundary/river u-faces): discarded (set to NaN) and counted in
+        `discarded[name]`; the aligned output keeps NaN == (mask == 0).
+
+    `arr` must be an in-memory chunk (t, s, R, C), NOT a mmap slice (it is
+    modified in place). `discarded` is a dict accumulating per-variable counts.
+    Returns arr.
+    """
+    nan = np.isnan(arr)
+    ocean = mask != 0
+    missing = nan & ocean[None, None]
+    if missing.any():
+        i = int(np.argmax(missing))
         t_len, s, r, c = arr.shape
         t, rem = divmod(i, s * r * c)
         s_, rem = divmod(rem, r * c)
         r_, c_ = divmod(rem, c)
         day = t0 + t
         raise RuntimeError(
-            f"{name} NaN/mask mismatch at (t={day}, s={s_}, r={r_}, c={c_}): "
-            f"field NaN={bool(np.isnan(arr[t, s_, r_, c_]))} but mask=={int(mask[r_, c_])}; "
-            f"dynamic missing data or mask inconsistency, not masked away.")
+            f"{name} dynamic missing data at (t={day}, s={s_}, r={r_}, c={c_}): "
+            f"field is NaN but mask==1 (ocean); not masked away.")
+    stray = ~nan & ~ocean[None, None]
+    n_stray = int(stray.sum())
+    if n_stray:
+        arr[stray] = np.nan
+        discarded[name] = discarded.get(name, 0) + n_stray
+    return arr
 
 
 def verify_daily_time(times):
@@ -244,6 +267,10 @@ def main():
     assert mask_v.shape == (H - 1, W), f"mask_v shape {mask_v.shape}"
     for name, m in (("mask_rho", mask_rho), ("mask_u", mask_u), ("mask_v", mask_v)):
         assert set(np.unique(m)).issubset({0, 1}), f"{name} values {np.unique(m)}"
+    # stored masks are float64 {0., 1.}; bitwise stencil ops below need booleans
+    mask_rho = mask_rho.astype(bool)
+    mask_u = mask_u.astype(bool)
+    mask_v = mask_v.astype(bool)
 
     m_u_rho = u_rho_mask(mask_u)
     m_v_rho = v_rho_mask(mask_v)
@@ -254,9 +281,16 @@ def main():
     print(f"[mask] mask_u_rho ocean pts: {m_u_rho.sum()}  "
           f"mask_v_rho: {m_v_rho.sum()}  mask_uv: {m_uv.sum()}", flush=True)
 
-    # --- full NaN-vs-mask consistency on day 0 layer 0 before the long loop ---
-    check_nan_vs_mask(np.asarray(u[0:1, 0:1]), mask_u, "u", 0)
-    check_nan_vs_mask(np.asarray(v[0:1, 0:1]), mask_v, "v", 0)
+    # --- early probe on day 0 layer 0: fail fast on dynamic missing data and
+    #     preview land-cell discards before the long pipeline starts (the probe
+    #     slices are throwaway copies; their counts are NOT added to the final
+    #     per-variable totals, which only accumulate over the main loop) ---
+    probe = {}
+    enforce_land_mask(np.array(u[0:1, 0:1]), mask_u, "u", 0, probe)
+    enforce_land_mask(np.array(v[0:1, 0:1]), mask_v, "v", 0, probe)
+    if probe:
+        print(f"[mask] day0/layer0 probe discards (land cells carrying values): {probe}",
+              flush=True)
 
     extract_and_verify_time()
 
@@ -267,19 +301,23 @@ def main():
 
     tr_u, tr_v = ExtremumTracker("u raw"), ExtremumTracker("v raw")
     tr_ur, tr_vr = ExtremumTracker("u_rho"), ExtremumTracker("v_rho")
+    discarded = {}
 
     t0 = time.time()
     n_chunks = (T + CHUNK - 1) // CHUNK
     for ci, ts in enumerate(range(0, T, CHUNK)):
         te = min(ts + CHUNK, T)
-        uc = np.asarray(u[ts:te])  # (t,s,400,440)
-        vc = np.asarray(v[ts:te])  # (t,s,399,441)
+        uc = np.array(u[ts:te])  # (t,s,400,440) writable copy (mmap slice is read-only)
+        vc = np.array(v[ts:te])  # (t,s,399,441)
         tlen = te - ts
 
-        check_nan_vs_mask(uc, mask_u, "u", ts)
-        check_nan_vs_mask(vc, mask_v, "v", ts)
+        # raw extrema describe the ORIGINAL chunk (before mask enforcement);
+        # enforcement then fails hard on dynamic missing ocean data and sets
+        # land-cell values to NaN so colocation sees the masked fields.
         tr_u.update(uc, ts)
         tr_v.update(vc, ts)
+        enforce_land_mask(uc, mask_u, "u", ts, discarded)
+        enforce_land_mask(vc, mask_v, "v", ts, discarded)
 
         ub = np.empty((tlen, S, H, W), np.float32)
         vb = np.empty((tlen, S, H, W), np.float32)
@@ -316,6 +354,13 @@ def main():
     print(tr_v.report(), flush=True)
     print(tr_ur.report(), flush=True)
     print(tr_vr.report(), flush=True)
+
+    if discarded:
+        for name, n in sorted(discarded.items()):
+            print(f"[mask] {name}: discarded {n} values at mask==0 (land) cells "
+                  f"over all {T} days x {S} layers (mask authoritative)", flush=True)
+    else:
+        print("[mask] no values found at land cells", flush=True)
 
     print(f"DONE. total elapsed {(time.time() - t0) / 60:.1f} min", flush=True)
 

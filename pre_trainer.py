@@ -179,7 +179,9 @@ for ep in range(start_epoch, cfg["num_epochs"]):
     # CPU/CUDA RNG state is restored on exit from the context.
     model.eval()
     val_rel, nb = 0.0, 0
-    rng_devices = [device.index] if device.type == "cuda" else []
+    # torch.device("cuda").index is None and fork_rng(devices=[None]) crashes;
+    # current_device() is the actual ordinal of the device the model is on.
+    rng_devices = [torch.cuda.current_device()] if device.type == "cuda" else []
     with torch.no_grad(), torch.random.fork_rng(devices=rng_devices):
         torch.manual_seed(VAL_SEED)
         for cond, target, _ in val_loader:

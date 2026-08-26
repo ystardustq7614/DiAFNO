@@ -80,6 +80,37 @@ def test_colocate_and_bivariate_masks():
     assert (np.isnan(v_rho) == (m_vr == 0)).all()
 
 
+def test_enforce_land_mask_policy():
+    # mask-authoritative enforcement: land values discarded + counted (in
+    # place), dynamic missing ocean data fails hard, consistent cells untouched.
+    mask = np.array([[1, 0, 1],
+                     [1, 1, 0]])
+    arr = np.array([[[[1.0, 9.0, 3.0],      # 9.0 sits on land (0,1) -> discarded
+                      [4.0, 5.0, 6.0]]]], np.float32)   # 6.0 sits on land (1,2) -> discarded
+    discarded = {}
+    out = pre_pp.enforce_land_mask(arr, mask, "u", 0, discarded)
+    assert out is arr                                # in-place, same object
+    assert np.isnan(arr[0, 0, 0, 1]) and np.isnan(arr[0, 0, 1, 2])
+    assert arr[0, 0, 0, 0] == 1.0 and arr[0, 0, 0, 2] == 3.0
+    assert arr[0, 0, 1, 0] == 4.0 and arr[0, 0, 1, 1] == 5.0
+    assert discarded == {"u": 2}
+    # counts accumulate across chunks
+    pre_pp.enforce_land_mask(arr, mask, "u", 50, discarded)
+    assert discarded == {"u": 2}                     # already NaN -> no double count
+
+    # NaN on an ocean cell = dynamic missing data -> RuntimeError with location
+    bad = np.array([[[[1.0, 2.0, 3.0],
+                      [4.0, np.nan, 6.0]]]], np.float32)  # NaN at (t=0,s=0,r=1,c=1), mask==1
+    try:
+        pre_pp.enforce_land_mask(bad, mask, "v", 7, {})
+    except RuntimeError as e:
+        msg = str(e)
+        assert "t=7" in msg and "r=1" in msg and "c=1" in msg, msg
+        assert "mask==1" in msg, msg
+    else:
+        raise AssertionError("expected RuntimeError for NaN on ocean cell")
+
+
 def test_cond_flatten_and_rollout_shift():
     uv = torch.randn(1, 7, 2, 4, 4, 1)          # (B, days, 2, H, W, Z)
     cond = uv.reshape(1, 14, 4, 4, 1)           # day-major interleave

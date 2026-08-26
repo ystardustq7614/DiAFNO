@@ -51,8 +51,10 @@ the next day, then autoregressively roll out 15 days. See
   `mask_u` / `mask_v` with the same stencil (a rho point is valid iff at least
   one adjacent face is valid). `mask_uv.npy` = intersection (compat only).
   Training statistics, the masked diffusion loss and validation use the
-  **bivariate** masks; the raw NaN pattern vs `mask_u/mask_v` is verified for
-  every day and layer in preprocessing (fail-fast).
+  **bivariate** masks. The provided masks are authoritative in preprocessing:
+  a NaN at a `mask==1` cell (dynamic missing data) fails hard on any
+  day/layer, while values found at `mask==0` cells (this dataset has 45
+  static land-boundary u-faces) are discarded to NaN and counted.
 - Formal evaluation maps rho predictions back to the native grids with a fixed
   rule: rho u -> native u by averaging adjacent rho points along xi -> (400,
   440); rho v -> native v by averaging adjacent rho points along eta -> (399,

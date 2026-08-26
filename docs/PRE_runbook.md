@@ -28,8 +28,10 @@ v_rho[r,c] = mean_valid(v[r-1,c], v[r,c])   (r=1..398)；边界行直接复制
 - `mask_u_rho.npy` / `mask_v_rho.npy`（均为 `(400, 441)`）：用与插值相同的模板从 `mask_u`/`mask_v` 构造
   （rho 点有效 ⟺ 相邻两个 face 中至少一个有效，边界单侧），保证对齐后 NaN 位置 == mask==0。
 - `mask_uv.npy` = 两者交集（仅兼容/选用）。
-- 预处理对**每一天、全部 30 层**校验原始 NaN 模式 == `mask==0`，不一致即报首个 `(t, s, r, c)` 并停止，
-  绝不用静态 mask 掩盖动态缺测。
+- 预处理以提供的 mask 为准，对**每一天、全部 30 层**分两个方向处理：`mask==1`（海洋）处出现 NaN
+  属于动态缺测，报首个 `(t, s, r, c)` 并立即停止，绝不用静态 mask 掩盖；`mask==0`（陆地）处带有的值
+  （本数据集的 `u` 有 45 个静态陆侧边界 face，v 无）在共定位前直接置 NaN 丢弃并逐变量计数汇报。
+  强制执行后对齐结果 NaN 位置 == `mask==0` 严格成立（首个 chunk 断言）。
 
 ### 0.4 归一化与裁剪决策
 
@@ -109,7 +111,9 @@ tail -f ~/data_processed/PRE/aligned/preprocess.log
 
 完成后检查日志：
 - `[time] verified 10591 strictly increasing daily timestamps ...` 存在；
-- mask 一致性校验全部通过（任一 `(t, s, r, c)` 不匹配都会抛错终止）；
+- mask 校验：开头出现 `[mask] day0/layer0 probe discards ... {'u': 45}`（45 个静态陆侧边界 u-face
+  的值被丢弃，属预期）；结尾 `[mask] u: discarded ... values ...`（45×30 层×10591 天 = 14297850）。
+  若 mask==1 的海洋点出现 NaN（动态缺测）会报 `(t, s, r, c)` 并抛错终止；
 - `[extrema]` 四行给出原始与对齐后 u/v 极值及其 `(t, s, r, c)` 位置——只记录，不擅自判定异常值。
 
 ## 3. 步骤 1：表层冒烟训练（GPU 5/6 空闲）
