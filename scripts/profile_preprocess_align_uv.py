@@ -348,9 +348,14 @@ def profile_gpu_once(
     mask_v: np.ndarray,
     torch: Any,
 ) -> tuple[dict[str, float], dict[str, Any]]:
-    device = torch.device("cuda:0")
+    device_index = 0
+    torch.cuda.set_device(device_index)
+    device = torch.device("cuda", device_index)
     stages: dict[str, float] = {}
-    torch.cuda.reset_peak_memory_stats(device)
+    # PyTorch 2.4 builds in the target environment can reject a torch.device
+    # object in this allocator API even though tensor .to(device) accepts it.
+    # After selecting cuda:0 explicitly, the no-argument form is compatible.
+    torch.cuda.reset_peak_memory_stats()
     started = time.perf_counter()
     uc = gpu_timed(stages, "h2d_u_s", lambda: torch.from_numpy(u_base).to(device), torch)
     vc = gpu_timed(stages, "h2d_v_s", lambda: torch.from_numpy(v_base).to(device), torch)
@@ -368,7 +373,7 @@ def profile_gpu_once(
     ub_cpu = gpu_timed(stages, "d2h_u_s", lambda: ub.cpu().numpy(), torch)
     vb_cpu = gpu_timed(stages, "d2h_v_s", lambda: vb.cpu().numpy(), torch)
     stages["gpu_total_s"] = seconds_since(started)
-    peak_allocated_mib = torch.cuda.max_memory_allocated(device) / 1024 ** 2
+    peak_allocated_mib = torch.cuda.max_memory_allocated() / 1024 ** 2
     discarded: dict[str, int] = {}
     if discarded_values[0]:
         discarded["u"] = discarded_values[0]
