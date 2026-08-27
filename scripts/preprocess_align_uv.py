@@ -44,11 +44,24 @@ Mask policy (the provided masks are authoritative):
 
 The raw and aligned u/v extrema are recorded WITH their (day, layer, row, col)
 location and value; extrema are not automatically treated as outliers.
+
+The chunk pipeline runs on a single CUDA GPU (logical cuda:0, honoring
+CUDA_VISIBLE_DEVICES; NO CPU fallback). Per chunk, in order:
+    mmap read (CPU) -> H2D -> raw extrema -> authoritative mask enforcement ->
+    NaN-aware colocation -> first-chunk NaN-pattern assert -> aligned extrema ->
+    D2H -> memmap write -> flush
+Only scalar (value, first flat index) summaries cross back to the CPU for the
+trackers; full chunks are never scanned on the CPU. The NumPy helpers above
+(colocate, u_rho_mask, v_rho_mask, enforce_land_mask, ExtremumTracker.update)
+are retained as unit-test references and differential baselines only. All GPU
+work is float32 (no AMP). CUDA memory is reused across chunks; the mask is
+uploaded once.
 """
 import os
 import time
 import numpy as np
 import netCDF4
+import torch
 
 SRC_CANDIDATES = [
     "/data2/user/zyq/datasets/PRE/processed",
@@ -60,6 +73,7 @@ RAW_DYN_CANDIDATES = [
 ]
 DST = "/data2/user/zyq/data_processed/PRE/aligned"
 CHUNK = 50  # days per chunk
+DEVICE_INDEX = 0  # logical CUDA index; honors CUDA_VISIBLE_DEVICES
 
 T, S, H, W = 10591, 30, 400, 441
 
@@ -100,6 +114,9 @@ class ExtremumTracker:
 
     arr chunks have shape (t_len, S, R, C); the global (t, s, r, c) of the first
     occurrence is recorded. NaN cells (land) are ignored.
+    update() takes a NumPy chunk (reference path); update_summary() takes the
+    scalar (value, first flat index) summaries produced on the GPU, so whole
+    chunks never need to cross back to the CPU.
     """
 
     def __init__(self, name):
@@ -123,6 +140,21 @@ class ExtremumTracker:
             i = int(np.nanargmax(flat))
             self.max_val = mx
             self.max_loc = self._loc(i, arr.shape, t0)
+
+    def update_summary(self, min_value, min_flat_index,
+                       max_value, max_flat_index, shape, t0):
+        """GPU path: fold a chunk's scalar extrema into the global trackers.
+
+        min_flat_index/max_flat_index are C-order indices into the chunk's own
+        raveled layout (ties keep the first occurrence); shape is the chunk
+        shape (t_len, S, R, C) used to recover the global (t, s, r, c).
+        """
+        if min_value < self.min_val:
+            self.min_val = float(min_value)
+            self.min_loc = self._loc(int(min_flat_index), shape, t0)
+        if max_value > self.max_val:
+            self.max_val = float(max_value)
+            self.max_loc = self._loc(int(max_flat_index), shape, t0)
 
     @staticmethod
     def _loc(i, shape, t0):
@@ -177,6 +209,86 @@ def enforce_land_mask(arr, mask, name, t0, discarded):
         arr[stray] = np.nan
         discarded[name] = discarded.get(name, 0) + n_stray
     return arr
+
+
+def torch_extrema_summary(arr):
+    """CUDA equivalent of nanmin/nanargmin/nanmax/nanargmax over a chunk.
+
+    Returns (min_value, min_flat_index, max_value, max_flat_index); the flat
+    indices are C-order positions in the chunk's own raveled layout and, like
+    numpy, ties keep the FIRST occurrence. Raises ValueError on an all-NaN
+    chunk, matching np.nanmin/np.nanmax. Only these scalars are copied back to
+    the CPU.
+    """
+    flat = arr.reshape(-1)
+    nan = torch.isnan(flat)
+    if bool(nan.all().item()):
+        raise ValueError("All-NaN slice encountered")
+    min_input = torch.where(nan, torch.full_like(flat, float("inf")), flat)
+    max_input = torch.where(nan, torch.full_like(flat, float("-inf")), flat)
+    min_value, min_index = torch.min(min_input, dim=0)
+    max_value, max_index = torch.max(max_input, dim=0)
+    return (float(min_value.item()), int(min_index.item()),
+            float(max_value.item()), int(max_index.item()))
+
+
+def torch_enforce_land_mask(arr, mask, name, t0, discarded):
+    """GPU equivalent of enforce_land_mask: identical policy and error message.
+
+    `arr` is a CUDA chunk (t, s, R, C) modified in place; `mask` is the
+    (R, C) boolean GPU mask. Returns arr.
+    """
+    nan = torch.isnan(arr)
+    ocean = mask != 0
+    missing = nan & ocean[None, None]
+    if bool(missing.any().item()):
+        # torch.argmax is not implemented for Bool tensors; nonzero returns the
+        # first True in C order, matching np.argmax on the NumPy side.
+        index = int(torch.nonzero(missing.reshape(-1))[0].item())
+        t_len, s, r, c = arr.shape
+        t, rem = divmod(index, s * r * c)
+        s_, rem = divmod(rem, r * c)
+        r_, c_ = divmod(rem, c)
+        day = t0 + t
+        raise RuntimeError(
+            f"{name} dynamic missing data at (t={day}, s={s_}, r={r_}, c={c_}): "
+            f"field is NaN but mask==1 (ocean); not masked away.")
+    stray = ~nan & ~ocean[None, None]
+    n_stray = int(stray.sum().item())
+    if n_stray:
+        arr.masked_fill_(stray, float("nan"))
+        discarded[name] = discarded.get(name, 0) + n_stray
+    return arr
+
+
+def torch_colocate(a, b):
+    """CUDA equivalent of colocate: NaN-aware mean; NaN where both are NaN."""
+    na = ~torch.isnan(a)
+    nb = ~torch.isnan(b)
+    cnt = na.to(torch.float32) + nb.to(torch.float32)
+    s = torch.where(na, a, torch.zeros_like(a)) + torch.where(nb, b, torch.zeros_like(b))
+    out = torch.full_like(a, float("nan"))
+    valid = cnt > 0
+    out[valid] = s[valid] / cnt[valid]
+    return out
+
+
+def torch_colocate_u(uc):
+    """GPU: (t, s, 400, 440) u chunk -> (t, s, 400, 441) rho u."""
+    ub = torch.empty((uc.shape[0], S, H, W), dtype=uc.dtype, device=uc.device)
+    ub[:, :, :, 1:W - 1] = torch_colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
+    ub[:, :, :, 0] = uc[:, :, :, 0]
+    ub[:, :, :, W - 1] = uc[:, :, :, -1]
+    return ub
+
+
+def torch_colocate_v(vc):
+    """GPU: (t, s, 399, 441) v chunk -> (t, s, 400, 441) rho v."""
+    vb = torch.empty((vc.shape[0], S, H, W), dtype=vc.dtype, device=vc.device)
+    vb[:, :, 1:H - 1, :] = torch_colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
+    vb[:, :, 0, :] = vc[:, :, 0, :]
+    vb[:, :, H - 1, :] = vc[:, :, -1, :]
+    return vb
 
 
 def verify_daily_time(times):
@@ -243,6 +355,16 @@ def extract_and_verify_time():
 
 def main():
     global SRC, RAW_DYN
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "CUDA is not available (torch.cuda.is_available() is False); the PRE "
+            "alignment pipeline requires a GPU and has NO CPU fallback. Check the "
+            "conda env and CUDA_VISIBLE_DEVICES.")
+    torch.cuda.set_device(DEVICE_INDEX)
+    device = torch.device("cuda", DEVICE_INDEX)
+    print(f"[gpu] {torch.cuda.get_device_name(device)} "
+          f"(logical device {DEVICE_INDEX})", flush=True)
+
     SRC = next((p for p in SRC_CANDIDATES if os.path.isdir(p)), None)
     if SRC is None:
         raise RuntimeError(f"processed data dir not found (tried {SRC_CANDIDATES})")
@@ -303,53 +425,63 @@ def main():
     tr_ur, tr_vr = ExtremumTracker("u_rho"), ExtremumTracker("v_rho")
     discarded = {}
 
+    # upload the (authoritative) masks ONCE; reused by every chunk
+    gpu_mask_u = torch.as_tensor(mask_u, dtype=torch.bool, device=device)
+    gpu_mask_v = torch.as_tensor(mask_v, dtype=torch.bool, device=device)
+    gpu_mask_u_rho = torch.as_tensor(m_u_rho, dtype=torch.bool, device=device)
+    gpu_mask_v_rho = torch.as_tensor(m_v_rho, dtype=torch.bool, device=device)
+
     t0 = time.time()
     n_chunks = (T + CHUNK - 1) // CHUNK
-    for ci, ts in enumerate(range(0, T, CHUNK)):
-        te = min(ts + CHUNK, T)
-        uc = np.array(u[ts:te])  # (t,s,400,440) writable copy (mmap slice is read-only)
-        vc = np.array(v[ts:te])  # (t,s,399,441)
-        tlen = te - ts
+    with torch.inference_mode():
+        for ci, ts in enumerate(range(0, T, CHUNK)):
+            te = min(ts + CHUNK, T)
+            # mmap read (CPU) -> H2D. uc: (t,s,400,440), vc: (t,s,399,441)
+            uc = torch.from_numpy(np.array(u[ts:te])).to(device)
+            vc = torch.from_numpy(np.array(v[ts:te])).to(device)
 
-        # raw extrema describe the ORIGINAL chunk (before mask enforcement);
-        # enforcement then fails hard on dynamic missing ocean data and sets
-        # land-cell values to NaN so colocation sees the masked fields.
-        tr_u.update(uc, ts)
-        tr_v.update(vc, ts)
-        enforce_land_mask(uc, mask_u, "u", ts, discarded)
-        enforce_land_mask(vc, mask_v, "v", ts, discarded)
+            # raw extrema describe the ORIGINAL chunk BEFORE mask enforcement;
+            # enforcement then fails hard on dynamic missing ocean data and sets
+            # land-cell values to NaN so colocation sees the masked fields.
+            mn, mi, mx, xi = torch_extrema_summary(uc)
+            tr_u.update_summary(mn, mi, mx, xi, uc.shape, ts)
+            mn, mi, mx, xi = torch_extrema_summary(vc)
+            tr_v.update_summary(mn, mi, mx, xi, vc.shape, ts)
 
-        ub = np.empty((tlen, S, H, W), np.float32)
-        vb = np.empty((tlen, S, H, W), np.float32)
+            torch_enforce_land_mask(uc, gpu_mask_u, "u", ts, discarded)
+            torch_enforce_land_mask(vc, gpu_mask_v, "v", ts, discarded)
 
-        ub[:, :, :, 1:W - 1] = colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
-        ub[:, :, :, 0] = uc[:, :, :, 0]
-        ub[:, :, :, W - 1] = uc[:, :, :, -1]
+            ub = torch_colocate_u(uc)
+            vb = torch_colocate_v(vc)
 
-        vb[:, :, 1:H - 1, :] = colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
-        vb[:, :, 0, :] = vc[:, :, 0, :]
-        vb[:, :, H - 1, :] = vc[:, :, -1, :]
+            if ci == 0:
+                assert (torch.isnan(ub) == (gpu_mask_u_rho == 0)[None, None]).all().item(), \
+                    "u_rho NaN pattern does not match mask_u_rho"
+                assert (torch.isnan(vb) == (gpu_mask_v_rho == 0)[None, None]).all().item(), \
+                    "v_rho NaN pattern does not match mask_v_rho"
 
-        if ci == 0:
-            assert (np.isnan(ub) == (m_u_rho == 0)[None, None]).all(), \
-                "u_rho NaN pattern does not match mask_u_rho"
-            assert (np.isnan(vb) == (m_v_rho == 0)[None, None]).all(), \
-                "v_rho NaN pattern does not match mask_v_rho"
+            mn, mi, mx, xi = torch_extrema_summary(ub)
+            tr_ur.update_summary(mn, mi, mx, xi, ub.shape, ts)
+            mn, mi, mx, xi = torch_extrema_summary(vb)
+            tr_vr.update_summary(mn, mi, mx, xi, vb.shape, ts)
 
-        u_out[ts:te] = ub
-        v_out[ts:te] = vb
-        u_out.flush()
-        v_out.flush()
+            # D2H -> memmap write -> flush (output stays float32)
+            ub_cpu = ub.cpu().numpy()
+            vb_cpu = vb.cpu().numpy()
+            u_out[ts:te] = ub_cpu
+            v_out[ts:te] = vb_cpu
+            u_out.flush()
+            v_out.flush()
 
-        tr_ur.update(ub, ts)
-        tr_vr.update(vb, ts)
+            dt = time.time() - t0
+            eta = dt / (ci + 1) * (n_chunks - ci - 1)
+            print(f"[{ci + 1}/{n_chunks}] days {ts}:{te}  elapsed {dt / 60:.1f} min  "
+                  f"ETA {eta / 60:.1f} min", flush=True)
+            del uc, vc, ub, vb, ub_cpu, vb_cpu
 
-        dt = time.time() - t0
-        eta = dt / (ci + 1) * (n_chunks - ci - 1)
-        print(f"[{ci + 1}/{n_chunks}] days {ts}:{te}  elapsed {dt / 60:.1f} min  "
-              f"ETA {eta / 60:.1f} min", flush=True)
-        del uc, vc, ub, vb
-
+    print(f"[gpu] peak CUDA memory: allocated "
+          f"{torch.cuda.max_memory_allocated() / 1024 ** 3:.2f} GiB, reserved "
+          f"{torch.cuda.max_memory_reserved() / 1024 ** 3:.2f} GiB", flush=True)
     print(tr_u.report(), flush=True)
     print(tr_v.report(), flush=True)
     print(tr_ur.report(), flush=True)

@@ -111,6 +111,174 @@ def test_enforce_land_mask_policy():
         raise AssertionError("expected RuntimeError for NaN on ocean cell")
 
 
+def _cuda_or_skip():
+    """Return a cuda device when available, else None after printing a note."""
+    if torch.cuda.is_available():
+        return torch.device("cuda", 0)
+    print("  SKIP (no CUDA available)")
+    return None
+
+
+def test_tracker_update_summary_matches_update():
+    # update_summary (the GPU scalar-interface) must reproduce the NumPy
+    # update() trackers exactly: values, first-occurrence locations, and
+    # cross-chunk accumulation. Runs without CUDA.
+    rng = np.random.default_rng(2)
+    arr = rng.uniform(-3, 3, (5, 2, 4, 6)).astype(np.float32)
+    flat = arr.ravel()
+    flat[::4] = np.nan
+    flat[0] = -9.0
+    flat[-1] = 9.0
+    t0 = 100
+
+    a = pre_pp.ExtremumTracker("same")
+    b = pre_pp.ExtremumTracker("same")
+    a.update(arr, t0)
+    b.update_summary(float(np.nanmin(flat)), int(np.nanargmin(flat)),
+                     float(np.nanmax(flat)), int(np.nanargmax(flat)),
+                     arr.shape, t0)
+    assert a.min_val == b.min_val == float(np.nanmin(flat))
+    assert a.max_val == b.max_val == float(np.nanmax(flat))
+    assert a.min_loc == b.min_loc == (t0 + 0, 0, 0, 0)
+    assert a.max_loc == b.max_loc
+    assert a.report() == b.report()
+
+    # partial chunks accumulate identically across several calls
+    a2 = pre_pp.ExtremumTracker("same2")
+    b2 = pre_pp.ExtremumTracker("same2")
+    for k in range(4):
+        chunk = arr[k:k + 1]
+        f = chunk.ravel()
+        a2.update(chunk, t0 + k)
+        b2.update_summary(float(np.nanmin(f)), int(np.nanargmin(f)),
+                          float(np.nanmax(f)), int(np.nanargmax(f)),
+                          chunk.shape, t0 + k)
+    assert a2.report() == b2.report()
+
+
+def test_torch_colocate_matches_numpy():
+    dev = _cuda_or_skip()
+    if dev is None:
+        return
+    rng = np.random.default_rng(0)
+    for shape in ((7, 3), (2, 5), (4, 4)):
+        a = rng.uniform(-2, 2, shape).astype(np.float32)
+        b = rng.uniform(-2, 2, shape).astype(np.float32)
+        a[rng.uniform(size=shape) < 0.3] = np.nan
+        b[rng.uniform(size=shape) < 0.3] = np.nan
+        cpu = pre_pp.colocate(a, b)
+        gpu = pre_pp.torch_colocate(
+            torch.from_numpy(a).to(dev), torch.from_numpy(b).to(dev)).cpu().numpy()
+        assert np.array_equal(cpu, gpu, equal_nan=True), shape
+
+
+def test_torch_colocate_edge_cases():
+    dev = _cuda_or_skip()
+    if dev is None:
+        return
+    # cell 0: one-sided valid (a only) -> a; cell 1: both invalid -> NaN;
+    # cell 2: one-sided valid (a only, b NaN) -> a
+    a = np.array([[1.0, np.nan, 3.0]], np.float32)
+    b = np.array([[np.nan, np.nan, np.nan]], np.float32)
+    cpu = pre_pp.colocate(a, b)
+    gpu = pre_pp.torch_colocate(torch.from_numpy(a).to(dev),
+                                torch.from_numpy(b).to(dev)).cpu().numpy()
+    assert np.array_equal(cpu, gpu, equal_nan=True)
+    assert cpu[0, 0] == 1.0 and np.isnan(cpu[0, 1]) and cpu[0, 2] == 3.0
+
+    # u boundary columns are copied, not averaged (incl. NaN edges)
+    uc = np.array([[[[1.0, 2.0, np.nan],
+                     [4.0, np.nan, 6.0]]]], np.float32)          # (1,1,2,3)
+    cpu_ub = np.empty((1, 1, 2, 4), np.float32)
+    cpu_ub[:, :, :, 1:3] = pre_pp.colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
+    cpu_ub[:, :, :, 0] = uc[:, :, :, 0]
+    cpu_ub[:, :, :, 3] = uc[:, :, :, -1]
+    gpu_ub = pre_pp.torch_colocate_u(torch.from_numpy(uc).to(dev)).cpu().numpy()
+    assert np.array_equal(cpu_ub, gpu_ub, equal_nan=True)
+
+    # v boundary rows are copied, not averaged
+    vc = np.array([[[[1.0, 2.0, 3.0],
+                     [4.0, np.nan, 6.0],
+                     [7.0, 8.0, np.nan]]]], np.float32)          # (1,1,3,3)
+    cpu_vb = np.empty((1, 1, 4, 3), np.float32)
+    cpu_vb[:, :, 1:3, :] = pre_pp.colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
+    cpu_vb[:, :, 0, :] = vc[:, :, 0, :]
+    cpu_vb[:, :, 3, :] = vc[:, :, -1, :]
+    gpu_vb = pre_pp.torch_colocate_v(torch.from_numpy(vc).to(dev)).cpu().numpy()
+    assert np.array_equal(cpu_vb, gpu_vb, equal_nan=True)
+
+
+def test_torch_enforce_land_mask():
+    dev = _cuda_or_skip()
+    if dev is None:
+        return
+    mask = np.array([[1, 0, 1],
+                     [1, 1, 0]])
+    gmask = torch.as_tensor(mask, dtype=torch.bool, device=dev)
+
+    # land finite values are cleared in place and counted (identical to NumPy)
+    arr = np.array([[[[1.0, 9.0, 3.0],
+                      [4.0, 5.0, 6.0]]]], np.float32)
+    cpu = arr.copy()
+    discarded_cpu = {}
+    pre_pp.enforce_land_mask(cpu, mask, "u", 0, discarded_cpu)
+    gpu = torch.from_numpy(arr.copy()).to(dev)
+    discarded_gpu = {}
+    pre_pp.torch_enforce_land_mask(gpu, gmask, "u", 0, discarded_gpu)
+    assert np.array_equal(cpu, gpu.cpu().numpy(), equal_nan=True)
+    assert discarded_cpu == discarded_gpu == {"u": 2}
+
+    # counts accumulate across chunks (already-NaN cells are not double counted)
+    pre_pp.torch_enforce_land_mask(gpu, gmask, "u", 50, discarded_gpu)
+    assert discarded_gpu == {"u": 2}
+
+    # NaN on an ocean cell (mask==1) -> RuntimeError with the GLOBAL coordinate
+    bad = np.array([[[[1.0, 2.0, 3.0],
+                      [4.0, np.nan, 6.0]]]], np.float32)  # NaN at (t=7,s=0,r=1,c=1)
+    gbad = torch.from_numpy(bad).to(dev)
+    try:
+        pre_pp.torch_enforce_land_mask(gbad, gmask, "v", 7, {})
+    except RuntimeError as e:
+        msg = str(e)
+        assert "t=7" in msg and "r=1" in msg and "c=1" in msg, msg
+        assert "mask==1" in msg, msg
+    else:
+        raise AssertionError("expected RuntimeError for NaN on ocean cell")
+
+
+def test_torch_extrema_summary():
+    dev = _cuda_or_skip()
+    if dev is None:
+        return
+    rng = np.random.default_rng(1)
+    arr = rng.uniform(-5, 5, (4, 3, 2, 7)).astype(np.float32)
+    flat = arr.ravel()
+    flat[::3] = np.nan
+    flat[0] = -9.0
+    flat[10] = 9.0                     # max at a NON-last index (tie test below)
+    mn, mi, mx, xi = pre_pp.torch_extrema_summary(torch.from_numpy(arr).to(dev))
+    assert mn == float(np.nanmin(flat)) and mx == float(np.nanmax(flat))
+    assert mi == int(np.nanargmin(flat)) and xi == int(np.nanargmax(flat))
+
+    # ties keep the FIRST C-order occurrence (GPU == numpy): duplicate the max
+    # at a STRICTLY LATER index, so the first occurrence must stay first_max
+    flat2 = flat.copy()
+    first_max = int(np.nanargmax(flat2))
+    flat2[first_max + 10] = flat2[first_max]      # later duplicate of the max
+    g2 = torch.from_numpy(flat2.reshape(arr.shape)).to(dev)
+    mn2, mi2, mx2, xi2 = pre_pp.torch_extrema_summary(g2)
+    assert mx2 == float(np.nanmax(flat2)) and xi2 == first_max
+
+    # all-NaN chunk raises like np.nanmin/np.nanmax
+    all_nan = torch.full((2, 3), np.nan, device=dev)
+    try:
+        pre_pp.torch_extrema_summary(all_nan)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for an all-NaN chunk")
+
+
 def test_cond_flatten_and_rollout_shift():
     uv = torch.randn(1, 7, 2, 4, 4, 1)          # (B, days, 2, H, W, Z)
     cond = uv.reshape(1, 14, 4, 4, 1)           # day-major interleave

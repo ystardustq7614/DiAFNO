@@ -16,9 +16,13 @@ preprocess_align_uv.py: read, extrema, mask enforcement, colocation, write,
 flush, and output extrema.  Scratch data is deleted by default after a
 successful or failed run; pass --keep-scratch to retain it for inspection.
 
-With --gpu-compare, it also runs one sampled RAM-resident chunk through a
-CUDA implementation, separately timing host-to-device, GPU stages, and
-device-to-host transfer while checking exact NumPy equivalence.
+With --gpu-compare, it also runs one sampled RAM-resident chunk through the
+PRODUCTION CUDA implementation from preprocess_align_uv.py (torch_extrema_summary,
+torch_enforce_land_mask, torch_colocate_u/v — no kernels are duplicated here),
+separately timing host-to-device, GPU stages, and device-to-host transfer while
+checking exact NumPy equivalence. Both peak allocated and peak reserved CUDA
+memory are reported, and the CPU/GPU stage timings are extrapolated to a full
+10591-day run estimate.
 """
 from __future__ import annotations
 
@@ -234,68 +238,13 @@ def profile_compute_only(
     return runs
 
 
-def numpy_extrema_signature(arr: np.ndarray) -> tuple[float, float, int, int]:
+def numpy_extrema_signature(arr: np.ndarray) -> tuple[float, int, float, int]:
+    """NumPy reference; tuple order matches pp.torch_extrema_summary."""
     flat = arr.ravel()
     return (
-        float(np.nanmin(flat)), float(np.nanmax(flat)),
-        int(np.nanargmin(flat)), int(np.nanargmax(flat)),
+        float(np.nanmin(flat)), int(np.nanargmin(flat)),
+        float(np.nanmax(flat)), int(np.nanargmax(flat)),
     )
-
-
-def torch_extrema_signature(arr: Any, torch: Any) -> tuple[float, float, int, int]:
-    flat = arr.reshape(-1)
-    minimum_input = torch.where(torch.isnan(flat), torch.full_like(flat, float("inf")), flat)
-    maximum_input = torch.where(torch.isnan(flat), torch.full_like(flat, float("-inf")), flat)
-    min_value, min_index = torch.min(minimum_input, dim=0)
-    max_value, max_index = torch.max(maximum_input, dim=0)
-    return float(min_value.item()), float(max_value.item()), int(min_index.item()), int(max_index.item())
-
-
-def torch_enforce_land_mask(arr: Any, mask: Any, name: str, torch: Any) -> int:
-    """GPU equivalent of pp.enforce_land_mask; returns the discarded-value count."""
-    nan = torch.isnan(arr)
-    ocean = mask != 0
-    missing = nan & ocean[None, None]
-    if bool(missing.any().item()):
-        index = int(torch.argmax(missing.reshape(-1)).item())
-        t_len, s, r, c = arr.shape
-        t, remainder = divmod(index, s * r * c)
-        s_index, remainder = divmod(remainder, r * c)
-        r_index, c_index = divmod(remainder, c)
-        raise RuntimeError(
-            f"{name} dynamic missing data at local (t={t}, s={s_index}, r={r_index}, c={c_index})")
-    stray = ~nan & ~ocean[None, None]
-    count = int(stray.sum().item())
-    if count:
-        arr.masked_fill_(stray, float("nan"))
-    return count
-
-
-def torch_colocate(a: Any, b: Any, torch: Any) -> Any:
-    na = ~torch.isnan(a)
-    nb = ~torch.isnan(b)
-    count = na.to(torch.float32) + nb.to(torch.float32)
-    summed = torch.where(na, a, torch.zeros_like(a)) + torch.where(nb, b, torch.zeros_like(b))
-    out = torch.full_like(a, float("nan"))
-    valid = count > 0
-    out[valid] = summed[valid] / count[valid]
-    return out
-
-
-def torch_colocate_u(uc: Any, torch: Any) -> Any:
-    ub = torch.empty((uc.shape[0], pp.S, pp.H, pp.W), dtype=uc.dtype, device=uc.device)
-    ub[:, :, :, 1:pp.W - 1] = torch_colocate(uc[:, :, :, :-1], uc[:, :, :, 1:], torch)
-    ub[:, :, :, 0] = uc[:, :, :, 0]
-    ub[:, :, :, pp.W - 1] = uc[:, :, :, -1]
-    return ub
-
-
-def torch_colocate_v(vc: Any, torch: Any) -> Any:
-    vb = torch.empty((vc.shape[0], pp.S, pp.H, pp.W), dtype=vc.dtype, device=vc.device)
-    vb[:, :, 1:pp.H - 1, :] = torch_colocate(vc[:, :, :-1, :], vc[:, :, 1:, :], torch)
-    vb[:, :, 0, :] = vc[:, :, 0, :]
-    vb[:, :, pp.H - 1, :] = vc[:, :, -1, :]
-    return vb
 
 
 def gpu_timed(stages: dict[str, float], name: str, fn: Callable[[], Any], torch: Any) -> Any:
@@ -362,23 +311,20 @@ def profile_gpu_once(
     gpu_mask_u = torch.as_tensor(mask_u, dtype=torch.bool, device=device)
     gpu_mask_v = torch.as_tensor(mask_v, dtype=torch.bool, device=device)
     raw = gpu_timed(stages, "raw_extrema_s", lambda: (
-        torch_extrema_signature(uc, torch), torch_extrema_signature(vc, torch)), torch)
-    discarded_values = gpu_timed(stages, "mask_check_s", lambda: (
-        torch_enforce_land_mask(uc, gpu_mask_u, "u", torch),
-        torch_enforce_land_mask(vc, gpu_mask_v, "v", torch)), torch)
-    ub = gpu_timed(stages, "colocate_u_s", lambda: torch_colocate_u(uc, torch), torch)
-    vb = gpu_timed(stages, "colocate_v_s", lambda: torch_colocate_v(vc, torch), torch)
+        pp.torch_extrema_summary(uc), pp.torch_extrema_summary(vc)), torch)
+    discarded: dict[str, int] = {}
+    gpu_timed(stages, "mask_check_s", lambda: (
+        pp.torch_enforce_land_mask(uc, gpu_mask_u, "u", 0, discarded),
+        pp.torch_enforce_land_mask(vc, gpu_mask_v, "v", 0, discarded)), torch)
+    ub = gpu_timed(stages, "colocate_u_s", lambda: pp.torch_colocate_u(uc), torch)
+    vb = gpu_timed(stages, "colocate_v_s", lambda: pp.torch_colocate_v(vc), torch)
     aligned = gpu_timed(stages, "aligned_extrema_s", lambda: (
-        torch_extrema_signature(ub, torch), torch_extrema_signature(vb, torch)), torch)
+        pp.torch_extrema_summary(ub), pp.torch_extrema_summary(vb)), torch)
     ub_cpu = gpu_timed(stages, "d2h_u_s", lambda: ub.cpu().numpy(), torch)
     vb_cpu = gpu_timed(stages, "d2h_v_s", lambda: vb.cpu().numpy(), torch)
     stages["gpu_total_s"] = seconds_since(started)
     peak_allocated_mib = torch.cuda.max_memory_allocated() / 1024 ** 2
-    discarded: dict[str, int] = {}
-    if discarded_values[0]:
-        discarded["u"] = discarded_values[0]
-    if discarded_values[1]:
-        discarded["v"] = discarded_values[1]
+    peak_reserved_mib = torch.cuda.max_memory_reserved() / 1024 ** 2
     result = {
         "raw": raw,
         "aligned": aligned,
@@ -386,6 +332,7 @@ def profile_gpu_once(
         "ub": ub_cpu,
         "vb": vb_cpu,
         "gpu_peak_allocated_mib": peak_allocated_mib,
+        "gpu_peak_reserved_mib": peak_reserved_mib,
     }
     del uc, vc, ub, vb, gpu_mask_u, gpu_mask_v
     torch.cuda.empty_cache()
@@ -413,19 +360,23 @@ def profile_gpu_compare(
     del warmup
 
     runs: list[dict[str, float]] = []
-    peaks_mib: list[float] = []
+    peaks_allocated: list[float] = []
+    peaks_reserved: list[float] = []
     for _ in range(repeats):
         stages, result = profile_gpu_once(u_base, v_base, mask_u, mask_v, torch)
         assert_gpu_matches_reference(reference, result)
-        peaks_mib.append(float(result.pop("gpu_peak_allocated_mib")))
+        peaks_allocated.append(float(result.pop("gpu_peak_allocated_mib")))
+        peaks_reserved.append(float(result.pop("gpu_peak_reserved_mib")))
         runs.append(stages)
         del result
     del reference
     return runs, {
         "device": torch.cuda.get_device_name(0),
         "numerically_verified": True,
-        "peak_allocated_mib_median": statistics.median(peaks_mib),
-        "peak_allocated_mib_p95": percentile(peaks_mib, 0.95),
+        "peak_allocated_mib_median": statistics.median(peaks_allocated),
+        "peak_allocated_mib_p95": percentile(peaks_allocated, 0.95),
+        "peak_reserved_mib_median": statistics.median(peaks_reserved),
+        "peak_reserved_mib_p95": percentile(peaks_reserved, 0.95),
     }
 
 
@@ -550,16 +501,47 @@ def print_summary(report: dict[str, Any]) -> None:
 
     if report.get("gpu_stage_summary"):
         gpu = report["gpu_info"]
+        total = report["gpu_stage_summary"]["gpu_total_s"]["median_s"]
         print(f"\nGPU comparison ({gpu['device']}; numerical check: {gpu['numerically_verified']}):")
         for stage, summary in report["gpu_stage_summary"].items():
-            print(f"{stage:<30} median={summary['median_s']:.3f}  p95={summary['p95_s']:.3f}")
+            fraction = 100.0 * summary["median_s"] / total if total else 0.0
+            print(f"{stage:<30} median={summary['median_s']:.3f}  p95={summary['p95_s']:.3f}"
+                  f"  {fraction:5.1f}% of gpu_total")
         print(f"GPU peak allocated: median={gpu['peak_allocated_mib_median']:.1f} MiB "
               f"p95={gpu['peak_allocated_mib_p95']:.1f} MiB")
+        print(f"GPU peak reserved : median={gpu['peak_reserved_mib_median']:.1f} MiB "
+              f"p95={gpu['peak_reserved_mib_p95']:.1f} MiB")
 
     if report.get("metadata"):
         print("\nMetadata scan:")
         for name, value in report["metadata"].items():
             print(f"{name}: {value:.3f}s")
+
+    if report["chunks"]:
+        chunk_days = report["arguments"]["chunk_days"]
+        n_chunks_total = (pp.T + chunk_days - 1) // chunk_days
+        chunk_median = statistics.median(
+            run["stages"]["chunk_total_s"] for run in report["chunks"])
+        metadata_total = report.get("metadata", {}).get("metadata_total_s", 0.0) or 0.0
+        lines = [
+            f"\nFull-run estimates for T={pp.T} days, chunk={chunk_days} days "
+            f"({n_chunks_total} chunks; metadata {metadata_total:.0f}s):",
+            f"  CPU  pipeline @ median {chunk_median:.3f} s/chunk : "
+            f"~{(chunk_median * n_chunks_total + metadata_total) / 60:.1f} min",
+        ]
+        if report.get("gpu_stage_summary"):
+            gpu_total = report["gpu_stage_summary"]["gpu_total_s"]["median_s"]
+            read_s = sum(
+                report["chunk_stage_summary"].get(name, {}).get("median_s", 0.0)
+                for name in ("read_u_s", "read_v_s"))
+            write_flush = sum(
+                report["chunk_stage_summary"].get(name, {}).get("median_s", 0.0)
+                for name in ("write_u_s", "write_v_s", "flush_u_s", "flush_v_s"))
+            lines.append(
+                f"  GPU  pipeline @ median {gpu_total:.3f} s compute+transfer/chunk "
+                f"+ {read_s:.3f} s read + {write_flush:.3f} s write+flush : "
+                f"~{((gpu_total + read_s + write_flush) * n_chunks_total + metadata_total) / 60:.1f} min")
+        print("\n".join(lines))
 
 
 def main() -> None:
