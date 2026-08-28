@@ -345,4 +345,7 @@ def build_mask_tensor(device, depth_index=None):
     z = S_TOTAL if depth_index is None else 1
     m = np.stack([mu, mv])[:, None, :, :, None]           # (2, 1, H, W, 1)
     m = np.broadcast_to(m, (2, 1, H, W, z)).transpose(1, 0, 2, 3, 4)  # (1, 2, H, W, Z)
-    return torch.from_numpy(np.ascontiguousarray(m)).to(device)
+    # broadcast_to returns a READ-ONLY view; force a writable C-contiguous copy
+    # so torch.from_numpy() does not warn and in-place ops never fail.
+    m = np.array(m, copy=True, order="C")
+    return torch.from_numpy(m).to(device)

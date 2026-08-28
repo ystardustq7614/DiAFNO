@@ -42,7 +42,14 @@ v_rho[r,c] = mean_valid(v[r-1,c], v[r,c])   (r=1..398)；边界行直接复制
   切分不一致时视为过期）。`hi <= lo` 直接报错。
 - **pooled sigma 在归一化之前先 clip**：`x = clip(vals, lo, hi); x = (x-lo)/(hi-lo)` 之后才对 u+v 拼接
   计算总体标准差 —— 与 Dataset 的归一化完全一致。
-- `sigma_data` = 两变量合并（u+v 拼接）归一化值的真实总体标准差，包含 u/v 均值差产生的组间方差。
+- stats 缓存保存的是 **[0,1] 归一化空间**的 pooled sigma（surface 为 `0.08560`）；但 EDM 内部把图像
+  归一化到 `[-1,1]`（`diffusion.py` 的 `images*2-1`），因此**训练/评估的 `sigma_data = 2.0 * stats["sigma"]`
+  （`0.17120`）**。换算函数统一放在 `pre_config.py`（`SIGMA_DATA_SCALE`、`sigma_data_from_stats`、
+  `sigma_data_from_checkpoint`），训练与评估必须调用同一个实现；**不要修改 stats 缓存**。
+- 新 checkpoint 的 `config` 保存 `stats_sigma`、`sigma_data_scale`、`sigma_data` 三个字段；评估优先读
+  checkpoint 内的 `sigma_data`。旧 checkpoint（无该字段）评估时回退旧尺度 `stats["sigma"]` 并打印明确提示。
+  断点续训的尺度策略由 `RESUME_SIGMA_POLICY` 决定（`"error"` 默认直接报错 / `"migrate"` 显式迁移到 SD2 /
+  `"adopt"` 旧尺度续训到独立子目录），详见第 6 节。
 - **正式评估使用未经裁剪的原生物理真值**（`NativeUVReader` 直接读原始 `u.npy`/`v.npy`）；
   禁止用归一化 target 反归一化冒充原始真值。
 
@@ -81,17 +88,20 @@ surface (depth_index=29):    u_sel (days, 400, 440, 1),  v_sel (days, 399, 441, 
 | 文件 | 作用 |
 |---|---|
 | `scripts/preprocess_align_uv.py` | 方案 A 预处理：原始 u/v → rho 网格、双变量 mask、极值定位、ocean_time 精确校验（`verify_daily_time`，24h 间隔）；输出 `u_rho.npy`/`v_rho.npy`/`mask_u_rho.npy`/`mask_v_rho.npy`/`mask_uv.npy`/`ocean_time.npy`/`ocean_time_seconds.npy` |
-| `pre_config.py` | 两套预设 `surface_smoke` / `full3d`（patch、embed_dim、batch、`val_windows` 等），无副作用，可安全 import |
+| `pre_config.py` | 两套预设 `surface_smoke` / `full3d`（patch、embed_dim、batch、`val_windows` 等）+ 共享 sigma_data 换算（`SIGMA_DATA_SCALE`、`sigma_data_from_stats`、`sigma_data_from_checkpoint`、`run_tag_for(sd2=True)`），无副作用，可安全 import |
 | `pre_dataset.py` | Dataset（滑窗/连续切分/逐变量 min-max/陆地填 0）、统计量计算与缓存（裁剪+clip 后 pooled sigma、split/mask 哈希过期检测）、`NativeUVReader`（统一布局原生真值）、双变量 mask 构造 |
-| `pre_metrics.py` | 训练/评估/冒烟共享的纯指标函数：`rho_to_native`、`masked_error_sums`、`pooled_rmse`、`masked_rel_l2`（无副作用，可安全 import） |
-| `pre_trainer.py` | 单步 teacher-forcing 训练入口（双变量 masked loss、AMP、cosine scheduler、`fork_rng` 隔离的均匀验证窗口、best/last checkpoint 共享同一 state、断点续训恢复 best_val 与历史） |
-| `pre_evaluate.py` | 15 步自回归 rollout + persistence + 原生网格正式指标 + 复现元数据 + 代表性图（单 reader、无转置、`masked_error_sums` 累加） |
+| `pre_metrics.py` | 训练/评估/冒烟共享的纯指标函数：`rho_to_native`、`masked_error_sums`、`pooled_rmse`、`masked_rel_l2`、`oracle_native_error_sums`（rho-oracle 诊断基线）（无副作用，可安全 import） |
+| `pre_rollout.py` | 无副作用自回归 rollout：`ensemble_rollout`（ensemble 成员完全独立、autocast 包裹、标量 seed 或**逐窗口 seeds**）、`expand_ensemble`、`ensemble_mean`（不依赖数据/模型模块，可安全 import） |
+| `pre_trainer.py` | 单步 teacher-forcing 训练入口（双变量 masked loss、新 AMP API `torch.amp.GradScaler/autocast`、仅在实际 update 后 `scheduler.step()`、skipped-update/scale/lr 统计、每 100 batch 进度、cosine scheduler、`fork_rng` 隔离的均匀验证窗口、best/last checkpoint 共享同一 state、断点续训严格采用 checkpoint 的 sigma_data、`EPOCH_OVERRIDES` 按 preset 覆盖轮数、连续 2 epoch 恶化提前停止） |
+| `pre_evaluate.py` | 自回归 rollout（`ROLLOUT_DAYS`/`ENSEMBLE_SIZE`/`SAMPLER_S_CHURN`/`EVAL_SEED`）+ persistence/zero/rho-oracle 基线 + 原生网格正式指标 + 复现元数据 + 代表性图（逐窗口 seed、输出带 tag 且拒绝覆盖、单 reader、`masked_error_sums` 累加） |
 | `pre_smoke_test.py` | 无额外依赖的 assert 回归测试（纯合成数据，直接调用正式实现） |
 
 数据产物（均在仓库外）：
 - 对齐数据：`~/data_processed/PRE/aligned/{u_rho,v_rho}.npy`（各 209GB，float32，陆地 NaN）、双变量 mask、`ocean_time.npy`（日期视图）+ `ocean_time_seconds.npy`（精确时间）
 - 归一化缓存：`~/data_processed/PRE/norm/stats_d{29|all}_clip{none|p0.1}.npz`（含裁剪策略、split、mask 哈希；删除或失配即重算）
-- checkpoint：`~/checkpoints/PRE/<run_tag>/{Ep{n}.pth,best.pth,loss.dat}`、`eval_test.npz`、`figures/`
+- checkpoint：`~/checkpoints/PRE/<run_tag>/{Ep{n}.pth,best.pth,loss.dat}`（`run_tag_for` 默认带 `_SD2` 后缀，
+  与旧 sd1 目录不重叠）；评估输出 `eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_ckpt{stem}[_tag].npz` + `figures_<tag>/`，
+  输出已存在时**拒绝覆盖**
 
 关键约定：
 - **条件通道顺序**：day-major 交错 —— ch0=u(d0), ch1=v(d0), ch2=u(d1), …, ch13=v(d6)；rollout 时去掉最旧 2 通道、追加新帧 2 通道
@@ -124,10 +134,18 @@ CUDA_VISIBLE_DEVICES=5 python pre_trainer.py    # PRESET='surface_smoke'
 ```
 
 - 首次运行先计算归一化统计量（表层只读层 29，约 1 分钟），缓存到 `~/data_processed/PRE/norm/`。
-- 预设：400×441×1、patch (4,3,1)（整除，无 padding）、14.7k token、B=4、10 epoch、验证窗口 24 个
+- 预设：400×441×1、patch (4,3,1)（整除，无 padding）、14.7k token、B=4、验证窗口 24 个
   （`np.linspace` 均匀覆盖整个 val 期，固定 seed 1234，跨 epoch 可比）。
+- 短程重训默认 `EPOCH_OVERRIDES = {"surface_smoke": 4}`（只覆盖 surface_smoke，`full3d` 仍用 preset 的
+  `num_epochs`）；`sigma_data = 2.0 * stats["sigma"] = 0.17120`（见 0.4）；checkpoint 落在带 `_SD2` 的目录。
+- 每个 epoch 保存 `Ep{n}.pth` + （新最佳时）`best.pth`，两者共享同一 state；连续 2 个 epoch 验证指标恶化
+  自动提前停止；每个 epoch 打印 `train_loss`、`val_masked_relL2`、成功/跳过更新数、`grad_scale`、`lr`；
+  每 100 个 batch 打印进度与 batch 耗时。
 - 检查点：`train_loss` 应逐 epoch 下降；`val_masked_relL2`（物理单位、双变量 rho mask、扩散采样）应明显低于 1 且下降。
-- 快速试跑可把 `pre_config.py` 中 `surface_smoke` 的 `max_train_windows` 改为 2000、`num_epochs` 改为 2。
+- 快速试跑可把 `pre_config.py` 中 `surface_smoke` 的 `max_train_windows` 改为 2000、`num_epochs` 改为 2
+  （或用 `EPOCH_OVERRIDES` 调低轮数）。
+- 断点续训：设 `checkpoint_path`；尺度策略见第 6 节 `RESUME_SIGMA_POLICY`（默认 `"error"`：尺度不一致直接报错；
+  `"adopt"` 可继续旧尺度（输出写入独立的 `legacy_resume/` 子目录），`"migrate"` 可显式迁移到 SD2）。
 
 ## 4. 步骤 2：冒烟评估（rollout + persistence，原生网格）
 
@@ -135,19 +153,28 @@ CUDA_VISIBLE_DEVICES=5 python pre_trainer.py    # PRESET='surface_smoke'
 CUDA_VISIBLE_DEVICES=5 python pre_evaluate.py   # PRESET 与训练一致
 ```
 
-- 默认 test 段、每 7 天一个起点（~154 个窗口）、每窗口 15 步 × 32 采样步 × Heun 2 次前向。
+- 默认 test 段、每 7 天一个起点（~154 个窗口）、每窗口 `ROLLOUT_DAYS`（默认 15）步 × 32 采样步 × Heun 2 次前向，
+  全程 `autocast`（AMP，与旧评估数值路径一致）。
+- 采样配置为模块常量：`ROLLOUT_DAYS` / `ENSEMBLE_SIZE`（成员各自独立自回归，最后取均值）/ `SAMPLER_S_CHURN` /
+  `EVAL_SEED` / `OUTPUT_TAG`（可选后缀）。`ENSEMBLE_SIZE=1` 等价于原单轨迹 rollout。
+- **逐窗口 seed**：每个窗口用自己的种子 `EVAL_SEED + start_day`，轨迹只取决于窗口本身，与 `BATCH_SIZE`、
+  loader 分组无关（`BATCH_SIZE` 仍写入元数据）。
 - 想先快速验证：`MAX_WINDOWS = 8`。
 - **正式指标**：rho 预测 → 原生 u/v 重采样（`rho_to_native`）→ 与原始 `u.npy`/`v.npy`（未裁剪）比较，
-  用 `mask_u`/`mask_v` 与 `masked_error_sums` 累加；
-  persistence = 第 7 天**原生物理** u/v 重复 15 次。
-- 输出 `~/checkpoints/PRE/<run_tag>/eval_test.npz`：
-  - 仅正式原生网格指标：`rmse_model` / `mae_model` / `rmse_persistence` / `mae_persistence` / `valid_count`，
-    shape `(15, 2, Z)` —— surface（`surface_smoke`）`Z=1`，full3d `Z=30`；
-  - 复现元数据：`checkpoint_path`、`checkpoint_epoch`、`preset`、`seed`、`sampling_steps`、`stride`、
-    `window_start_indices`、`norm_lo/norm_hi/norm_sigma`、`grid_mapping_rule`。
-- 代表性图输出到 `figures/d{1,3,5,7,10,15}_s{layer}_{u|v}.png`（truth/prediction/error 三面板，
+  用 `mask_u`/`mask_v` 与 `masked_error_sums` 累加；persistence = 第 7 天**原生物理** u/v 重复 `ROLLOUT_DAYS` 次。
+- **诊断基线**：`zero`（原生网格全零预测）与 `rho-oracle`（数据集真实 rho target 反归一化 → `rho_to_native`，
+  度量 native→rho→native 转换本身的不可逆误差）。
+- 输出 `<ckpt_dir>/eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_ckpt{stem}[_tag].npz`（输出已存在则**拒绝覆盖**）：
+  - 正式原生网格指标：`rmse_model` / `mae_model` / `rmse_persistence` / `mae_persistence` / `rmse_zero` /
+    `rmse_oracle` / `mae_*` / `valid_count`，shape `(ROLLOUT_DAYS, 2, Z)` —— surface（`surface_smoke`）`Z=1`，full3d `Z=30`；
+  - 复现元数据：`rollout_days`、`ensemble_size`、`S_churn`、`seed`、`seed_scheme`、`batch_size`、`sigma_data`、
+    `checkpoint_path`、`checkpoint_epoch`、`preset`、`sampling_steps`、`stride`、`window_start_indices`、
+    `norm_lo/norm_hi/norm_sigma`、`grid_mapping_rule`。
+- 代表性图输出到 `figures_<tag>/d{1,3,5,7,10,15}_s{layer}_{u|v}.png`（truth/prediction/error 三面板，
   表层/中层/底层，u、v）。
 - **通过标准**：模型在各 lead day 的原生 masked RMSE 稳定低于 persistence（model/pers 比值 < 1）。
+- **采样消融**（用旧 checkpoint，`sigma_data` 保持 0.08560）：`ROLLOUT_DAYS=1` 下对比
+  `S_churn ∈ {80, 0}` × `ENSEMBLE_SIZE ∈ {1, 4}` 四组，选第 1 天 RMSE 最低的模式再跑完整 15 天。
 
 ## 5. 步骤 3：全 30 层全量
 
@@ -163,12 +190,22 @@ CUDA_VISIBLE_DEVICES=5 python pre_evaluate.py   # PRESET 与训练一致
 - `pre_trainer.py` / `pre_evaluate.py` 都是**脚本**（模块顶层执行），不要 import 它们；共享配置一律从 `pre_config.py` 取。
 - 断点续训：设置 `pre_trainer.py` 的 `checkpoint_path`；保存含 model/optimizer/scheduler/scaler/epoch/`best_val`，
   续训时恢复或从 `loss.dat` 重算 `best_val`，`loss.dat` 始终写完整历史（不静默覆盖）。
+  **尺度策略 `RESUME_SIGMA_POLICY`**：`"error"`（默认——checkpoint 的 `sigma_data` 与当前 SD2 尺度不同
+  时**直接报错**，绝不静默混合尺度）；`"migrate"`（显式尺度迁移——保留当前 SD2 尺度，继续写在 SD2 目录）；
+  `"adopt"`（显式旧尺度续训——采用 checkpoint 的旧 `sigma_data`，**输出写入 checkpoint 目录旁的独立子目录
+  `legacy_resume/`**（从 `legacy_resume` 内 checkpoint 续训时直接复用该目录，不嵌套）；**历史（含 best_val
+  重算）从原实验目录的 `loss.dat` 读取**，因此续训写出的 `loss.dat` 始终是**完整历史**（旧历史 + 续训部分），
+  保存的 config 记录**实际 scale=1.0**；原实验的 `Ep{n}.pth`/`loss.dat` 绝不会被触碰，续训产物
+  永远不会被误认为 SD2）。训练循环前有预检：目标 `Ep{n}.pth` 已存在或 `loss.dat` 会被截断 → 直接拒绝
+  （不白跑一轮）；每 epoch 保存前还会复查 `loss.dat` 截断（覆盖提前停止场景）。
+  `torch.load` 默认 `weights_only=True`，旧 checkpoint 若确实不兼容只能对明确可信的项目 checkpoint 显式关闭。
   新最佳 epoch 的 `Ep{n}.pth` 与 `best.pth` 共享**同一个** state（先判 `is_best`、更新 `best_val`，
   再构造 state 并保存）。旧实现先保存 `Ep{n}.pth` 再更新 `best_val` 后保存 `best.pth`，
   导致新最佳 epoch 的 `Ep{n}.pth` 里记录的 `best_val` 是更新前的旧值（过期），`best.pth` 反而是新的。
 - 扩散采样有随机性：训练固定 `torch.manual_seed(123)`；验证阶段整体包在 `torch.random.fork_rng()` 内，
   在上下文内固定 `VAL_SEED=1234`（CPU 始终隔离；CUDA 时 fork 当前 device），验证结束后训练 CPU/CUDA RNG
-  状态恢复，验证采样不会扰动训练随机流。正式报告请记录 seed、sampling_steps 与 checkpoint
+  状态恢复，验证采样不会扰动训练随机流。评估为**逐窗口 seed**（`EVAL_SEED + start_day`），轨迹与 batch 大小无关；
+  正式报告请记录 seed、sampling_steps、rollout_days、ensemble_size、S_churn 与 checkpoint
   （评估元数据中已自动记录）。
 - persistence baseline 已内建于 `pre_evaluate.py`，无需单独运行。
 - 回归测试：`python smoke_test.py`（CPU 设备/checkpoint）+ `python pre_smoke_test.py`（PRE 管线纯合成数据断言）。

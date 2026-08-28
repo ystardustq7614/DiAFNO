@@ -14,9 +14,23 @@ from functools import partial
 #
 #################################################
 
-def load_checkpoint(path, model, optimizer=None, scheduler=None, scaler=None, map_location=None):
-    """Restore a checkpoint on the caller-selected device."""
-    checkpoint = torch.load(path, map_location=map_location)
+def load_checkpoint(path, model, optimizer=None, scheduler=None, scaler=None,
+                    map_location=None, weights_only=True):
+    """Restore a checkpoint on the caller-selected device.
+
+    weights_only=True is the safe default (torch.load without unpickling
+    arbitrary objects). If an old checkpoint is genuinely incompatible, the
+    caller must explicitly pass weights_only=False for a VERIFIED project
+    checkpoint — never blindly.
+    """
+    try:
+        checkpoint = torch.load(path, map_location=map_location, weights_only=weights_only)
+    except Exception as e:
+        if weights_only:
+            raise RuntimeError(
+                f"failed to load {path} with weights_only=True ({type(e).__name__}: {e}); "
+                f"only pass weights_only=False for a verified project checkpoint") from e
+        raise
     model.load_state_dict(checkpoint.get('model_state_dict', checkpoint))
 
     if optimizer is not None and 'optimizer_state_dict' in checkpoint:

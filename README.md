@@ -68,11 +68,18 @@ the next day, then autoregressively roll out 15 days. See
 - Percentile clipping is **disabled by default** (`clip_pct = None`) and must
   be configured explicitly; the stats cache records the clipping policy, the
   depth preset, the split boundaries and a mask hash (stale caches, including
-  changed splits or a missing `splits` field, are recomputed). `sigma_data` =
-  true pooled std of the CLIPPED, min-max normalized u+v concatenation
-  (includes the u/v mean-difference term) — values are clipped to the
-  per-variable range before normalization and pooling, exactly like the
-  dataset normalization.
+  changed splits or a missing `splits` field, are recomputed). The stats cache
+  stores the pooled std of the **[0,1]-normalized** u+v concatenation (0.08560
+  for the surface preset; includes the u/v mean-difference term) — values are
+  clipped to the per-variable range before normalization and pooling, exactly
+  like the dataset normalization. Because `diffusion.py` normalizes images
+  with `images*2-1`, the EDM **`sigma_data = 2.0 * stats["sigma"]`** (0.17120);
+  the shared conversion lives in `pre_config.py` (`SIGMA_DATA_SCALE`,
+  `sigma_data_from_stats`, `sigma_data_from_checkpoint`) and training AND
+  evaluation must call the same implementation. New checkpoints store
+  `config.{stats_sigma,sigma_data_scale,sigma_data}`; evaluation prefers the
+  checkpoint value and falls back to the legacy stats-only scale for old
+  checkpoints with an explicit warning.
 - Formal metrics use the **unclipped raw native truth** (`NativeUVReader` on
   the original `u.npy`/`v.npy`); normalized targets are never denormalized to
   stand in for raw truth.
@@ -97,26 +104,36 @@ python pre_evaluate.py                    # 15-step rollout + persistence + figu
 python smoke_test.py && python pre_smoke_test.py   # minimal regression tests
 ```
 
-- Presets live in `pre_config.py`; training/eval presets must match.
-- Outputs: `<checkpoint_dir>/PRE/<run_tag>/{Ep{n}.pth, best.pth, loss.dat}`,
-  `eval_<split>.npz` (native-grid `rmse_model/mae_model/rmse_persistence/
-  mae_persistence/valid_count` shape `(15, 2, Z)` — `Z=1` for `surface_smoke`,
-  `Z=30` for `full3d` — plus full reproduction metadata: checkpoint, epoch,
-  preset, seed, sampling_steps, stride, window starts, norm stats, grid mapping
-  rule), and `figures/d{1,3,5,7,10,15}_s{layer}_{u|v}.png`
+- Presets live in `pre_config.py`; training/eval presets must match. Training
+  checkpoints go to `<checkpoint_dir>/PRE/<run_tag>/{Ep{n}.pth, best.pth,
+  loss.dat}` where `run_tag_for()` appends `_SD2` to the legacy tag (fixed-scale
+  runs never share a directory with sd1 runs).
+- Evaluation outputs live NEXT TO the checkpoint and are tagged by the sampling
+  config + checkpoint stem: `eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_ckpt{stem}[_tag].npz`
+  and `figures_<tag>/` — existing outputs are REFUSED, never overwritten. The
+  npz holds native-grid `rmse_model/mae_model/rmse_persistence/mae_persistence/
+  rmse_zero/rmse_oracle/mae_*` shape `(ROLLOUT_DAYS, 2, Z)` (`Z=1` for
+  `surface_smoke`, `Z=30` for `full3d`) plus reproduction metadata:
+  rollout_days, ensemble_size, S_churn, seed (per-window: `EVAL_SEED +
+  start_day`, independent of batch size), batch_size, sigma_data, checkpoint,
+  epoch, preset, sampling_steps, stride, window starts, norm stats, grid
+  mapping rule. Figures: `d{1,3,5,7,10,15}_s{layer}_{u|v}.png`
   (truth/prediction/error). Only native-grid (formal) metrics are saved; there
   are no rho-grid supplementary arrays.
 - Overall RMSE = `sqrt(sum(squared_error)/sum(valid_count))` — never the
   arithmetic mean of per-layer RMSEs. The console summary pools the same way
   (`pre_metrics.pooled_rmse`), per lead day and per variable.
 - `pre_metrics.py` holds the shared metric implementations (`rho_to_native`,
-  `masked_error_sums`, `pooled_rmse`, `masked_rel_l2`) used by training,
-  evaluation and the smoke test — formulas are never re-implemented in tests.
+  `masked_error_sums`, `pooled_rmse`, `masked_rel_l2`,
+  `oracle_native_error_sums`) used by training, evaluation and the smoke test —
+  formulas are never re-implemented in tests.
 - `NativeUVReader.get()` returns a unified layout with the sigma axis last:
   u `(days, H, W-1, Z)` / v `(days, H-1, W, Z)` for both presets (surface
   `Z=1`, full3d `Z=30`); evaluation never transposes it.
 - Validation diffusion sampling runs inside `torch.random.fork_rng()` with the
   fixed `VAL_SEED`, so validation RNG is isolated and training RNG state is
   restored afterwards.
-- Reproduction: seed 123 (training) / 1234 (validation sampling), the chosen
-  checkpoint and `sampling_steps` are recorded in the eval metadata.
+- Reproduction: seed 123 (training) / 1234 (validation sampling); evaluation
+  seeds each window by its own start day (`EVAL_SEED + start_day`) and records
+  the sampling config (rollout_days, ensemble_size, S_churn, seed,
+  sampling_steps, checkpoint) in the eval metadata.

@@ -8,7 +8,13 @@ loss (denominator correctness), backward, 2-step sampling, the FORMAL metric
 implementations from pre_metrics.py (rho->native, masked error sums, pooled
 RMSE, relative L2), the unified NativeUVReader layout with u/v sentinels,
 unclipped raw-truth path, pooled sigma_data + stats cache staleness (clipping,
-splits, missing fields), and legacy cond_chans=None compatibility.
+splits, missing fields), legacy cond_chans=None compatibility, the fixed
+sigma_data scale (stats_sigma x2 -> image-space), legacy checkpoint fallback
+and the resume sigma policy (error/migrate/adopt),
+ensemble rollout (E=1 == sequential under autocast, autocast wrapping itself,
+E=4 shape/mean/independence, AR state independence, per-window seeds, horizons
+1 and 15), the rho-oracle diagnostic, a writable contiguous mask tensor, and
+checkpoint metadata save/restore with weights_only=True loading.
 """
 import os
 import tempfile
@@ -19,7 +25,12 @@ import torch
 
 from scripts import preprocess_align_uv as pre_pp
 from pre_dataset import NativeUVReader, _clip_range, compute_or_load_stats
-from pre_metrics import rho_to_native, masked_error_sums, pooled_rmse, masked_rel_l2
+from pre_metrics import (rho_to_native, masked_error_sums, pooled_rmse, masked_rel_l2,
+                         oracle_native_error_sums)
+from pre_rollout import expand_ensemble, ensemble_rollout, ensemble_mean
+from pre_config import (SIGMA_DATA_SCALE, sigma_data_from_stats, sigma_data_from_checkpoint,
+                        resume_sigma_decision)
+from utilities3 import load_checkpoint
 from diffusion import ElucidatedDiffusion
 from IAFNO import IAFNODiff
 
@@ -660,6 +671,286 @@ def test_legacy_cond_chans_none():
     cond = torch.randn(1, 2, H, W, Z)             # legacy doubling (2+2)
     out = net(x, torch.zeros(1), cond)
     assert out.shape == (1, 2, H, W, Z)
+
+
+def test_sigma_data_conversion():
+    # [0,1]-space stats sigma -> [-1,1] image-space EDM sigma_data (x2)
+    assert SIGMA_DATA_SCALE == 2.0
+    assert np.isclose(sigma_data_from_stats(0.0856), 0.1712)
+    assert np.isclose(sigma_data_from_stats(0.0), 0.0)
+    assert np.isclose(sigma_data_from_stats(1.0), 2.0)
+
+
+def test_sigma_data_legacy_checkpoint_fallback():
+    # legacy checkpoint (no config.sigma_data) keeps the OLD stats-only scale
+    sd, used = sigma_data_from_checkpoint({"epoch": 2}, 0.0856)
+    assert not used and np.isclose(sd, 0.0856)
+    sd2, used2 = sigma_data_from_checkpoint({}, 0.0856)
+    assert not used2 and np.isclose(sd2, 0.0856)
+    sd3, used3 = sigma_data_from_checkpoint(None, 0.0856)
+    assert not used3 and np.isclose(sd3, 0.0856)
+    # new checkpoint -> its stored sigma_data wins, whatever the stats say
+    sd4, used4 = sigma_data_from_checkpoint(
+        {"config": {"sigma_data": 0.1712, "sigma_data_scale": 2.0}}, 0.0856)
+    assert used4 and np.isclose(sd4, 0.1712)
+
+
+def test_resume_sigma_policy():
+    # matching scales -> keep current, never "adopted", under ANY policy
+    sd_new = sigma_data_from_stats(0.0856)          # 0.1712
+    for policy in ("error", "migrate", "adopt"):
+        sd, adopted = resume_sigma_decision(sd_new, sd_new, policy)
+        assert not adopted and np.isclose(sd, sd_new), policy
+    # mismatch + "error" (default) -> RuntimeError, never silently mixed
+    try:
+        resume_sigma_decision(0.0856, sd_new, "error")
+    except RuntimeError as e:
+        assert "sigma_data" in str(e) and "0.0856" in str(e)
+    else:
+        raise AssertionError("expected RuntimeError on scale mismatch")
+    # mismatch + "migrate" -> keep the current (SD2) scale, not adopted
+    sd, adopted = resume_sigma_decision(0.0856, sd_new, "migrate")
+    assert not adopted and np.isclose(sd, sd_new)
+    # mismatch + "adopt" -> checkpoint's old scale, adopted
+    sd, adopted = resume_sigma_decision(0.0856, sd_new, "adopt")
+    assert adopted and np.isclose(sd, 0.0856)
+    # unknown policy -> ValueError
+    try:
+        resume_sigma_decision(0.0856, sd_new, "bogus")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for unknown policy")
+
+
+def test_ensemble_size1_matches_sequential():
+    # E=1 must reproduce the plain per-window rollout exactly (same RNG stream
+    # AND the same autocast wrapping as the historical evaluation path)
+    model = make_model()
+    torch.manual_seed(0)
+    cond = torch.rand(2, 14, H, W, Z)
+    p1 = ensemble_rollout(model, cond, 3, 1, seed=42)
+    assert p1.shape == (2, 1, 3, 2, H, W, Z)
+    assert torch.isfinite(p1).all()
+    torch.manual_seed(42)
+    cur = cond.clone()
+    preds = []
+    with torch.amp.autocast(device_type="cpu"):
+        for _ in range(3):
+            preds.append(model.sample(cur).float())
+            cur = torch.cat([cur[:, 2:], preds[-1]], dim=1)
+    p2 = torch.stack(preds, dim=1)                # (B, L, 2, H, W, Z)
+    assert torch.allclose(p1[:, 0], p2, atol=1e-6)
+
+
+def test_ensemble_rollout_uses_autocast():
+    # the rollout must run model.sample under autocast (AMP), otherwise the
+    # historical evaluation path (and its numerics) is silently changed.
+    seen = {"cpu": False, "cuda": False}
+
+    class _FlagSampler:
+        def sample(self, cur, num_sample_steps=None, clamp=True):
+            if torch.is_autocast_enabled("cpu"):
+                seen["cpu"] = True
+            if torch.is_autocast_enabled("cuda"):
+                seen["cuda"] = True
+            return cur[:, :2].clone()
+
+    cond = torch.rand(1, 14, H, W, Z)
+    ensemble_rollout(_FlagSampler(), cond, 2, 1, seed=0)
+    if torch.cuda.is_available():
+        assert seen["cuda"], "model.sample must run under CUDA autocast"
+    else:
+        assert seen["cpu"], "model.sample must run under CPU autocast"
+
+
+def test_ensemble_seeds_per_window():
+    # per-window seeds: window w's trajectory depends ONLY on seeds[w] and
+    # cond[w] — NOT on the batch size or the other windows in the batch.
+    model = make_model()
+    torch.manual_seed(0)
+    cond = torch.rand(2, 14, H, W, Z)
+    p_batch = ensemble_rollout(model, cond, 2, 1, seeds=[5, 9])
+    assert p_batch.shape == (2, 1, 2, 2, H, W, Z)
+    # window 0 alone (batch of 1) == window 0 inside the batch of 2
+    p_single = ensemble_rollout(model, cond[:1], 2, 1, seeds=[5])
+    assert torch.allclose(p_batch[0, 0], p_single[0, 0], atol=1e-6)
+    # window 1 alone == window 1 inside the batch
+    p_single1 = ensemble_rollout(model, cond[1:], 2, 1, seeds=[9])
+    assert torch.allclose(p_batch[1, 0], p_single1[0, 0], atol=1e-6)
+    # seeds[w] == the scalar path for the same window
+    p_scalar = ensemble_rollout(model, cond[:1], 2, 1, seed=5)
+    assert torch.allclose(p_batch[0, 0], p_scalar[0, 0], atol=1e-6)
+    # different seed -> different trajectory; same seed -> reproducible
+    p_other = ensemble_rollout(model, cond[:1], 2, 1, seeds=[8])
+    assert not torch.allclose(p_scalar[0, 0], p_other[0, 0], atol=1e-6)
+    p_again = ensemble_rollout(model, cond[:1], 2, 1, seeds=[5])
+    assert torch.allclose(p_again[0, 0], p_scalar[0, 0], atol=1e-6)
+    # seed and seeds are mutually exclusive
+    try:
+        ensemble_rollout(model, cond, 2, 1, seed=1, seeds=[2, 3])
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("expected AssertionError for seed + seeds together")
+    # per-window seeds keep the AR state per window (windows rolled out one by
+    # one: window 0 -> calls 0..2, window 1 -> calls 3..5)
+    s = _persistence_fake()
+    cond2 = torch.arange(2 * 14 * H * W * Z).reshape(2, 14, H, W, Z).float() / 1000.0
+    ensemble_rollout(s, cond2, 3, 2, seeds=[11, 22])
+    assert torch.equal(s.calls[1][0], torch.cat([s.calls[0][0][2:], s.calls[0][0][:2]], dim=0))
+    assert torch.equal(s.calls[4][0], torch.cat([s.calls[3][0][2:], s.calls[3][0][:2]], dim=0))
+
+
+def test_ensemble4_shape_mean_and_independent():
+    model = make_model()
+    torch.manual_seed(0)
+    cond = torch.rand(2, 14, H, W, Z)
+    preds = ensemble_rollout(model, cond, 2, 4, seed=7)
+    assert preds.shape == (2, 4, 2, 2, H, W, Z)
+    assert torch.isfinite(preds).all()
+    assert float(preds.min()) >= 0.0 and float(preds.max()) <= 1.0
+    # members are independent trajectories -> different noise -> different outputs
+    assert not torch.allclose(preds[0, 0], preds[0, 1], atol=1e-6)
+    assert not torch.allclose(preds[0, 0], preds[1, 0], atol=1e-6)
+    # ensemble_mean is the member average (point prediction)
+    m = ensemble_mean(preds)
+    assert m.shape == (2, 2, 2, H, W, Z)
+    assert torch.allclose(m, preds.mean(dim=1))
+    # averaging reduces per-day variance vs a single member
+    assert m[0].std() <= preds[0, 0].std() + 1e-6
+
+
+def _persistence_fake():
+    """Deterministic fake EDM: prediction = first 2 channels of the current
+    condition (a persistence policy); records every input it sees."""
+    class _PersistenceSampler:
+        def __init__(self):
+            self.calls = []
+        def sample(self, cur, num_sample_steps=None, clamp=True):
+            self.calls.append(cur.clone())
+            return cur[:, :2].clone()
+    return _PersistenceSampler()
+
+
+def test_ensemble_ar_state_independent():
+    s = _persistence_fake()
+    cond = torch.arange(2 * 14 * H * W * Z).reshape(2, 14, H, W, Z).float() / 1000.0
+    preds = ensemble_rollout(s, cond, 3, 2)
+    assert preds.shape == (2, 2, 3, 2, H, W, Z)
+    # member 0, step 2 condition == member 0's OWN step-1 window shifted by its
+    # OWN prediction — no leakage from member 1 (and vice versa). Layout is
+    # interleaved: [w0m0, w0m1, w1m0, w1m1, ...].
+    c0_0, c0_1 = s.calls[0][0], s.calls[1][0]
+    assert torch.equal(c0_1, torch.cat([c0_0[2:], c0_0[:2]], dim=0))
+    c1_0, c1_1 = s.calls[0][2], s.calls[1][2]
+    assert torch.equal(c1_1, torch.cat([c1_0[2:], c1_0[:2]], dim=0))
+    # the two WINDOWS evolve independently and stay distinct (members of one
+    # window are identical copies under this deterministic fake, by design)
+    assert not torch.equal(s.calls[0][0], s.calls[0][2])
+    assert not torch.equal(c0_1, c1_1)
+    # expand_ensemble: E=1 gives a fresh copy, E>1 independent repeats
+    e1 = expand_ensemble(cond, 1)
+    assert e1 is not cond and torch.equal(e1, cond)
+    e4 = expand_ensemble(cond, 4)
+    assert e4.shape == (8, 14, H, W, Z)
+    assert torch.equal(e4[0], cond[0]) and torch.equal(e4[4], cond[1])
+
+
+def test_rollout_horizons_1_and_15():
+    model = make_model()
+    torch.manual_seed(0)
+    cond = torch.rand(1, 14, H, W, Z)
+    p1 = ensemble_rollout(model, cond, 1, 1, seed=0)
+    assert p1.shape == (1, 1, 1, 2, H, W, Z)
+    p15 = ensemble_rollout(model, cond, 15, 1, seed=1)
+    assert p15.shape == (1, 1, 15, 2, H, W, Z)
+    assert torch.isfinite(p15).all()
+    assert float(p15.min()) >= 0.0 and float(p15.max()) <= 1.0
+
+
+def test_rho_oracle_metric():
+    rng = np.random.default_rng(0)
+    Bb, L, Zz = 2, 3, 1
+    lo = np.array([-1.0, -2.0], np.float32)
+    hi = np.array([1.0, 3.0], np.float32)
+    target_norm = rng.uniform(0.05, 0.95, (Bb, L, 2, H, W, Zz)).astype(np.float32)
+    phys = target_norm * (hi - lo).reshape(1, 1, 2, 1, 1, 1) + lo.reshape(1, 1, 2, 1, 1, 1)
+    u_nat, v_nat = rho_to_native(phys)
+    mask_u = np.ones((H, W - 1), bool)
+    mask_v = np.ones((H - 1, W), bool)
+
+    # truth == the very same conversion path -> oracle error is exactly 0
+    se, ae = oracle_native_error_sums(target_norm, lo, hi, u_nat, v_nat, mask_u, mask_v)
+    assert se.shape == (L, 2, Zz) and ae.shape == (L, 2, Zz)
+    assert np.allclose(se, 0.0, atol=1e-6) and np.allclose(ae, 0.0, atol=1e-6)
+
+    # shifted truth -> oracle error equals the direct masked comparison
+    truth_u = u_nat + 1.0
+    se2, ae2 = oracle_native_error_sums(target_norm, lo, hi, truth_u, v_nat, mask_u, mask_v)
+    se_ref, ae_ref = masked_error_sums(u_nat, truth_u, mask_u)
+    assert np.allclose(se2[:, 0, :], se_ref)
+    assert np.allclose(ae2[:, 0, :], ae_ref)
+    # land cells stay excluded
+    mu2 = mask_u.copy()
+    mu2[0, 0] = False
+    se3, _ = oracle_native_error_sums(target_norm, lo, hi, truth_u, v_nat, mu2, mask_v)
+    diff = (u_nat - truth_u)[:, :, 0, 0, :]
+    assert np.allclose(se2[:, 0, :] - se3[:, 0, :], (diff ** 2).sum(axis=0))
+
+
+def test_mask_tensor_writable_and_contiguous():
+    import pre_dataset as pd
+    with tempfile.TemporaryDirectory() as d:
+        aligned = os.path.join(d, "aligned")
+        os.makedirs(aligned)
+        np.save(os.path.join(aligned, "mask_u_rho.npy"), np.ones((4, 5), np.uint8))
+        np.save(os.path.join(aligned, "mask_v_rho.npy"), np.ones((4, 5), np.uint8))
+        saved = (pd.ALIGNED_DIR, pd.H, pd.W, pd.S_TOTAL)
+        pd.ALIGNED_DIR, pd.H, pd.W, pd.S_TOTAL = aligned, 4, 5, 2
+        try:
+            t = pd.build_mask_tensor(torch.device("cpu"), depth_index=1)
+            assert t.shape == (1, 2, 4, 5, 1)
+            assert t.is_contiguous()
+            t[0, 0, 0, 0, 0] = 0.0          # must be writable, no read-only warning
+            assert t[0, 0, 0, 0, 0] == 0.0
+            t2 = pd.build_mask_tensor(torch.device("cpu"), depth_index=None)
+            assert t2.shape == (1, 2, 4, 5, 2) and t2.is_contiguous()
+        finally:
+            pd.ALIGNED_DIR, pd.H, pd.W, pd.S_TOTAL = saved
+
+
+def test_checkpoint_metadata_roundtrip():
+    stats_sigma = 0.0856
+    sd = sigma_data_from_stats(stats_sigma)
+    assert np.isclose(sd, 0.1712)
+    state = {"epoch": 0, "best_val": 1.0,
+             "config": {"preset": "surface_smoke",
+                        "stats_sigma": stats_sigma,
+                        "sigma_data_scale": SIGMA_DATA_SCALE,
+                        "sigma_data": sd}}
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "ckpt.pth")
+        torch.save(state, p)
+        loaded = torch.load(p, weights_only=True)
+        sd2, used = sigma_data_from_checkpoint(loaded, stats_sigma)
+        assert used and np.isclose(sd2, sd)
+        assert loaded["config"]["sigma_data_scale"] == SIGMA_DATA_SCALE
+        assert np.isclose(loaded["config"]["stats_sigma"], stats_sigma)
+
+        # full model-state roundtrip through load_checkpoint (weights_only=True)
+        model = make_model()
+        p2 = os.path.join(d, "model.pth")
+        torch.save({"model_state_dict": model.state_dict(), "epoch": 3,
+                    "config": {"stats_sigma": stats_sigma,
+                               "sigma_data_scale": SIGMA_DATA_SCALE,
+                               "sigma_data": sd}}, p2)
+        m2 = make_model()
+        ckpt = load_checkpoint(p2, m2, map_location="cpu")
+        assert ckpt["epoch"] == 3
+        sd3, used3 = sigma_data_from_checkpoint(ckpt, stats_sigma)
+        assert used3 and np.isclose(sd3, sd)
+        assert next(m2.parameters()).device.type == "cpu"
 
 
 if __name__ == "__main__":
