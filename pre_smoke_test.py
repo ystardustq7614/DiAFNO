@@ -758,10 +758,17 @@ def test_ensemble_rollout_uses_autocast():
 
     cond = torch.rand(1, 14, H, W, Z)
     ensemble_rollout(_FlagSampler(), cond, 2, 1, seed=0)
-    if torch.cuda.is_available():
+    # the autocast device follows the TENSORS, not global CUDA availability:
+    # CPU tensors -> CPU autocast even on a CUDA-capable machine; CUDA tensors
+    # -> CUDA autocast (the historical evaluation path).
+    if cond.is_cuda:
         assert seen["cuda"], "model.sample must run under CUDA autocast"
     else:
         assert seen["cpu"], "model.sample must run under CPU autocast"
+    if torch.cuda.is_available():
+        seen["cpu"] = seen["cuda"] = False
+        ensemble_rollout(_FlagSampler(), cond.cuda(), 2, 1, seed=0)
+        assert seen["cuda"], "model.sample must run under CUDA autocast"
 
 
 def test_ensemble_seeds_per_window():

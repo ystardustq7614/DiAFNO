@@ -274,20 +274,22 @@ def torch_colocate(a, b):
 
 
 def torch_colocate_u(uc):
-    """GPU: (t, s, 400, 440) u chunk -> (t, s, 400, 441) rho u."""
-    ub = torch.empty((uc.shape[0], S, H, W), dtype=uc.dtype, device=uc.device)
-    ub[:, :, :, 1:W - 1] = torch_colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
+    """GPU: (t, s, r, c) u chunk -> (t, s, r, c+1) rho u (shape from input)."""
+    t, s, r, c = uc.shape
+    ub = torch.empty((t, s, r, c + 1), dtype=uc.dtype, device=uc.device)
+    ub[:, :, :, 1:c] = torch_colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
     ub[:, :, :, 0] = uc[:, :, :, 0]
-    ub[:, :, :, W - 1] = uc[:, :, :, -1]
+    ub[:, :, :, c] = uc[:, :, :, -1]
     return ub
 
 
 def torch_colocate_v(vc):
-    """GPU: (t, s, 399, 441) v chunk -> (t, s, 400, 441) rho v."""
-    vb = torch.empty((vc.shape[0], S, H, W), dtype=vc.dtype, device=vc.device)
-    vb[:, :, 1:H - 1, :] = torch_colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
+    """GPU: (t, s, r, c) v chunk -> (t, s, r+1, c) rho v (shape from input)."""
+    t, s, r, c = vc.shape
+    vb = torch.empty((t, s, r + 1, c), dtype=vc.dtype, device=vc.device)
+    vb[:, :, 1:r, :] = torch_colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
     vb[:, :, 0, :] = vc[:, :, 0, :]
-    vb[:, :, H - 1, :] = vc[:, :, -1, :]
+    vb[:, :, r, :] = vc[:, :, -1, :]
     return vb
 
 
