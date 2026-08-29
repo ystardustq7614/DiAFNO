@@ -1,0 +1,71 @@
+Using device: cuda
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+train windows: 8394   val windows: 1088
+val subset: 24 windows at indices 0..1087
+Model Total Params: 5842132
+preset=surface_smoke grid=(400,441,1) patch=(4, 3, 1) cond_ch=14 target_ch=2 stats_sigma=0.08560 sigma_data=0.17121 (scale 2.000x) epochs=10  run_dir=/data2/user/zyq/checkpoints/PRE_lr3e4/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2
+  [ep 1] batch 100/2098  avg_loss 0.80697  0.63s/batch  scale 1.6384e+04
+  [ep 1] batch 200/2098  avg_loss 0.64464  0.62s/batch  scale 1.6384e+04
+  [ep 1] batch 300/2098  avg_loss 0.54241  0.62s/batch  scale 1.6384e+04
+  [ep 1] batch 400/2098  avg_loss 0.47395  0.62s/batch  scale 1.6384e+04
+  [ep 1] batch 500/2098  avg_loss 0.42194  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 600/2098  avg_loss 0.38079  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 700/2098  avg_loss 0.34761  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 800/2098  avg_loss 0.32496  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 900/2098  avg_loss 0.30319  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1000/2098  avg_loss 0.28130  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1100/2098  avg_loss 0.26648  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1200/2098  avg_loss 0.25152  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1300/2098  avg_loss 0.23773  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1400/2098  avg_loss 0.22771  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1500/2098  avg_loss 0.21759  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1600/2098  avg_loss 0.20840  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1700/2098  avg_loss 0.20152  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1800/2098  avg_loss 0.19393  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 1900/2098  avg_loss 0.18759  0.62s/batch  scale 8.1920e+03
+  [ep 1] batch 2000/2098  avg_loss 0.18293  0.62s/batch  scale 8.1920e+03
+epoch 1/10  1364.7s  train_loss 0.17756  val_masked_relL2 2.14188  updates 2095 (skipped 3)  grad_scale 8.1920e+03  lr 2.93e-04
+  [ep 2] batch 100/2098  avg_loss 0.05943  0.62s/batch  scale 8.1920e+03
+  [ep 2] batch 200/2098  avg_loss 0.06589  0.62s/batch  scale 8.1920e+03
+  [ep 2] batch 300/2098  avg_loss 0.06410  0.62s/batch  scale 8.1920e+03
+  [ep 2] batch 400/2098  avg_loss 0.06225  0.62s/batch  scale 1.6384e+04
+  [ep 2] batch 500/2098  avg_loss 0.06126  0.62s/batch  scale 1.6384e+04
+  [ep 2] batch 600/2098  avg_loss 0.06032  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 700/2098  avg_loss 0.05871  0.62s/batch  scale 1.6384e+04
+  [ep 2] batch 800/2098  avg_loss 0.05651  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 900/2098  avg_loss 0.05581  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1000/2098  avg_loss 0.05519  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1100/2098  avg_loss 0.05476  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1200/2098  avg_loss 0.05411  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1300/2098  avg_loss 0.05335  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1400/2098  avg_loss 0.05331  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1500/2098  avg_loss 0.05307  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1600/2098  avg_loss 0.05286  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1700/2098  avg_loss 0.05282  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1800/2098  avg_loss 0.05277  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 1900/2098  avg_loss 0.05279  0.61s/batch  scale 1.6384e+04
+  [ep 2] batch 2000/2098  avg_loss 0.05231  0.61s/batch  scale 1.6384e+04
+epoch 2/10  1359.0s  train_loss 0.05169  val_masked_relL2 3.62861  updates 2098 (skipped 0)  grad_scale 1.6384e+04  lr 2.71e-04
+  [ep 3] batch 100/2098  avg_loss 0.05019  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 200/2098  avg_loss 0.04739  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 300/2098  avg_loss 0.04729  0.62s/batch  scale 3.2768e+04
+  [ep 3] batch 400/2098  avg_loss 0.04528  0.62s/batch  scale 3.2768e+04
+  [ep 3] batch 500/2098  avg_loss 0.04370  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 600/2098  avg_loss 0.04215  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 700/2098  avg_loss 0.04337  0.61s/batch  scale 1.6384e+04
+  [ep 3] batch 800/2098  avg_loss 0.04221  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 900/2098  avg_loss 0.04210  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1000/2098  avg_loss 0.04132  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1100/2098  avg_loss 0.04158  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1200/2098  avg_loss 0.04099  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1300/2098  avg_loss 0.04111  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1400/2098  avg_loss 0.04127  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1500/2098  avg_loss 0.04089  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1600/2098  avg_loss 0.04040  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1700/2098  avg_loss 0.04016  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1800/2098  avg_loss 0.04027  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 1900/2098  avg_loss 0.03996  0.62s/batch  scale 1.6384e+04
+  [ep 3] batch 2000/2098  avg_loss 0.04051  0.62s/batch  scale 1.6384e+04
+epoch 3/10  1362.8s  train_loss 0.04008  val_masked_relL2 2.53195  updates 2097 (skipped 1)  grad_scale 1.6384e+04  lr 2.38e-04
+early stop: val_masked_relL2 worsened for 2 consecutive epochs (best 2.14188)
+done. best val_masked_relL2 = 2.14188; checkpoints in /data2/user/zyq/checkpoints/PRE_lr3e4/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2
