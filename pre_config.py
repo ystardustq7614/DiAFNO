@@ -2,7 +2,7 @@
 """Shared configuration for the PRE_ocean_data forecast task (imported by
 pre_trainer.py and pre_evaluate.py — keep this module side-effect free)."""
 
-OUT_ROOT = "/data2/user/zyq/checkpoints/PRE"
+OUT_ROOT = "/data2/user/zyq/checkpoints/PRE_lr3e4"
 
 PRESETS = {
     # smoke test: verify the whole pipeline on the surface layer.
@@ -19,7 +19,7 @@ PRESETS = {
         max_train_windows=None,    # set e.g. 2000 for a faster dry run
         sampling_steps=32,
         val_windows=24,            # uniform val windows per epoch (whole val period)
-        lr=1e-3,
+        lr=3e-4,
     ),
     # full 3D: 30 sigma layers, 400/4 x 441/3 x 30/2 = 100x147x15 = 220,500 tokens.
     # memory-tight on a 24GB card: start with batch_size=1; if OOM, reduce embed_dim

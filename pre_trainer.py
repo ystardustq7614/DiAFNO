@@ -42,7 +42,7 @@ cfg = PRESETS[PRESET]
 
 # per-preset epoch overrides for short retrains (None -> the preset's num_epochs;
 # OTHER presets are never affected by this override)
-EPOCH_OVERRIDES = {"surface_smoke": 4}
+EPOCH_OVERRIDES = {"surface_smoke": None}
 VAL_SEED = 1234            # fixed seed for validation diffusion sampling
 
 # Resume policy when the checkpoint's sigma_data differs from the current
@@ -70,7 +70,7 @@ Z = 30 if cfg["depth_index"] is None else 1
 
 hidden_size_factor = 4
 num_blocks = 1                     # AFNO channel blocks
-checkpoint_path = None             # set to a .pth to resume model weights
+checkpoint_path = "/data2/user/zyq/checkpoints/PRE_lr3e4/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2/Ep3.pth"  # resume to 10 epochs (handover §5.1)
 
 run_tag = run_tag_for(PRESET)
 run_dir = os.path.join(OUT_ROOT, run_tag)   # redirected to the checkpoint's own
@@ -351,7 +351,7 @@ for ep in range(start_epoch, n_epochs):
                np.dstack((hist["time"], hist["train"], hist["val_rel"])).squeeze(),
                fmt="%16.7f")
 
-    if worse_epochs >= 2 and ep >= 1:
+    if worse_epochs >= 8 and ep >= 1:
         print(f"early stop: val_masked_relL2 worsened for {worse_epochs} consecutive "
               f"epochs (best {best_val:.5f})")
         break

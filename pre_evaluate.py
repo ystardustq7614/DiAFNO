@@ -64,18 +64,18 @@ torch.manual_seed(123)
 ########## eval config ##########
 
 PRESET = "surface_smoke"            # must match the trained checkpoint's preset
-CHECKPOINT = None                   # None -> <run_dir>/best.pth (run_dir from run_tag_for)
-SPLIT = "test"
-ROLLOUT_DAYS = 15                   # dataset horizon, rollout steps, metric horizon, fig days
-ENSEMBLE_SIZE = 1                   # independent rollout members averaged at the end
-SAMPLER_S_CHURN = 80                # EDM stochastic-churn parameter (Table 5 of the EDM paper)
-EVAL_SEED = 123                     # per-window rollout seed (EVAL_SEED + window index)
-OUTPUT_TAG = None                   # extra suffix appended to output dirs/files
-EVAL_STRIDE = 7                     # start a rollout window every N days
-MAX_WINDOWS = None                  # set small (e.g. 8) for a quick check
-BATCH_SIZE = 4                      # rollout batch; use 1 for full3d if OOM
-SAMPLING_STEPS = None               # None -> preset value
-FIG_DAYS = (1, 3, 5, 7, 10, 15)     # representative lead days (filtered by ROLLOUT_DAYS)
+CHECKPOINT = "/data2/user/zyq/checkpoints/PRE_lr3e4/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2/Ep10.pth"
+SPLIT = "val"
+ROLLOUT_DAYS = 1                     # dataset horizon, rollout steps, metric horizon, fig days
+ENSEMBLE_SIZE = 4                    # independent rollout members averaged at the end
+SAMPLER_S_CHURN = 0                  # EDM stochastic-churn parameter (Table 5 of the EDM paper)
+EVAL_SEED = 123                      # per-window rollout seed (EVAL_SEED + window index)
+OUTPUT_TAG = None                    # extra suffix appended to output dirs/files
+EVAL_STRIDE = 7                      # start a rollout window every N days
+MAX_WINDOWS = None                   # set small (e.g. 8) for a quick check
+BATCH_SIZE = 4                       # rollout batch; use 1 for full3d if OOM
+SAMPLING_STEPS = 32                  # None -> preset value
+FIG_DAYS = (1, 3, 5, 7, 10, 15)      # representative lead days (filtered by ROLLOUT_DAYS)
 
 cfg = PRESETS[PRESET]
 H, W = 400, 441
