@@ -1,0 +1,39 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2/Ep3.pth (epoch=2)  sigma_data=0.17121  S_churn=0
+test rollout windows: 154 (stride 7, horizon 15, ensemble 1)
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2/eval_test_h15_ch0_e1_s123_ckptEp3.npz
+
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.2568 | 0.1167 | 2.201 | 0.2640 | 0.0031
+  2  | 0.3381 | 0.1675 | 2.019 | 0.2516 | 0.0031
+  3  | 0.3445 | 0.1903 | 1.811 | 0.2434 | 0.0031
+  4  | 0.3386 | 0.1987 | 1.704 | 0.2465 | 0.0031
+  5  | 0.3409 | 0.2076 | 1.642 | 0.2571 | 0.0031
+  6  | 0.3510 | 0.2215 | 1.585 | 0.2630 | 0.0031
+  7  | 0.3519 | 0.2329 | 1.511 | 0.2651 | 0.0031
+  8  | 0.3608 | 0.2349 | 1.536 | 0.2642 | 0.0031
+  9  | 0.3480 | 0.2246 | 1.549 | 0.2508 | 0.0031
+ 10  | 0.3444 | 0.2232 | 1.543 | 0.2434 | 0.0031
+ 11  | 0.3485 | 0.2237 | 1.558 | 0.2476 | 0.0031
+ 12  | 0.3546 | 0.2223 | 1.595 | 0.2583 | 0.0031
+ 13  | 0.3592 | 0.2162 | 1.661 | 0.2637 | 0.0031
+ 14  | 0.3593 | 0.2209 | 1.627 | 0.2658 | 0.0031
+ 15  | 0.3543 | 0.2152 | 1.646 | 0.2648 | 0.0031
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.2568 | 0.1167 | 2.201 | 0.3442 | 0.2098 | 1.640
+  zero | 0.2640 | 0.1167 | 2.263 | 0.2568 | 0.2098 | 1.224
+oracle | 0.0031 | 0.1167 | 0.027 | 0.0031 | 0.2098 | 0.015
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.2649 (pers 0.1387)  d5 0.4325 (pers 0.2581)  d10 0.4178 (pers 0.2801)  d15 0.4467 (pers 0.2670)  
+v: d1 0.2485 (pers 0.0895)  d5 0.2136 (pers 0.1403)  d10 0.2504 (pers 0.1459)  d15 0.2273 (pers 0.1463)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.3442 m/s | persistence 0.2098 m/s | zero 0.2568 m/s | rho-oracle 0.0031 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2/figures_h15_ch0_e1_s123_ckptEp3

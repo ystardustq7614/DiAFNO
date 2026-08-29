@@ -1,0 +1,40 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+windows: 156/156 (window-stride 1)
+  [10/156] 17.6s/win  elapsed 176s
+  [20/156] 17.6s/win  elapsed 352s
+  [30/156] 17.6s/win  elapsed 527s
+  [40/156] 17.6s/win  elapsed 702s
+  [50/156] 17.5s/win  elapsed 876s
+  [60/156] 17.5s/win  elapsed 1051s
+  [70/156] 17.5s/win  elapsed 1227s
+  [80/156] 17.5s/win  elapsed 1402s
+  [90/156] 17.4s/win  elapsed 1564s
+  [100/156] 17.3s/win  elapsed 1733s
+  [110/156] 17.4s/win  elapsed 1910s
+  [120/156] 17.4s/win  elapsed 2086s
+  [130/156] 17.4s/win  elapsed 2268s
+  [140/156] 17.5s/win  elapsed 2444s
+  [150/156] 17.5s/win  elapsed 2619s
+  [156/156] 17.5s/win  elapsed 2725s
+
+=== pooled native masked RMSE (m/s), day-1, same windows ===
+  a       : 0.2584
+  b       : 0.4775
+  c       : 0.3408
+  d       : 0.5655
+  pers    : 0.1293
+  zero    : 0.2620
+
+=== field statistics (rho grid, per captured window) ===
+  a       : mean spatial std(pred)=0.0620 m/s | corr(pred,truth)=0.392 | corr(pred,persistence)=0.420
+  b       : mean spatial std(pred)=0.0707 m/s | corr(pred,truth)=0.192 | corr(pred,persistence)=0.197
+  c       : mean spatial std(pred)=0.0619 m/s | corr(pred,truth)=0.213 | corr(pred,persistence)=0.214
+  d       : mean spatial std(pred)=0.0493 m/s | corr(pred,truth)=-0.084 | corr(pred,persistence)=-0.106
+  pers    : mean spatial std(pred)=0.0420 m/s | corr(pred,truth)=0.851 | corr(pred,persistence)=1.000
+
+=== error split (rho grid, m/s) ===
+  a       : RMSE open-ocean=0.2202  coastal-band=0.3616
+  b       : RMSE open-ocean=0.4930  coastal-band=0.4281
+  c       : RMSE open-ocean=0.3251  coastal-band=0.3936
+  d       : RMSE open-ocean=0.5676  coastal-band=0.5613
+saved /tmp/opencode/diag/results/probe_sample_conds_full.npz

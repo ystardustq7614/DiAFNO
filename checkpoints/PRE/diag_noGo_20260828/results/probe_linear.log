@@ -1,0 +1,35 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+ocean pixels (u&v): 123208
+train windows: 1050 (stride 8)
+design matrix: (315000, 14) -> (315000, 2)
+val windows: 156
+
+=== ridge: 14-dim cond -> next-day target (spatially-shared linear) ===
+  ridge lambda=0              : pooled native RMSE = 0.1177 m/s
+  (pers anchor)               : 0.1293   (zero anchor)  : 0.2620
+  ridge lambda=1e-06          : pooled native RMSE = 0.1177 m/s
+  (pers anchor)               : 0.1293   (zero anchor)  : 0.2620
+  ridge lambda=0.0001         : pooled native RMSE = 0.1177 m/s
+  (pers anchor)               : 0.1293   (zero anchor)  : 0.2620
+  ridge lambda=0.01           : pooled native RMSE = 0.1177 m/s
+  (pers anchor)               : 0.1293   (zero anchor)  : 0.2620
+  ridge lambda=0.1            : pooled native RMSE = 0.1177 m/s
+  (pers anchor)               : 0.1293   (zero anchor)  : 0.2620
+  ridge lambda=1              : pooled native RMSE = 0.1177 m/s
+  (pers anchor)               : 0.1293   (zero anchor)  : 0.2620
+
+beta (lambda=0) per feature, target u / target v:
+  u d0  : +0.0035 / -0.0005
+  v d0  : -0.0002 / +0.0034
+  u d1  : +0.0005 / +0.0003
+  v d1  : -0.0008 / +0.0015
+  u d2  : -0.0002 / -0.0008
+  v d2  : +0.0014 / -0.0002
+  u d3  : +0.0018 / +0.0007
+  v d3  : -0.0006 / +0.0017
+  u d4  : +0.0115 / -0.0043
+  v d4  : -0.0012 / +0.0043
+  u d5  : -0.0297 / +0.0091
+  v d5  : -0.0029 / -0.0086
+  u d6  : +0.0718 / -0.0045
+  v d6  : +0.0042 / +0.0386
