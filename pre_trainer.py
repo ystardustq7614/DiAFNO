@@ -42,7 +42,7 @@ cfg = PRESETS[PRESET]
 
 # per-preset epoch overrides for short retrains (None -> the preset's num_epochs;
 # OTHER presets are never affected by this override)
-EPOCH_OVERRIDES = {"surface_smoke": 4}
+EPOCH_OVERRIDES = {"surface_smoke": 10}
 VAL_SEED = 1234            # fixed seed for validation diffusion sampling
 
 # Resume policy when the checkpoint's sigma_data differs from the current
