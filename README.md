@@ -16,13 +16,13 @@ The datasets can be downloaded at [IAFNO_fDNS_kaggle](https://www.kaggle.com/dat
 arXiv version:
 ```
 @misc{jiang2026integratingfourierneuraloperator,
-      title={Integrating Fourier Neural Operator with Diffusion Model for Autoregressive Predictions of Three-dimensional Turbulence}, 
+      title={Integrating Fourier Neural Operator with Diffusion Model for Autoregressive Predictions of Three-dimensional Turbulence},
       author={Yuchi Jiang and Yunpeng Wang and Huiyu Yang and Jianchun Wang},
       year={2026},
       eprint={2512.12628},
       archivePrefix={arXiv},
       primaryClass={physics.flu-dyn},
-      url={https://arxiv.org/abs/2512.12628}, 
+      url={https://arxiv.org/abs/2512.12628},
 }
 ```
 
@@ -34,7 +34,18 @@ This manuscript has been accepted by Acta Mechanica Sinica with citing inform: A
 
 Task: given 7 consecutive days of the raw 3D `u/v` ocean-current fields, predict
 the next day, then autoregressively roll out 15 days. See
-`docs/PRE_runbook.md` for the full step-by-step runbook.
+[`docs/operations/PRE_runbook.md`](docs/operations/PRE_runbook.md) for the full
+step-by-step runbook. The complete documentation and experiment index is
+[`docs/README.md`](docs/README.md).
+
+Documentation and code status below are synchronized to the current PRE pipeline
+as of 2026-08-30. Presets remain module-level configuration; training mode,
+preset and resume checkpoint can also be selected through environment variables.
+
+Current experiment status: SD1 and corrected-scale SD2 surface runs both completed
+but failed the persistence gate. SD2 test RMSE is 2.201× persistence at day 1 and
+1.640× over the 15-day rollout. Full3d is intentionally paused; see the
+[experiment index](docs/experiments/README.md) for separated plans and results.
 
 ### Grids, masks, interpolation (no rotation)
 
@@ -98,16 +109,30 @@ the next day, then autoregressively roll out 15 days. See
 ### Run commands (from repo root, env `diafno`)
 
 ```bash
-python scripts/preprocess_align_uv.py     # one-time colocation + masks + time
-python pre_trainer.py                     # PRESET='surface_smoke' | 'full3d'
-python pre_evaluate.py                    # 15-step rollout + persistence + figures
+GPU_ID=3  # replace after checking nvidia-smi
+CUDA_VISIBLE_DEVICES="$GPU_ID" python scripts/preprocess_align_uv.py  # one-time CUDA colocation
+CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_trainer.py   # safe real-data smoke (default)
+DIAFNO_TRAIN_MODE=full CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_trainer.py
+# Multi-GPU full training (one process/GPU; batch_size is per GPU):
+DIAFNO_TRAIN_MODE=full CUDA_VISIBLE_DEVICES=0,1,2,3 \
+  torchrun --standalone --nproc_per_node=4 pre_trainer.py
+CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_evaluate.py  # 15-step rollout + persistence + figures
 python smoke_test.py && python pre_smoke_test.py   # minimal regression tests
 ```
+
+`scripts/preprocess_align_uv.py` requires CUDA, uses logical `cuda:0` after
+`CUDA_VISIBLE_DEVICES` filtering, and opens `u_rho.npy` / `v_rho.npy` in
+overwrite mode. Before a production rerun, use
+`scripts/profile_preprocess_align_uv.py` to benchmark representative chunks in
+a private scratch directory; see [`docs/operations/PRE_runbook.md`](docs/operations/PRE_runbook.md)
+for the exact command.
 
 - Presets live in `pre_config.py`; training/eval presets must match. Training
   checkpoints go to `<checkpoint_dir>/PRE/<run_tag>/{Ep{n}.pth, best.pth,
   loss.dat}` where `run_tag_for()` appends `_SD2` to the legacy tag (fixed-scale
-  runs never share a directory with sd1 runs).
+  runs never share a directory with sd1 runs). Set `DIAFNO_PRESET=full3d` for
+  all-layer training. Smoke and DDP outputs add `_SMOKE` / `_DDP<n>` so they
+  cannot collide with single-GPU full runs.
 - Evaluation outputs live NEXT TO the checkpoint and are tagged by the sampling
   config + checkpoint stem: `eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_ckpt{stem}[_tag].npz`
   and `figures_<tag>/` — existing outputs are REFUSED, never overwritten. The

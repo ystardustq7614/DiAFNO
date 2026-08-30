@@ -1,12 +1,14 @@
 # IAFNO 网络架构、完整数据流与公式—代码对应
 
-> 分析对象：[`IAFNO.py`](./IAFNO.py)、[`diffusion.py`](./diffusion.py)、[`trainer.py`](./trainer.py)
+> 分析对象：[`IAFNO.py`](../../IAFNO.py)、[`diffusion.py`](../../diffusion.py)、[`trainer.py`](../../trainer.py)、
+> [`pre_config.py`](../../pre_config.py)、[`pre_trainer.py`](../../pre_trainer.py)、[`pre_rollout.py`](../../pre_rollout.py)
 >
 > 论文依据：DiAFNO 论文、IAFNO 原论文、AFNO 原论文（链接见文末）
 >
-> 代码配置依据：`trainer.py:62-70,142-164`
+> 代码配置依据：原始湍流模板 `trainer.py` 与当前 PRE 预设 `pre_config.py`
 >
-> 本文只解释现有代码，不把论文设计、注释意图和实际执行结果混为一谈。
+> 本文只解释现有代码，不把论文设计、注释意图和实际执行结果混为一谈。已于 2026-08-28 同步：
+> legacy 3→3 单步路径仍保留；PRE 路径已实现 14 条件通道→2 目标通道和 15 步外层 rollout。
 
 ## 1. 先给结论：`IAFNO.py` 在整个 DiAFNO 中负责什么
 
@@ -23,7 +25,7 @@ $$
 
 其中：
 
-- $U_m$：当前物理时刻的流场，作为预测下一时刻的条件；
+- $U_m$：外部条件；legacy 为当前单帧，PRE 为过去 7 天按 day-major u/v 展平后的 14 通道；
 - $U_{m+1}$：下一物理时刻的真实流场；
 - $x_\sigma=U_{m+1}+\sigma\epsilon$：训练时加入噪声的下一时刻流场；
 - $F_\theta$：`IAFNODiff.forward()`；
@@ -75,7 +77,7 @@ trainer.py:203
   model(yy, xx)
     -> diffusion.py:259-288  ElucidatedDiffusion.forward(images=yy, self_cond=xx)
       -> diffusion.py:115-134  preconditioned_network_forward(...)
-        -> IAFNO.py:309-367  IAFNODiff.forward(q_sigma, t, U_m)
+        -> IAFNO.py:288-346  IAFNODiff.forward(q_sigma, t, U_m)
 ```
 
 一个容易忽略的实际行为是：`yy` 在 `diffusion.py:265` 又从 $[0,1]$ 映射到 $[-1,1]$，但作为 `self_cond` 传入的 `xx` 没有执行这一步。因此当前训练代码拼接的是：
@@ -99,9 +101,11 @@ U_0\rightarrow U_1^{\mathrm{pre}}
 \tag{4}
 $$
 
-但是当前 `trainer.py:229` 只调用一次 `model.sample(xx)`；仓库中的训练脚本没有实现把预测结果再次送回模型的多物理步 rollout。也就是说，代码已经实现“可被自回归调用的单步条件算子”，尚未实现论文式 (4) 的外层循环。
+原始 `trainer.py` 仍只调用一次 `model.sample(xx)`，没有论文式 (4) 的外层循环。PRE 路径已经在
+`pre_rollout.py` 实现该循环：每一步从 14 通道历史预测 2 通道下一帧，删除最旧 u/v 两通道并追加预测；
+`pre_evaluate.py` 默认滚动 15 步，还支持相互独立的 ensemble 成员和逐窗口 seed。
 
-### 2.3 `IAFNODiff.forward()` 内部路径与默认 shape
+### 2.3 `IAFNODiff.forward()` 内部路径与 legacy 默认 shape
 
 默认配置为：
 
@@ -122,24 +126,35 @@ $$
 | $L$ | implicit iterations，`nlayer` | 4 |
 | $C_{out}$ | 输出通道 | 3 |
 
+这张表与下方逐站 shape 是 legacy `trainer.py` 的 3 条件通道 + 3 加噪目标通道配置。当前构造器已把两者解耦：
+
+| 路径 | `in_chans`（加噪目标） | `cond_chans`（外部条件） | stem 输入 | `out_chans` | 空间 / patch |
+|---|---:|---:|---:|---:|---|
+| legacy | 3 | `None` → 3 | 6 | 3 | 64×65×32 / 2×2×2（y 补到 66） |
+| PRE surface | 2 | 14 | 16 | 2 | 400×441×1 / 4×3×1（精确整除） |
+| PRE full3d | 2 | 14 | 16 | 2 | 400×441×30 / 4×3×2（精确整除） |
+
+因此 PRE 的噪声 embedding、FiLM stem 中间通道和 head 宽度都由 16/2 通道配置派生；不能套用下面 legacy
+例子中的 6、12、24。`cond_chans=None` 保留旧版 doubling，保证原始路径兼容。
+
 逐站 shape 如下：
 
 | 次序 | 操作 | 代码位置 | 输出 shape |
 |---:|---|---|---|
 | 1 | 输入缩放噪声场 $q_\sigma$ | `diffusion.py:123-126` | `[B,3,64,65,32]` |
-| 2 | 与 $U_m$ 沿 channel 拼接 | `IAFNO.py:311-313` | `[B,6,64,65,32]` |
-| 3 | `Conv3d(6,12,3,pad=1)` | `IAFNO.py:317` | `[B,12,64,65,32]` |
-| 4 | RMSNorm + time scale/shift + SiLU | `IAFNO.py:318-325` | `[B,12,64,65,32]` |
-| 5 | `Conv3d(12,6,3,pad=1)` + RMSNorm + SiLU | `IAFNO.py:327-329` | `[B,6,64,65,32]` |
-| 6 | 转成 channel-last | `IAFNO.py:331` | `[B,64,65,32,6]` |
-| 7 | 在 $y$ 轴末端补一层 0 | `IAFNO.py:340-342` | `[B,64,66,32,6]` |
-| 8 | 非重叠 `Conv3d` patch embedding | `IAFNO.py:84-87` | `[B,32,33,16,180]` |
-| 9 | 加可学习空间位置嵌入 | `IAFNO.py:294-296` | `[B,32,33,16,180]` |
-| 10 | $4\times4=16$ 次显式 AFNO block 计算 | `IAFNO.py:302-305` | shape 不变 |
-| 11 | 每个 token 线性映射 $180\to 2^3\times3=24$ | `IAFNO.py:348` | `[B,32,33,16,24]` |
-| 12 | unpatchify | `IAFNO.py:349-358` | `[B,64,66,32,3]` |
-| 13 | 删除补出的 $y$ 轴最后一层 | `IAFNO.py:361-362` | `[B,64,65,32,3]` |
-| 14 | 转回 channel-first | `IAFNO.py:366` | `[B,3,64,65,32]` |
+| 2 | 与 $U_m$ 沿 channel 拼接 | `IAFNO.py:290-292` | `[B,6,64,65,32]` |
+| 3 | `Conv3d(6,12,3,pad=1)` | `IAFNO.py:296` | `[B,12,64,65,32]` |
+| 4 | RMSNorm + time scale/shift + SiLU | `IAFNO.py:297-304` | `[B,12,64,65,32]` |
+| 5 | `Conv3d(12,6,3,pad=1)` + RMSNorm + SiLU | `IAFNO.py:306-308` | `[B,6,64,65,32]` |
+| 6 | 转成 channel-last | `IAFNO.py:310` | `[B,64,65,32,6]` |
+| 7 | 在 $y$ 轴末端补一层 0 | `IAFNO.py:319-321` | `[B,64,66,32,6]` |
+| 8 | 非重叠 `Conv3d` patch embedding | `IAFNO.py:64-71` | `[B,32,33,16,180]` |
+| 9 | 加可学习空间位置嵌入 | `IAFNO.py:272-275` | `[B,32,33,16,180]` |
+| 10 | $4\times4=16$ 次显式 AFNO block 计算 | `IAFNO.py:281-284` | shape 不变 |
+| 11 | 每个 token 线性映射 $180\to 2^3\times3=24$ | `IAFNO.py:327` | `[B,32,33,16,24]` |
+| 12 | unpatchify | `IAFNO.py:328-337` | `[B,64,66,32,3]` |
+| 13 | 删除补出的 $y$ 轴最后一层 | `IAFNO.py:340-341` | `[B,64,65,32,3]` |
+| 14 | 转回 channel-first | `IAFNO.py:345` | `[B,3,64,65,32]` |
 
 内部结构图：
 
@@ -188,7 +203,7 @@ a_0=[U_m;q_\sigma]
 \tag{C1}
 $$
 
-对应 `IAFNO.py:311-313`。拼接顺序是条件 $U_m$ 在前，含噪目标 $q_\sigma$ 在后。
+对应 `IAFNO.py:290-292`。拼接顺序是条件 $U_m$ 在前，含噪目标 $q_\sigma$ 在后。
 
 ### 3.2 正弦噪声等级嵌入
 
@@ -215,7 +230,7 @@ $$
 \tag{C4}
 $$
 
-其中输出宽度为 $24$，切成两个宽度为 $12$ 的向量。对应 `IAFNO.py:277-284,320-323`。
+其中输出宽度为 $24$，切成两个宽度为 $12$ 的向量。对应 `IAFNO.py:257-264,299-302`。
 
 这里有两种“位置嵌入”，不可混淆：
 
@@ -248,13 +263,13 @@ $$
 
 $$
 h_3=\operatorname{SiLU}\left(
-\operatorname{RMSNorm}left(
+\operatorname{RMSNorm}\left(
 \operatorname{Conv}^{3\times3\times3}_{12\to6}(h_2)
 \right)\right).
 \tag{C8}
 $$
 
-论文把它概括为 `ResNet block`，但当前 `IAFNO.py:317-329` 没有从 $a_0$ 到 $h_3$ 的加法残差。因此从实际代码看，它更准确地说是“带噪声 FiLM 调制的两层卷积前端”。
+论文把它概括为 `ResNet block`，但当前 `IAFNO.py:296-308` 没有从 $a_0$ 到 $h_3$ 的加法残差。因此从实际代码看，它更准确地说是“带噪声 FiLM 调制的两层卷积前端”。
 
 ## 4. Padding、Patch embedding 与空间位置
 
@@ -275,7 +290,7 @@ v_0\in\mathbb R^{B\times32\times33\times16\times180}.
 \tag{C10}
 $$
 
-这就是论文式 (26) 中的 $P[\cdot]$。`IAFNO.py:84` 的 `flatten(4)` 对当前五维 channel-last 输入不会改变 shape；它是早期可能存在额外时间轴时遗留的通用写法。
+这就是论文式 (26) 中的 $P[\cdot]$。`IAFNO.py:68` 的 `flatten(4)` 对当前五维 channel-last 输入不会改变 shape；它是早期可能存在额外时间轴时遗留的通用写法。
 
 ## 5. AFNO 频域 token mixer：从理论公式到逐行复数计算
 
@@ -351,7 +366,7 @@ $$
 其中 $\rho$ 是激活函数。代码没有直接调用复数矩阵乘法，而是令
 $z=z_R+i z_I$、$W_j=A_j+iB_j$、$b_j=c_j+i d_j$，显式展开实部和虚部。
 
-第一层 `IAFNO.py:196-206`：
+第一层 `IAFNO.py:180-190`：
 
 $$
 u_R=\operatorname{ReLU}(z_RA_1-z_IB_1+c_1),
@@ -363,7 +378,7 @@ u_I=\operatorname{ReLU}(z_IA_1+z_RB_1+d_1).
 \tag{C14}
 $$
 
-第二层 `IAFNO.py:208-218`：
+第二层 `IAFNO.py:192-202`：
 
 $$
 o_R=u_RA_2-u_IB_2+c_2,
@@ -386,7 +401,7 @@ S_\lambda(x)=\operatorname{sign}(x)\max(|x|-\lambda,0).
 \tag{7}
 $$
 
-`IAFNO.py:220-222` 先把 $o_R,o_I$ 堆叠，再对两个实数分量分别执行 `F.softshrink`：
+`IAFNO.py:204-206` 先把 $o_R,o_I$ 堆叠，再对两个实数分量分别执行 `F.softshrink`：
 
 $$
 \tilde z=S_\lambda(o_R)+iS_\lambda(o_I).
@@ -401,7 +416,7 @@ $$
 \tag{C18}
 $$
 
-对应 `IAFNO.py:223-226`。式 (C18) 中的 $a$ 是 AFNO 自己内部保存的 `bias` 残差。
+对应 `IAFNO.py:207-210`。式 (C18) 中的 $a$ 是 AFNO 自己内部保存的 `bias` 残差。
 
 ### 5.5 Fourier mode 保留策略
 
@@ -448,7 +463,7 @@ u=v+f,
 $$
 
 $$
-K_j(v)=u+operatorname{MLP}_j(\operatorname{LN}_2(u)).
+K_j(v)=u+\operatorname{MLP}_j(\operatorname{LN}_2(u)).
 \tag{C23}
 $$
 
@@ -480,7 +495,7 @@ $$
 
 这里 $N$ 是每个 implicit step 内的 explicit layers 数，$L$ 是 implicit iterations 数。核心思想是：$K_1,\ldots,K_N$ 在不同 implicit iteration 之间复用参数，从而增加有效深度而不线性增加参数量。
 
-当前默认路径 `IAFNO.py:302-305` 更准确地写成：
+当前默认路径 `IAFNO.py:281-284` 更准确地写成：
 
 $$
 v_{i,0}=v_i,
@@ -577,19 +592,19 @@ $$
 | 理论或论文公式 | 数学含义 | 主要代码位置 | 对应结论 |
 |---|---|---|---|
 | AFNO 原论文式 (3)–(4)；IAFNO 原论文式 (14)–(15) | kernel integral 与全局卷积 | 无直接积分实现 | 理论动机 |
-| AFNO 原论文 FNO 定义；IAFNO 原论文式 (16)；DiAFNO 附录式 (B.6) | $\mathcal F^{-1}(\mathcal F(\kappa)\mathcal F(X))$ | `IAFNO.py:185,224` | 代码扩展为 3D `rfftn/irfftn` |
-| AFNO 原论文式 (5)–(6)；IAFNO 原论文式 (17) | channel block 与共享频域 MLP | `IAFNO.py:173-176,186,196-218` | 权重跨所有空间频率共享 |
-| AFNO 原论文式 (7)–(8)；DiAFNO 式 (25) 后定义 | $S_\lambda$ 稀疏化 | `IAFNO.py:220-222` | 对实部、虚部分别 SoftShrink |
-| IAFNO 原论文式 (20)–(21)；DiAFNO 式 (24)–(25) | 一个 explicit AFNO kernel layer | `IAFNO.py:121-226` | 代码额外明确 LayerNorm、双残差与 feature MLP |
-| IAFNO 原论文式 (19)；DiAFNO 式 (23) | implicit iteration，$\Delta t=1/(NL)$ | `IAFNO.py:298-305` | 系数相同，但当前代码逐 block 更新，顺序与论文总式不完全等价 |
-| DiAFNO 式 (26) | noise-conditioned stem + patch/position embedding | `IAFNO.py:277-347` | 代码还显式拼接物理条件 $U_m$ |
-| DiAFNO 式 (22)、(27) | IAFNO 作为 $F_\theta$，EDM 预条件得到 $D_\theta$ | `IAFNO.py:309-367` + `diffusion.py:115-134` | 两个文件合起来才是完整公式 |
+| AFNO 原论文 FNO 定义；IAFNO 原论文式 (16)；DiAFNO 附录式 (B.6) | $\mathcal F^{-1}(\mathcal F(\kappa)\mathcal F(X))$ | `IAFNO.py:169,208` | 代码扩展为 3D `rfftn/irfftn` |
+| AFNO 原论文式 (5)–(6)；IAFNO 原论文式 (17) | channel block 与共享频域 MLP | `IAFNO.py:157-160,170,180-202` | 权重跨所有空间频率共享 |
+| AFNO 原论文式 (7)–(8)；DiAFNO 式 (25) 后定义 | $S_\lambda$ 稀疏化 | `IAFNO.py:204-206` | 对实部、虚部分别 SoftShrink |
+| IAFNO 原论文式 (20)–(21)；DiAFNO 式 (24)–(25) | 一个 explicit AFNO kernel layer | `IAFNO.py:105-210` | 代码额外明确 LayerNorm、双残差与 feature MLP |
+| IAFNO 原论文式 (19)；DiAFNO 式 (23) | implicit iteration，$\Delta t=1/(NL)$ | `IAFNO.py:277-284` | 系数相同，但当前代码逐 block 更新，顺序与论文总式不完全等价 |
+| DiAFNO 式 (26) | noise-conditioned stem + patch/position embedding | `IAFNO.py:257-275,288-326` | 代码还显式拼接物理条件 $U_m$ |
+| DiAFNO 式 (22)、(27) | IAFNO 作为 $F_\theta$，EDM 预条件得到 $D_\theta$ | `IAFNO.py:288-346` + `diffusion.py:115-134` | 两个文件合起来才是完整公式 |
 | DiAFNO 式 (28) | 测试相对误差 | `trainer.py:229-236`、`utilities3.py` 的 `LpLoss` | 不是 `IAFNODiff` 内部结构 |
-| DiAFNO 式 (29) | 多物理步自回归 | 当前无 rollout 循环 | 论文设计已描述，仓库训练脚本只执行单步采样 |
+| DiAFNO 式 (29) | 多物理步自回归 | legacy `trainer.py` 无；`pre_rollout.py` 已实现 | PRE 以 7 天条件滚动 15 步，并支持 ensemble |
 
-## 10. 论文配置与当前代码配置的差异
+## 10. 论文配置与两条当前代码路径的差异
 
-DiAFNO 论文正文说明其基线采用 4 个 implicit iterations、2 个 explicit layers；附录超参数实验测试了 `explicit layers = 4`。当前 `trainer.py` 设置为：
+DiAFNO 论文正文说明其基线采用 4 个 implicit iterations、2 个 explicit layers；附录超参数实验测试了 `explicit layers = 4`。legacy `trainer.py` 设置为：
 
 ```python
 implicit_layer = 4
@@ -601,6 +616,9 @@ patch_size = (2, 2, 2)
 ```
 
 因此当前文件走的是 $4\times4$ 的更深变体，不是论文正文所称的 $4\times2$ 基线。
+
+PRE 配置来自 `pre_config.py`：`surface_smoke` 仍为 $4\times4$、embed 180；`full3d` 为
+$2\times4$、embed 128。两者的 patch 分别为 `(4,3,1)` / `(4,3,2)`，网格精确整除，不走 legacy 的 y 单点 padding。
 
 原始 IAFNO 论文中的 standalone IAFNO 直接学习下一时刻的流场增量并做自回归；这份 `IAFNO.py` 则经过修改，作为 DiAFNO 的条件去噪 $F_\theta$，加入了噪声等级嵌入、卷积条件化前端以及 `x_self_cond` 条件流场接口。二者不能仅凭类名视为完全相同的任务。
 
@@ -623,10 +641,9 @@ AFNO(..., sparsity_threshold=0.01, hard_thresholding_fraction=1)
 
 所以当前真实值始终是 $\lambda=0.01$、保留率 100%。修改最外层两个同名参数不会改变计算。
 
-### 11.2 `drop_path_rate` 与最终 `norm` 没有进入实际前向
+### 11.2 `drop_path_rate` 没有进入实际前向
 
-- `dpr` 在 `IAFNO.py:263` 被计算，但构造 `Block` 时没有传 `drop_path`；
-- `self.norm` 在 `IAFNO.py:274` 创建，却没有在 `forward_features` 或 `forward` 中调用；
+- `IAFNODiff.__init__` 接收 `drop_path_rate`，但构造 `Block` 时没有传 `drop_path`，因此各 block 实际为 0；
 - `drop_rate` 只控制 patch positional embedding 后的 `pos_drop`，默认值为 0。
 
 ### 11.3 `num_blocks=1` 不产生真正的 block-diagonal 划分
@@ -635,7 +652,7 @@ AFNO(..., sparsity_threshold=0.01, hard_thresholding_fraction=1)
 
 ### 11.4 特殊分支的条件表达式不是普通逻辑 `and`
 
-`IAFNO.py:298` 写的是：
+`IAFNO.py:277` 写的是：
 
 ```python
 if (self.ex_layer!=1 & self.nlayer==1):
@@ -669,6 +686,8 @@ self.ex_layer != (1 & self.nlayer) == 1
 6. 4 个 explicit blocks 在 4 次 implicit iteration 中共享，默认共执行 16 次 AFNO。
 7. 线性 head 把每个 token 还原为一个 $2\times2\times2\times3$ patch；裁掉 padding 后输出 $F_\theta$。
 8. `diffusion.py` 再应用 $c_{\mathrm{skip}}$ 与 $c_{\mathrm{out}}$，才得到论文中的最终去噪结果 $D_\theta$。
+9. PRE 把 14 通道历史条件与 2 通道加噪目标拼成 16 通道 stem 输入，head 输出 2 通道；公式结构不变。
+10. 多物理步自回归不在 `IAFNO.py` 内，而在 `pre_rollout.py`：每步采样后更新 7 天历史，默认共 15 步。
 
 ## 参考资料
 

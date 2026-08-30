@@ -1,7 +1,7 @@
 # PRE_ocean_data 数据集详细说明
 
 > 数据源：`/data/PRE_ocean_data`（在 `~/datasets/PRE` 有软链接指向同一目录）
-> 本文档基于 2026-08-24 的实测核对（运行 `scripts/inspect_pre_dataset.py`、`scripts/inspect_raw_nc.py`、`scripts/analyze_pre_dataset.py` 生成）。
+> 数据事实基于 2026-08-24 的实测核对（运行 `scripts/inspect_pre_dataset.py`、`scripts/inspect_raw_nc.py`、`scripts/analyze_pre_dataset.py` 生成）；与当前 PRE 建模代码的适配说明已于 2026-08-29 同步。
 
 ---
 
@@ -287,23 +287,23 @@
 - 湿区经纬度：112.315–115.678°E，20.896–23.028°N
 - 水深：湿点 3.8–92.6 m（近岸浅、东南深）
 
-## 5. 与 DiAFNO 模型的适配要点
+## 5. 与 DiAFNO 模型的当前适配
 
-模型 `trainer.py` / `IAFNO.py` 的关键约束与数据现状对比：
+原始湍流入口 `trainer.py` 仍保留占位数据路径；PRE 任务已经由独立的 `pre_*.py` 管线实现，不再依赖修改该入口：
 
-| 项目 | 模型要求 | PRE 数据现状 | 差距 |
-|---|---|---|---|
-| 数据形态 | 单个 .npy：`[trainset_num, nt, x, y, z, c]`，当前 c=3 | 每变量独立 .npy：`[10591, s, η, ξ]` | 需按任务重组和切片；Task A 选择 2 个目标通道 |
-| 网格 | 硬编码 64×66×32（`dim`），64×65×32（`dim_f`），patch 2³ | 400×441×30（sigma） | 应先按任务决定表层 2D、完整 3D 或空间 patch；不能默认把 30 层插值成 32 层，也不能在未验证物理影响时直接降到 64×65 |
-| 通道 | 3 通道（原为湍流 u,v,w） | Task A 明确预测 u/v；推荐使用同一 rho 网格上的 `u_eastward/v_northward` | 目标通道应参数化为 2，不应为迎合原模型虚构第三个变量 |
-| 有效域 | 无掩膜周期盒 | 约 70% 湿点、陆地为 NaN | 可在归一化后将无效点填 0，但必须保留 mask，并在统计、loss 和评价指标中排除陆地；仅填 0 不足以解决问题 |
-| 内存 | 单文件小、`count`≤200 | 单个 3D 变量 209 GiB 无法整体加载 | 需 mmap 分块或先构建子集 |
-| 轨迹 | 多轨迹（bs×nt） | 单条 10591 天连续轨迹 | 需按段切块构造样本 |
+| 环节 | 当前实现 |
+|---|---|
+| 目标变量 | 使用原始 C-grid 方向 `u/v`，先共定位到 rho 网格，**不旋转**为 east/north；模型目标为 2 通道 |
+| 预处理 | `scripts/preprocess_align_uv.py` 单卡 CUDA 分块处理，输出 `(10591,30,400,441)` 的 `u_rho.npy` / `v_rho.npy`、双变量 mask 和已验证时间数组；`scripts/profile_preprocess_align_uv.py` 可先做 scratch 性能/等价性探针 |
+| 数据加载 | `PREUVDataset` 对 209 GiB 级 NPY 使用 mmap，先做连续 train/val/test 切分，再在 split 内生成 7 天条件 + 1 天目标窗口 |
+| 模型 shape | 历史按 day-major u/v 交错展平为 14 条件通道；加噪目标与输出均为 2 通道；表层为 `400×441×1`，全层为 `400×441×30` |
+| 网格与 patch | `surface_smoke`: `(4,3,1)`；`full3d`: `(4,3,2)`，均精确整除，不触发 IAFNO 的单点 padding |
+| mask / 归一化 | u/v 分别使用 `mask_u_rho` / `mask_v_rho`；只在 train 海洋点上做逐变量 min-max，默认不做 percentile clipping；陆地归一化后填 0，但 loss 与指标始终 masked |
+| 时间 | 固定切分 train `[0,8401)`、val `[8401,9496)`、test `[9496,10591)`；窗口不跨界；15 天预测由 `pre_rollout.py` 自回归回灌 |
+| 评估 | `pre_evaluate.py` 把 rho 预测映射回原生 u/v 网格，用未经裁剪的原始物理真值计算逐 lead day × 变量 × sigma 层 RMSE/MAE，并内建 persistence、zero、rho-oracle 基线 |
 
-参考（`AGENTS.md`）：
-- 模型张量为 `bs c x y z`，原始数据为 `bs x y z c`，`trainer.py` 用 einops `rearrange` 转换
-- 归一化为按通道 min-max，缓存文件名 `ts{trainset_num}_c{count}_iw{InferenceWidth}_ii{InitialInterval}.npy`（内含 sigma 作为扩散模型 `sigma_data`）
-- `trainer.py` 中有 3 处占位符必须替换：`np.load('your dataset')`、`info_folder_path`、`parent_dir`
+数值尺度需特别区分：统计缓存的 `stats["sigma"]` 位于 `[0,1]` 空间；EDM 内部使用 `[-1,1]`，因此新训练通过
+`pre_config.sigma_data_from_stats()` 使用 2 倍尺度。checkpoint 会记录实际 `sigma_data`，评估优先读取该值。
 
 ## 6. 深度核查（变量清单 / mask 语义 / 趋势分布 / 网格几何）
 
@@ -337,7 +337,8 @@
 - 交叉验证：`temp[0,29]` 在陆地格点 100% 为 NaN、海洋格点 0% 为 NaN，**NaN 位置与 mask==0 完全吻合（100%）**
 - 例外（2026-08 实测）：`u` 在 45 个静态陆侧边界 face（左 rho 陆、右 rho 海，如 `(199..206,108)`）
   上 `mask_u==0` 但有值（最高 0.92 m/s，疑似河流/开边界 forcing），全部 30 层、所有抽查天数位置相同；
-  `v` 无此现象。预处理以 mask 为准丢弃这些值（见 `docs/PRE_runbook.md` §0.3）
+  `v` 无此现象。预处理以 mask 为准丢弃这些值（见
+  [PRE 运行手册 §0.3](../operations/PRE_runbook.md#03-双变量-mask)）
 - 水深 `h`：陆地格点恒为 1.0（名义值，勿当真实水深），海洋格点 3.77–92.6 m
 - 图 `plots/01_field_mask_sanity.png`：mask、h、temp 原始(陆地=白) 与掩膜后对比，肉眼可直接核对
 
@@ -380,6 +381,8 @@
 | `scripts/inspect_pre_dataset.py` | 全数据集体检：文件清点、形状/dtype、NaN 率、逐变量统计、掩膜/水深、sigma 坐标。大文件 mmap 抽样读取，安全。`--full` 用 10% 时次做统计 |
 | `scripts/inspect_raw_nc.py` | 检查单个原始 NetCDF（动态场或静态网格）的维度/变量/字段统计 |
 | `scripts/analyze_pre_dataset.py` | 深度核查：变量清单、mask 语义验证、趋势/分布图、网格几何与区域范围；图输出到 `plots/` |
+| `scripts/profile_preprocess_align_uv.py` | 在私有 scratch 目录抽样计时预处理各阶段；可比较正式 CUDA 实现与 NumPy 参考，不触碰生产输出 |
+| `scripts/preprocess_align_uv.py` | CUDA 生产预处理：原始交错 u/v → 未旋转 rho 共定位数据、双变量 mask 与连续时间缓存；会覆盖已有同名 aligned 输出 |
 
 常用命令：
 

@@ -15,9 +15,22 @@ ensemble rollout (E=1 == sequential under autocast, autocast wrapping itself,
 E=4 shape/mean/independence, AR state independence, per-window seeds, horizons
 1 and 15), the rho-oracle diagnostic, a writable contiguous mask tensor, and
 checkpoint metadata save/restore with weights_only=True loading.
+
+Also covers the persistence-residual baseline (pre_models.py): zero-init
+identity (untrained == last-day persistence), one optimizer step, masked MSE
+land-invariance, checkpoint roundtrip + objective guards, remask_feedback
+rollout behavior (on/off + mask required), deterministic rollout (seed
+independence, identical ensemble members), training objectives/run tags, and
+the shared ProgressReporter PROGRESS line format (update-driven + daemon
+time-driven heartbeat, phase_done vs script-level completed, multi-line error
+sanitization, failure-hook dedup/stage, checkpoint norm/mask/time_sigma
+fingerprint checks).
 """
+import io
 import os
+import sys
 import tempfile
+import time
 from math import exp, sqrt
 
 import numpy as np
@@ -27,9 +40,18 @@ from scripts import preprocess_align_uv as pre_pp
 from pre_dataset import NativeUVReader, _clip_range, compute_or_load_stats
 from pre_metrics import (rho_to_native, masked_error_sums, pooled_rmse, masked_rel_l2,
                          oracle_native_error_sums)
+from pre_models import PersistenceResidualIAFNO, masked_mse_loss
 from pre_rollout import expand_ensemble, ensemble_rollout, ensemble_mean
-from pre_config import (SIGMA_DATA_SCALE, sigma_data_from_stats, sigma_data_from_checkpoint,
-                        resume_sigma_decision)
+from pre_config import (PRESETS, SIGMA_DATA_SCALE, SMOKE_BATCHES_PER_RANK,
+                        sigma_data_from_stats, sigma_data_from_checkpoint,
+                        resume_sigma_decision, training_config, training_run_tag,
+                        OBJECTIVES, DEFAULT_OBJECTIVE, MASK_SCHEME,
+                        RESIDUAL_TIME_SIGMA, validate_objective,
+                        objective_from_checkpoint, ensure_objective_compatible,
+                        check_norm_fingerprint, check_residual_time_sigma,
+                        format_progress, ProgressReporter,
+                        install_progress_failure_hook, mark_progress_failed,
+                        reset_progress_failure_state)
 from utilities3 import load_checkpoint
 from diffusion import ElucidatedDiffusion
 from IAFNO import IAFNODiff
@@ -48,6 +70,15 @@ def make_model(embed=8):
         image_size_h=H, image_size_w=W, image_size_z=Z,
         sigma_data=0.5, P_mean=-1.0, P_std=0.0, S_churn=0,
     )
+
+
+def make_residual_model(embed=8, time_sigma=RESIDUAL_TIME_SIGMA):
+    net = IAFNODiff(
+        dim=(H, W, Z), patch_size=(2, 2, 1), embed_dim=embed, num_blocks=1,
+        in_chans=2, out_chans=2, cond_chans=14, ex_layer=1, nlayer=1,
+        hidden_size_factor=1, dim_f=(H, W, Z), self_condition=True,
+    )
+    return PersistenceResidualIAFNO(net, time_sigma=time_sigma)
 
 
 def test_colocate_and_bivariate_masks():
@@ -958,6 +989,517 @@ def test_checkpoint_metadata_roundtrip():
         sd3, used3 = sigma_data_from_checkpoint(ckpt, stats_sigma)
         assert used3 and np.isclose(sd3, sd)
         assert next(m2.parameters()).device.type == "cpu"
+
+
+def test_training_modes_and_run_tags():
+    full = training_config("surface_smoke", "full", world_size=1)
+    assert full == PRESETS["surface_smoke"]
+    assert full is not PRESETS["surface_smoke"]
+
+    smoke = training_config("surface_smoke", "smoke", world_size=4)
+    assert smoke["embed_dim"] == PRESETS["surface_smoke"]["embed_dim"]
+    assert smoke["patch_size"] == PRESETS["surface_smoke"]["patch_size"]
+    assert smoke["num_epochs"] == 1 and smoke["sampling_steps"] == 4
+    assert smoke["val_windows"] == 4
+    assert smoke["max_train_windows"] == (
+        SMOKE_BATCHES_PER_RANK * 4 * smoke["batch_size"])
+    assert training_run_tag("surface_smoke", full) == (
+        "surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2")
+    assert training_run_tag("surface_smoke", smoke, "smoke", 4).endswith(
+        "_S4_C7_SD2_SMOKE_DDP4")
+    # objective suffix: the deterministic baseline NEVER shares a run dir with
+    # a diffusion run; the default objective keeps the legacy tag exactly
+    assert training_run_tag("surface_smoke", full,
+                            objective="persistence_residual") == (
+        "surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES")
+    assert training_run_tag("surface_smoke", smoke, "smoke", 4,
+                            objective="persistence_residual").endswith(
+        "_S4_C7_SD2_RES_SMOKE_DDP4")
+    assert training_run_tag("surface_smoke", full,
+                            objective="diffusion") == training_run_tag("surface_smoke", full)
+
+    for args in (("missing", "full", 1), ("surface_smoke", "bad", 1),
+                 ("surface_smoke", "full", 0)):
+        try:
+            training_config(*args)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"training_config{args} should fail")
+    try:
+        training_run_tag("surface_smoke", full, objective="bogus")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("training_run_tag with unknown objective should fail")
+
+
+def test_objective_config_helpers():
+    assert OBJECTIVES == ("diffusion", "persistence_residual")
+    assert DEFAULT_OBJECTIVE == "diffusion"
+    assert MASK_SCHEME == "bivariate_rho"
+    assert validate_objective("Diffusion") == "diffusion"          # normalized
+    assert validate_objective("persistence_residual") == "persistence_residual"
+    # unknown objective -> ValueError
+    for bad in ("residual", "", "DIFFUSION "):
+        try:
+            validate_objective(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"validate_objective({bad!r}) should fail")
+    # legacy checkpoints (no config / no objective field) are always diffusion
+    assert objective_from_checkpoint(None) == "diffusion"
+    assert objective_from_checkpoint({}) == "diffusion"
+    assert objective_from_checkpoint({"epoch": 3}) == "diffusion"
+    assert objective_from_checkpoint({"config": {}}) == "diffusion"
+    assert objective_from_checkpoint(
+        {"config": {"objective": "persistence_residual"}}) == "persistence_residual"
+    # matching objective passes through; mismatch refuses
+    res_ckpt = {"config": {"objective": "persistence_residual"}}
+    diff_ckpt = {"config": {"objective": "diffusion"}}
+    assert ensure_objective_compatible(res_ckpt, "persistence_residual") == \
+        "persistence_residual"
+    assert ensure_objective_compatible(diff_ckpt, "diffusion") == "diffusion"
+    assert ensure_objective_compatible({}, "diffusion") == "diffusion"
+    for ckpt, want in ((diff_ckpt, "persistence_residual"),
+                       (res_ckpt, "diffusion")):
+        try:
+            ensure_objective_compatible(ckpt, want)
+        except RuntimeError as e:
+            assert "objective" in str(e) and "incompatible" in str(e), str(e)
+        else:
+            raise AssertionError(f"ensure_objective_compatible({ckpt}, {want!r}) "
+                                 "should refuse")
+
+
+def test_persistence_residual_zero_init_identity():
+    # the UNTRAINED wrapper must be EXACTLY last-day persistence: the zero-init
+    # head makes the backbone output all zeros, so prediction == base == cond[:, -2:]
+    model = make_residual_model()
+    assert model.residual_base == "last_day"
+    assert model.cond_chans == 14 and model.target_ch == 2
+    assert torch.count_nonzero(model.net.head.weight).item() == 0
+    torch.manual_seed(0)
+    cond = torch.rand(3, 14, H, W, Z)
+    with torch.no_grad():
+        out = model(cond)
+        sample = model.sample(cond, num_sample_steps=8, clamp=True)
+    assert out.shape == (3, 2, H, W, Z)
+    assert sample.shape == (3, 2, H, W, Z)
+    assert torch.equal(out, cond[:, -2:])          # bitwise persistence identity
+    assert torch.equal(sample, cond[:, -2:])       # cond in [0,1] -> clamp is a no-op
+    # sample() ignores num_sample_steps (deterministic: bitwise identical)
+    with torch.no_grad():
+        s_other = model.sample(cond, num_sample_steps=2, clamp=True)
+    assert torch.equal(sample, s_other)
+    # clamp pushes out-of-range predictions back into [0, 1]
+    cond_big = torch.zeros(1, 14, H, W, Z)
+    cond_big[0, -2:, 0, 0, 0] = 5.0                # base value outside [0,1]
+    with torch.no_grad():
+        clamped = model.sample(cond_big, clamp=True)
+    assert clamped[0, 0, 0, 0, 0].item() == 1.0
+    # wrong condition channel count is rejected
+    try:
+        model(torch.randn(1, 15, H, W, Z))
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("expected AssertionError for wrong cond channels")
+    # a backbone without self_condition cannot carry the condition
+    net_nc = IAFNODiff(dim=(H, W, Z), patch_size=(2, 2, 1), embed_dim=8,
+                       num_blocks=1, in_chans=2, out_chans=2, cond_chans=14,
+                       ex_layer=1, nlayer=1, hidden_size_factor=1,
+                       dim_f=(H, W, Z), self_condition=False)
+    try:
+        PersistenceResidualIAFNO(net_nc)
+    except ValueError as e:
+        assert "self_condition" in str(e), str(e)
+    else:
+        raise AssertionError("expected ValueError for self_condition=False backbone")
+
+
+def test_persistence_residual_training_step():
+    # one real forward/backward/optimizer step: finite loss, head moves, output
+    # leaves the persistence identity, and EVERY parameter receives a .grad
+    # (zero-valued at first for pre-head layers, but present — the property DDP
+    # needs to all-reduce without find_unused_parameters)
+    model = make_residual_model()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+    torch.manual_seed(1)
+    cond = torch.rand(B, 14, H, W, Z)
+    target = torch.rand(B, 2, H, W, Z)
+    mask = torch.ones(1, 2, H, W, Z)
+    mask[0, 0, 0, 0] = 0.0
+
+    pred = model(cond)
+    loss = masked_mse_loss(pred, target, mask)
+    assert torch.isfinite(loss)
+    loss.backward()
+    grads = [p.grad for p in model.parameters()]
+    assert all(g is not None for g in grads)                 # DDP-safe
+    assert torch.isfinite(model.net.head.weight.grad).all()
+    assert model.net.head.weight.grad.abs().sum() > 0        # head actually moves
+    head_before = model.net.head.weight.detach().clone()
+    optimizer.step()
+    assert not torch.equal(head_before, model.net.head.weight.detach())
+    assert all(torch.isfinite(p).all() for p in model.parameters())
+    # after a real update the model is no longer identical to persistence
+    with torch.no_grad():
+        out2 = model(cond)
+    assert not torch.equal(out2, cond[:, -2:])
+    # land gradient stays zero (masked loss never trains land outputs)
+    assert model.net.head.weight.grad is not None
+
+
+def test_masked_mse_loss_semantics():
+    torch.manual_seed(2)
+    pred = torch.rand(B, 2, H, W, Z)
+    target = torch.rand(B, 2, H, W, Z)
+    # land cell (0,0) invalid in BOTH channels
+    mask = torch.ones(1, 2, H, W, Z)
+    mask[0, :, 0, 0, :] = 0.0
+    loss = masked_mse_loss(pred, target, mask)
+    m = mask.expand_as(pred)
+    ref = (((pred - target) ** 2 * m).sum(dim=(1, 2, 3, 4))
+           / m.sum(dim=(1, 2, 3, 4))).mean()
+    assert torch.allclose(loss, ref, atol=1e-6)
+    # corrupting LAND cells must not change the loss
+    pred_land_dirty = pred.clone()
+    pred_land_dirty[:, :, 0, 0, :] = 123.0
+    assert torch.allclose(loss, masked_mse_loss(pred_land_dirty, target, mask))
+    # per-sample denominators are independent (batch-varying validity)
+    maskb = torch.ones(B, 2, H, W, Z)
+    maskb[0, :, :2, :, :] = 0.0
+    ref_b = (((pred - target) ** 2 * maskb).sum(dim=(1, 2, 3, 4))
+             / maskb.sum(dim=(1, 2, 3, 4))).mean()
+    assert torch.allclose(masked_mse_loss(pred, target, maskb), ref_b, atol=1e-6)
+    # single-channel (1,1,H,W,Z) mask broadcasts like diffusion.forward
+    mask1 = torch.ones(1, 1, H, W, Z)
+    mask1[0, 0, 0, 0, :] = 0.0
+    assert torch.isfinite(masked_mse_loss(pred, target, mask1))
+    # all-zero mask -> exactly 0, no NaN (same convention as the EDM loss)
+    zero_loss = masked_mse_loss(pred, target, torch.zeros(1, 2, H, W, Z))
+    assert torch.isfinite(zero_loss) and zero_loss.item() == 0.0
+
+
+def test_persistence_residual_checkpoint_roundtrip():
+    # save -> rebuild -> load_checkpoint(weights_only=True) reproduces the
+    # trained model exactly; metadata carries the objective family
+    model = make_residual_model()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+    torch.manual_seed(3)
+    cond = torch.rand(1, 14, H, W, Z)
+    target = torch.rand(1, 2, H, W, Z)
+    loss = masked_mse_loss(model(cond), target, torch.ones(1, 2, H, W, Z))
+    loss.backward()
+    optimizer.step()
+
+    state = {"epoch": 0, "best_val": float(loss.item()),
+             "model_state_dict": model.state_dict(),
+             "config": {"preset": "surface_smoke", "objective": "persistence_residual",
+                        "residual_base": model.residual_base,
+                        "cond_chans": model.cond_chans, "target_ch": model.target_ch,
+                        "mask_scheme": MASK_SCHEME,
+                        "time_sigma": model.time_sigma, "world_size": 1}}
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "best.pth")
+        torch.save(state, p)
+        # rebuild exactly like pre_evaluate.py does: fresh IAFNODiff + wrapper,
+        # then load the state dict (the zero-init head is replaced by training)
+        fresh = make_residual_model()
+        assert torch.count_nonzero(fresh.net.head.weight).item() == 0
+        ckpt = load_checkpoint(p, fresh, map_location="cpu")
+        assert ckpt["epoch"] == 0
+        assert ensure_objective_compatible(ckpt, "persistence_residual") == \
+            "persistence_residual"
+        with torch.no_grad():
+            a = model(cond)
+            b = fresh(cond)
+        assert torch.allclose(a, b, atol=1e-6)
+        assert not torch.equal(b, cond[:, -2:])   # trained: no longer persistence
+
+
+def test_rollout_remask_feedback():
+    class _LandDirtyRecorder:
+        """Predicts cur[:, :2] + 1 (nonzero EVERYWHERE, including land cells)
+        and records every condition window it is fed."""
+        def __init__(self):
+            self.calls = []
+        def sample(self, cur, num_sample_steps=None, clamp=True):
+            self.calls.append(cur.clone())
+            return cur[:, :2] + 1.0
+
+    torch.manual_seed(0)
+    cond = torch.rand(1, 14, H, W, Z)
+    ocean = torch.ones(1, 2, H, W, Z)
+    ocean[0, :, 0, 0, :] = 0.0                    # (0,0) is land in both channels
+
+    # OFF (default / historical): the dirty prediction (land included) is fed back.
+    # calls[i][0] is the 4-D (14, H, W, Z) window: channels live on dim 0.
+    s_off = _LandDirtyRecorder()
+    p_off = ensemble_rollout(s_off, cond, 2, 1, seed=0, remask_feedback=False)
+    assert p_off.shape == (1, 1, 2, 2, H, W, Z)
+    fed_back = s_off.calls[1][0]
+    assert torch.equal(fed_back[-2:], s_off.calls[0][0][:2] + 1.0)
+    assert fed_back[-2, 0, 0, 0].item() != 0.0             # land NOT re-zeroed
+
+    # ON: the prediction is remasked (land -> 0) before storage AND feedback
+    s_on = _LandDirtyRecorder()
+    p_on = ensemble_rollout(s_on, cond, 2, 1, seed=0, remask_feedback=True,
+                            ocean_mask=ocean)
+    fed_back_on = s_on.calls[1][0]
+    assert fed_back_on[-2, 0, 0, 0].item() == 0.0
+    assert fed_back_on[-1, 0, 0, 0].item() == 0.0
+    # ocean values are unchanged by the remask; stored preds are the masked ones
+    assert torch.allclose(p_on[0, 0], p_off[0, 0] * ocean[0])
+    # the second-step INPUT differs only at masked-out (land) cells
+    diff = (s_on.calls[1][0] - s_off.calls[1][0]).abs()
+    assert diff[-2, 0, 0, 0].item() > 0 and diff[-1, 0, 0, 0].item() > 0
+    assert diff[:, 1, 1, :].max().item() == 0
+    # seeds still scope the trajectories; remasking is deterministic either way
+    s_on_b = _LandDirtyRecorder()
+    ensemble_rollout(s_on_b, cond, 2, 1, seeds=[7], remask_feedback=True,
+                     ocean_mask=ocean)
+    assert torch.equal(s_on_b.calls[1][0], fed_back_on)
+    # remask_feedback=True without a mask is rejected early
+    try:
+        ensemble_rollout(_LandDirtyRecorder(), cond, 1, 1,
+                         remask_feedback=True, ocean_mask=None)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("expected AssertionError for remask without ocean_mask")
+
+
+def test_deterministic_model_in_rollout():
+    # the persistence-residual wrapper inside the UNCHANGED rollout machinery:
+    # seeds cannot matter (no RNG consumption) and ensemble members coincide
+    model = make_residual_model()
+    torch.manual_seed(4)
+    cond = torch.rand(2, 14, H, W, Z)
+    p_seed1 = ensemble_rollout(model, cond, 3, 1, seed=1)
+    p_seed999 = ensemble_rollout(model, cond, 3, 1, seed=999)
+    assert p_seed1.shape == (2, 1, 3, 2, H, W, Z)
+    assert torch.equal(p_seed1, p_seed999)                 # bitwise deterministic
+    # per-window seeds path behaves identically for a deterministic model
+    p_pw = ensemble_rollout(model, cond, 3, 1, seeds=[1, 2])
+    assert torch.equal(p_pw[:, 0], p_seed1[:, 0])
+    # E=2 members are identical copies (mean == member)
+    p_e2 = ensemble_rollout(model, cond, 3, 2, seed=1)
+    assert p_e2.shape == (2, 2, 3, 2, H, W, Z)
+    assert torch.equal(p_e2[:, 0], p_e2[:, 1])
+    assert torch.allclose(ensemble_mean(p_e2), p_e2[:, 0])
+    # predictions stay in [0,1] and respect the persistence identity per step
+    assert float(p_seed1.min()) >= 0.0 and float(p_seed1.max()) <= 1.0
+
+
+def _parse_progress_line(line):
+    assert line.startswith("PROGRESS "), line
+    tokens = line.split()[1:]
+    fields = {}
+    for i, tok in enumerate(tokens):
+        key, sep, value = tok.partition("=")
+        assert sep and key and value != "", line           # strict k=v tokens
+        fields[key] = value
+    return fields
+
+
+def test_progress_reporter_lines():
+    class _FakeClock:
+        def __init__(self):
+            self.t = 0.0
+        def __call__(self):
+            return self.t
+        def advance(self, dt):
+            self.t += dt
+
+    # ---- non-interactive (pipe/file): NO bar, periodic newline-flushed lines
+    clk = _FakeClock()
+    buf = io.StringIO()
+    rep = ProgressReporter("train", total=10, stream=buf, clock=clk,
+                           interactive=False, unit="step", samples_per_unit=4,
+                           context={"epoch": "1/4"})
+    lines = [ln for ln in buf.getvalue().splitlines() if ln]
+    assert len(lines) == 1 and "status=start" in lines[0]
+    f = _parse_progress_line(lines[0])
+    assert f["phase"] == "train" and f["step"] == "0/10" and f["epoch"] == "1/4"
+    assert f["elapsed_s"] == "0.0"
+
+    rep.update(3, loss="0.50000", lr="1.00e-03")           # inside the interval
+    assert len(buf.getvalue().splitlines()) == 1           # nothing emitted yet
+    clk.advance(30.0)                                      # interval reached
+    rep.update(2, loss="0.25000", lr="1.00e-03")           # -> emit periodic line
+    lines = [ln for ln in buf.getvalue().splitlines() if ln]
+    assert len(lines) == 2 and "status=running" in lines[1]
+    f = _parse_progress_line(lines[1])
+    assert f["phase"] == "train" and f["status"] == "running"
+    assert f["step"] == "5/10" and f["loss"] == "0.25000" and f["lr"] == "1.00e-03"
+    assert f["epoch"] == "1/4"
+    assert float(f["elapsed_s"]) >= 30.0
+    assert float(f["eta_s"]) > 0.0
+    assert f["step_per_s"].startswith("0.") and f["step_per_s"] != "0.000"
+    # both rates are formatted to 3 decimals, so allow rounding slack
+    assert abs(float(f["sample_per_s"]) - 4.0 * float(f["step_per_s"])) < 5e-3
+    rep.close(loss="0.10000")
+    lines = [ln for ln in buf.getvalue().splitlines() if ln]
+    # reporters close with the INTERMEDIATE phase_done status — the script-level
+    # `completed` is reserved for the entrypoints' own final line
+    assert len(lines) == 3 and "status=phase_done" in lines[2]
+    f = _parse_progress_line(lines[2])
+    assert f["step"] == "5/10" and f["loss"] == "0.10000"
+    # close is idempotent
+    rep.close()
+    assert len(buf.getvalue().splitlines()) == 3
+
+    # ---- failure path: status=failed is emitted with the error detail
+    buf2 = io.StringIO()
+    clk2 = _FakeClock()
+    rep2 = ProgressReporter("eval", total=4, stream=buf2, clock=clk2,
+                            interactive=False, unit="window")
+    rep2.update(1)
+    clk2.advance(30.0)
+    rep2.update(1, d1_rmse="0.1234")                       # -> periodic running line
+    out2 = [ln for ln in buf2.getvalue().splitlines() if ln]
+    assert len(out2) == 2 and "status=running" in out2[1]
+    rep2.fail(error="RuntimeError: non_finite_loss_at_epoch_2")
+    out2 = [ln for ln in buf2.getvalue().splitlines() if ln]
+    assert len(out2) == 3 and "status=failed" in out2[2]
+    f2 = _parse_progress_line(out2[2])
+    assert f2["phase"] == "eval" and f2["window"] == "2/4"
+    assert f2["d1_rmse"] == "0.1234"
+    assert "RuntimeError" in f2["error"]
+    # values never contain spaces (key=value parseability)
+    for line in buf2.getvalue().splitlines():
+        for tok in line.split()[1:]:
+            assert " " not in tok, line
+
+    # ---- disabled reporter (non-rank-0 DDP): fully silent
+    buf3 = io.StringIO()
+    rep3 = ProgressReporter("train", total=5, stream=buf3, clock=_FakeClock(),
+                            interactive=False, enabled=False)
+    rep3.update(2, loss="0.1")
+    rep3.close()
+    assert buf3.getvalue() == ""
+
+    # ---- format_progress field order: phase first, status last
+    line = format_progress("train", "running", epoch="2/4", loss="0.5")
+    toks = line.split()
+    assert toks[0] == "PROGRESS" and toks[1] == "phase=train"
+    assert toks[-1] == "status=running" and "epoch=2/4" in toks
+    _parse_progress_line(line)
+
+
+def test_progress_heartbeat_without_updates():
+    # the periodic line is TIME-DRIVEN: with ZERO update() calls (a single
+    # rollout step blocking far longer than the interval) the daemon heartbeat
+    # still emits running lines; close() stops it for good
+    buf = io.StringIO()
+    rep = ProgressReporter("eval", total=100, unit="window", interval=0.2,
+                           stream=buf, interactive=False)
+    assert len([ln for ln in buf.getvalue().splitlines() if ln]) == 1  # start only
+    time.sleep(0.6)                                     # > 2x interval, no updates
+    lines = [ln for ln in buf.getvalue().splitlines() if ln]
+    running = [ln for ln in lines if "status=running" in ln]
+    assert len(running) >= 1, lines                     # heartbeat without updates
+    f = _parse_progress_line(running[-1])
+    assert f["window"] == "0/100" and f["phase"] == "eval"
+    rep.close()
+    frozen = len(buf.getvalue().splitlines())
+    time.sleep(0.3)
+    assert len(buf.getvalue().splitlines()) == frozen   # heartbeat stopped by close
+
+
+def test_progress_multiline_error_sanitization():
+    # a multi-line exception message must stay on ONE parseable key=value line:
+    # every whitespace run (spaces, newlines, tabs) collapses to one underscore
+    line = format_progress("train", "failed",
+                           error="RuntimeError: boom\nsecond line\twith\ttabs  and  spaces")
+    assert "\n" not in line and "\t" not in line
+    _parse_progress_line(line)
+    assert ("error=RuntimeError:_boom_second_line_with_tabs_and_spaces"
+            in line.split())
+    # single-line values pass through untouched apart from inner spaces
+    assert format_progress("eval", "failed", error="E:x y").split()[-2] == \
+        "error=E:x_y"
+
+
+def test_progress_failure_hook_dedup_and_stage():
+    # the excepthook fallback emits ONE standard failed line (sanitized error,
+    # stage read at failure time) for exceptions escaping guarded blocks;
+    # mark_progress_failed() suppresses duplicates from the guarded handler;
+    # the original excepthook still receives the exception (traceback).
+    old_hook = sys.excepthook
+    buf = io.StringIO()
+    stage = ["setup"]
+    fallback_calls = []
+    try:
+        reset_progress_failure_state()
+        install_progress_failure_hook("train", stage=lambda: stage[0], stream=buf,
+                                      fallback=lambda *a: fallback_calls.append(a))
+        sys.excepthook(RuntimeError, RuntimeError("pre-flight refused\nbad config"), None)
+        lines = [ln for ln in buf.getvalue().splitlines() if ln]
+        assert len(lines) == 1 and "status=failed" in lines[0]
+        f = _parse_progress_line(lines[0])
+        assert f["phase"] == "train" and f["stage"] == "setup"
+        assert f["error"] == "RuntimeError:_pre-flight_refused_bad_config"
+        assert len(fallback_calls) == 1                 # traceback still dispatched
+        # a guarded block that already reported its own failure -> hook silent
+        mark_progress_failed()
+        sys.excepthook(ValueError, ValueError("guarded failure"), None)
+        assert len(buf.getvalue().splitlines()) == 1
+        assert len(fallback_calls) == 2
+        # the stage callable is read AT FAILURE TIME
+        reset_progress_failure_state()
+        stage[0] = "postprocess"
+        sys.excepthook(ValueError, ValueError("late failure"), None)
+        last = buf.getvalue().splitlines()[-1]
+        assert _parse_progress_line(last)["stage"] == "postprocess"
+        assert "status=failed" in last
+    finally:
+        sys.excepthook = old_hook
+        reset_progress_failure_state()
+
+
+def test_norm_fingerprint_and_time_sigma_checks():
+    lo, hi = [-1.5, -2.0], [2.5, 3.0]
+    mv = "deadbeef01234567"
+    # matching fingerprint -> no warnings, no raise
+    assert check_norm_fingerprint({"norm_lo": lo, "norm_hi": hi,
+                                   "mask_version": mv}, lo, hi, mv) == []
+    # float noise within tolerance passes
+    assert check_norm_fingerprint({"norm_lo": [-1.5 + 1e-9, -2.0],
+                                   "norm_hi": hi, "mask_version": mv},
+                                  lo, hi, mv) == []
+    # legacy checkpoint predating the recorded fields -> warnings, NOT a raise
+    ws = check_norm_fingerprint({}, lo, hi, mv)
+    assert len(ws) == 2 and all("legacy" in w for w in ws)
+    # normalization drift -> refuse (silently changed stats are the hazard)
+    for bad in ({"norm_lo": [-1.4, -2.0], "norm_hi": hi, "mask_version": mv},
+                {"norm_lo": lo, "norm_hi": [2.5, 3.1], "mask_version": mv}):
+        try:
+            check_norm_fingerprint(bad, lo, hi, mv)
+        except RuntimeError as e:
+            assert "normalization fingerprint mismatch" in str(e), str(e)
+        else:
+            raise AssertionError("expected normalization mismatch refusal")
+    # mask drift -> refuse
+    try:
+        check_norm_fingerprint({"norm_lo": lo, "norm_hi": hi,
+                                "mask_version": "ffffffffffffffff"}, lo, hi, mv)
+    except RuntimeError as e:
+        assert "mask_version" in str(e), str(e)
+    else:
+        raise AssertionError("expected mask mismatch refusal")
+    # residual time embedding: matching value passes; missing/mismatched refuse
+    check_residual_time_sigma({"time_sigma": 0.002}, 0.002)
+    for bad_cfg in ({}, {"time_sigma": 0.05}):
+        try:
+            check_residual_time_sigma(bad_cfg, 0.002)
+        except RuntimeError as e:
+            assert "time_sigma" in str(e), str(e)
+        else:
+            raise AssertionError(f"expected time_sigma refusal for {bad_cfg}")
 
 
 if __name__ == "__main__":
