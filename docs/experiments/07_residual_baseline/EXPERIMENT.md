@@ -1,88 +1,58 @@
 # 实验 07：surface persistence-residual 确定性基线
 
-> 状态：smoke / Phase 3 / validation 选型 / Phase 4 test / 长时效诊断 /
-> Phase 5①（mask 输入，保留 A）/ Phase 5②（remask，维持 rf0）均已执行
-> （2026-08-31 / 09-01，见 [RESULTS.md](./RESULTS.md)）。Phase 3 **Go**；
-> test day-1 0.833、15-day overall 1.018。剩余：Phase 6 决策。
+> 状态：**已完成**（2026-08-31）
+> 科学问题：IAFNO backbone 能否把过去 7 天 `u/v` 直接映射成优于 persistence 的
+> 次日流场，并在 15 天自回归中保持优势？
 
-## 实验目的
+## 目标与假设
 
-建立一个**确定性、condition-only、以条件第 7 天为 persistence 基准预测残差**的 IAFNO
-基线（`PersistenceResidualIAFNO`），回答当前 diffusion 路径未能回答的问题：backbone
-能否把 7 天条件直接映射成足够准确的次日流场。扩散路径保留为对照，本轮不修改
-EDM、噪声日程或采样器。
+建立确定性、condition-only 的 `PersistenceResidualIAFNO` 基线：
 
-背景依据（见 `docs/project/PROJECT_HANDOFF_SUMMARY.md`）：
+```text
+prediction = condition 最后一天 + learned residual
+```
 
-- condition-only linear/ridge probe RMSE `0.1177 m/s` 优于 persistence `0.1293 m/s`，
-  说明 7 天条件中存在可利用信号；
-- SD2 diffusion 真实条件 day-1 RMSE `0.2584 m/s`（persistence 的 2.201 倍），
-  空间相关性也低于 persistence；
-- 条件扰动实验证明模型会使用条件，但没有转化为准确的空间预测。
+核心假设是：7 天 condition 中存在足够的次日预测信号；如果该模型优于 persistence，
+则此前 diffusion 路径失败不能简单归因于 backbone 或 condition 无效。
+
+## 任务与执行状态
+
+| 任务 | 状态 | 结果入口 |
+|---|---|---|
+| 真实数据训练入口检查 | 已完成 | 工程验证见项目 Changelog |
+| surface 10 epoch 短训练 | 已完成 | [RESULTS](./RESULTS.md) |
+| 逐 checkpoint validation day-1 选型 | 已完成 | [RESULTS](./RESULTS.md) |
+| 冻结 checkpoint 后 test day-1/15-day 报告 | 已完成 | [RESULTS](./RESULTS.md) |
+| 长时效 bias/variance/correlation 诊断 | 已完成 | [RESULTS](./RESULTS.md) |
+
+静态 mask 输入和 rollout remask 不属于本实验，分别记录在实验 08、09。
 
 ## 实验设置
 
 | 项目 | 设置 |
 |---|---|
-| objective | `persistence_residual`（`DIAFNO_OBJECTIVE`） |
-| 模型 | 与 diffusion 相同的 `IAFNODiff` backbone（`surface_smoke`：400×441×1、patch 4×3×1、embed 180、implicit 4、explicit 4）；残差输出头零初始化 |
-| 残差基准 | 条件最后一天 `base = cond[:, -2:]`；未训练时输出严格等于 persistence（trainer 启动自检） |
-| 损失 | 双变量 rho mask 下的 `masked_mse_loss`（逐样本有效格点均值，batch 均值） |
-| 时间嵌入 | 常量 `c_noise = 0.25·ln(0.002)`（`time_sigma` 记录在 checkpoint） |
-| 数据/归一化 | 与 SD2 完全一致：连续 split、train-only min-max、不裁剪、`_SD2` stats 缓存 |
-| batch/lr | 每卡 4、lr 1e-3、cosine（同 `surface_smoke` 预设）；多卡不缩放 lr |
-| run 目录 | `surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES`（smoke/DDP 追加 `_SMOKE`/`_DDP<n>`） |
+| preset/objective | `surface_smoke` / `persistence_residual` |
+| 模型 | 与 diffusion 相同的 `IAFNODiff` backbone；残差输出头零初始化 |
+| 输入/输出 | 过去 7 天 `u/v`（14 通道）→ 次日 `u/v`（2 通道） |
+| 残差基准 | `base = cond[:, -2:]` |
+| 损失 | 双变量 rho mask 下的 normalized `masked_mse_loss` |
+| 数据 | 连续 split、train-only min-max、`clip_pct=None` |
+| 训练 | 单卡 batch 4、lr `1e-3`、cosine、最多 10 epoch |
+| rollout | 15 天确定性自回归，`remask_feedback=False` |
 
 ## 对照与控制变量
 
-- persistence、zero、rho-oracle 基线内建于 `pre_evaluate.py`；ridge/linear probe
-  `0.1177 m/s` 作为参考线。
-- 与 SD2 diffusion 保持相同数据划分、归一化、mask、训练预算与 GPU 数；
-  单一变量是 objective（扩散采样 vs 确定性残差回归）。
-- rollout `remask_feedback` 先固定 `False`（历史行为）；单变量 A/B 属 Phase 5，不与本实验捆绑。
+- 主对照：persistence；附加参考：zero、rho-oracle、ridge/linear probe；
+- 与 surface SD2 diffusion 保持相同数据划分、归一化、mask、backbone 和训练预算；
+- 核心变化只有目标函数：扩散采样改为确定性 persistence-residual 回归；
+- checkpoint 只由 validation 选择，test 不参与训练、选型或超参数决策。
 
-## 记录指标
+## 指标与判定
 
-- 训练：masked MSE loss、`val_masked_relL2`（early stop 用）、updates/skips、耗时吞吐。
-- 选型：对每个 `Ep{n}.pth` 以 `SPLIT="val"`、`ROLLOUT_DAYS=1` 跑 `pre_evaluate.py`，
-  按 **validation day-1 native RMSE** 选 checkpoint（训练日志的 rel-L2 不是选型指标）。
-- 报告：day-1 与 15-day 的 native masked RMSE/MAE（pooled）、model/persistence 比值、
-  u/v 分项、coastal/open-ocean 分项、空间相关性。
+- 训练记录 normalized masked MSE、验证 rel-L2、耗时和吞吐；
+- checkpoint 按 validation day-1 native C-grid RMSE 选择，不使用 `best.pth` 排名；
+- 科学报告使用物理单位 m/s 的 day-1/15-day RMSE、MAE、model/persistence ratio；
+- 长时效附加报告 u/v 分项、bias、variance ratio、spatial correlation 和 crossover day；
+- day-1 严格优于 persistence 才允许进入 test 15-day 报告。
 
-## 执行方法
-
-```bash
-# 1) 单卡真实数据 smoke（结构与正式完全一致，仅 4 batch/1 epoch）
-CUDA_VISIBLE_DEVICES=<gpu> DIAFNO_OBJECTIVE=persistence_residual python pre_trainer.py
-
-# 2) 目标 world size 的 DDP smoke（与单卡 smoke 产物隔离）
-DIAFNO_OBJECTIVE=persistence_residual torchrun --standalone --nproc_per_node=4 pre_trainer.py
-
-# 3) surface 短训练（Phase 3；Go 后才进入全量预算）
-CUDA_VISIBLE_DEVICES=<gpu> DIAFNO_OBJECTIVE=persistence_residual \
-  DIAFNO_TRAIN_MODE=full python pre_trainer.py
-
-# 4) validation 选型（逐 checkpoint，day-1）
-#    pre_evaluate.py: CHECKPOINT='<...>/_RES/EpN.pth'、SPLIT='val'、ROLLOUT_DAYS=1
-# 5) 冻结配置后 test 报告（SPLIT='test'、ROLLOUT_DAYS=15）
-```
-
-## 预期结果与门槛
-
-- 工程门槛：单卡与 DDP smoke 打印 `SMOKE PASS`；零初始化 identity 自检通过；
-  loss/指标 finite；checkpoint 在 `*_RES` 目录完整落盘。
-- Phase 3 Go 条件：最佳 **validation day-1 native RMSE 严格优于 persistence**（< `0.1293 m/s`
-  的对应 validation 数值）；否则停止扩大预算，先诊断优化/输入/目标。
-- Phase 4 第一目标：test day-1 稳定优于 persistence `0.1293 m/s`；进一步目标：达到或优于
-  ridge probe `0.1177 m/s`。
-- Go 之后的后续决策（不属本实验）：residual diffusion、双静态 mask 输入 A/B、
-  remask A/B，再评估 full3d。
-
-## 执行状态（2026-08-31）
-
-单卡与 DDP×2 smoke 均 `SMOKE PASS`；Phase 3 短训练 10/10 epochs 完成（3 h 35 min，
-best `val_masked_relL2 0.40325`@ep10）；validation day-1 选型 Ep10 以 `0.1011 m/s`
-优于 persistence `0.1294 m/s`（ratio 0.781），Phase 3 判定 **Go**。Phase 4 test
-报告：day-1 `0.0973 m/s` 优于 persistence `0.1167`（ratio 0.833），15-day overall
-`0.2136` vs `0.2098`（ratio 1.018，基本持平）。数值、表格与产物路径见
-[RESULTS.md](./RESULTS.md)。Phase 5 A/B 尚未执行。
+实际运行配置、产物、数值与分析见 [RESULTS.md](./RESULTS.md)。

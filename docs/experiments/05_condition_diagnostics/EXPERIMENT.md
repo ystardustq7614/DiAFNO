@@ -12,15 +12,15 @@
 3. condition 已进入，但扩散训练/采样没有形成可靠的条件预测器；
 4. 失败主要集中在海岸和 mask 边界。
 
-## 子实验与对照
+## 任务与执行状态
 
-| 子实验 | 对照 | 目的 |
-|---|---|---|
-| 14 通道共享 ridge/linear probe | persistence、zero | 验证历史条件本身是否含可利用信号 |
-| condition 破坏实验 | 真实、另一窗口、全零、14 通道反转 | 验证 condition 是否进入并影响网络 |
-| 空间相关 | diffusion prediction vs persistence | 判断是否保留真实大尺度结构 |
-| 区域分层 | coastal band vs open ocean | 判断海岸/mask 是否主导失败 |
-| 网络敏感度与采样轨迹 | 不同 sigma 区间 | 定位条件信息在哪个阶段丢失；脚本已有，尚未运行 |
+| 子实验 | 对照 | 目的 | 状态 |
+|---|---|---|---|
+| 14 通道共享 ridge/linear probe | persistence、zero | 验证历史条件本身是否含可利用信号 | 已完成 |
+| condition 破坏实验 | 真实、另一窗口、全零、14 通道反转 | 验证 condition 是否进入并影响网络 | 已完成 |
+| 空间相关 | diffusion prediction vs persistence | 判断是否保留真实大尺度结构 | 已完成 |
+| 区域分层 | coastal band vs open ocean | 判断海岸/mask 是否主导失败 | 已完成 |
+| 网络敏感度与采样轨迹 | 不同 sigma 区间 | 定位条件信息在哪个阶段丢失 | 未执行，当前延期 |
 
 ## 固定条件
 
@@ -45,7 +45,8 @@
 D:\CondaData\envs_dirs\diafno\python.exe scripts\analyze_checkpoint_results.py
 ```
 
-尚未执行的脚本必须在生成日志后才能把状态改为完成。
+尚未执行的脚本必须在生成日志后才能把状态改为完成；当前主线不依赖这两项，因此保持
+“部分执行”，不以脚本存在代替实验完成。
 
 ## 预期判别
 

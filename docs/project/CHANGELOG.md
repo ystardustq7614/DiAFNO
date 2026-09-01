@@ -11,20 +11,46 @@
 
 ### Proposed
 
-- Phase 6 计划文档待另立（旧计划已归档至
-  [archive/CODE_MODIFICATION_PLAN_20260830.md](./archive/CODE_MODIFICATION_PLAN_20260830.md)）：
-  residual diffusion 的残差 sigma 实测定标、短训冒烟与验收门槛
-  （overall ratio < 0.941 且 day 10-15 < 1.0）。
-- Phase 5③（可选）：分段 remask 变体与近岸误差靶点（coastal 0.867 vs offshore
+- 按当前
+  [困难与下一步](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)
+  实施：全层画像 → surface detached-autoregressive MS5 → 条件 MS10 → 代表层 →
+  full3d 资源/K1/K3 probe；residual diffusion 降为条件分支。
+- 计划中的代码改动包括 multi-step 配置/数据窗口/训练路径、smoke 回归、全层画像脚本，
+  以及修复 `diag_leadtime_residual.py` 的 NPZ key 覆盖；目前均尚未实施。
+- 可选后续：分段 remask 变体与近岸误差靶点（coastal 0.867 vs offshore
   0.777）是否立项待讨论。
 
 以上条目均**尚未实施**。
+
+## 2026-09-01 — 已完成（文档职责重构）
+
+- 将 `PROJECT_HANDOFF_SUMMARY.md` 重写为面向新成员/agent 的精简项目概要，只保留项目
+  目标、当前证据、困难、下一步摘要和接手入口。
+- 将原 multi-step 计划改名并重构为 `CURRENT_CHALLENGES_AND_NEXT_STEPS.md`，集中维护
+  当前困难、工作包、准入门槛、待办和事后回顾表；移除活跃项目文档中的 Phase 编号。
+- 将原实验 07 中追加的两项 A/B 拆成实验 08（静态 mask 输入）和实验 09（remask
+  feedback），使一个实验目录只回答一个问题；实验 07 恢复为确定性基线本身。
+- 从实验 07 `RESULTS.md` 移除静态 mask 代码实现与 smoke 回归清单；代码/文档实现结果
+  继续以本 Changelog 为唯一事实源，实验结果只保留运行事实、科学指标、问题与分析。
+- 同步文档/实验索引、runbook 和 `AGENTS.md`，并明确实验文档的职责与更新规则。
+
+## 2026-09-01 — 已完成（确定性 multi-step 方向初版）
+
+- 新增现名为 `docs/project/CURRENT_CHALLENGES_AND_NEXT_STEPS.md` 的方向文档：明确首要科学
+  目标是确定性 u/v 点预测，训练仍为自回归，但首轮仅对选定 lead 的最后一步反传；
+  固定 MS5 lead schedule，保留 50% day-1 anchor，不首轮启用 full BPTT。
+- 冻结 validation 准入门槛：day-1 ≤0.1031 m/s、15-day overall ratio <0.941、
+  u/v 各自 <1、day 10–15 各自 <1；test 仅在配置冻结后运行一次。
+- 将全 30 层零训练画像、代表层实验和 full3d 资源/K1/K3 probe 纳入同一决策链；
+  residual diffusion、TBPTT、新变量和 loss weighting 保留为条件分支。
+- 同步 `PROJECT_HANDOFF_SUMMARY.md`、文档/实验索引、实验结果页与 `AGENTS.md`；
+  所有新增开关、训练命令和实验目录均明确标记为计划状态，未声称已经可运行。
 
 ## 2026-09-01 — 已完成（文档归档与交接同步）
 
 - `docs/project/CODE_MODIFICATION_PLAN.md` 归档为
   `docs/project/archive/CODE_MODIFICATION_PLAN_20260830.md`（补执行完毕状态头；
-  Phase 6 计划将另立新文档，避免同处冲突）。
+  后续方向另立文档，现名为 `CURRENT_CHALLENGES_AND_NEXT_STEPS.md`）。
 - `PROJECT_HANDOFF_SUMMARY.md` 更新至 2026-09-01 现状：一句话结论改为
   persistence-residual 基线 Go；§5 mask 输入建议改写为 A/B 结论（不保留）；
   §6/§7 并入基线成绩与 day-2 7.7% 声明更正；新增第 9 节（基线/诊断/Phase 5
@@ -44,7 +70,7 @@
   （0.2183 vs 0.2180）；不满足"稳定改善才保留"。
 - **HANDOFF 未完成项 5 复现结论**：远端"day-2 改善约 7.7%"未在 day-2 复现
   （实际 -0.49%）；同量级改善实际位于 day 4-7（-5.9%~-7.9%），方向一致、
-  数值归属更正（详见实验 07 RESULTS.md 追加节）。
+  数值归属更正（详见实验 09 RESULTS.md）。
 
 ## 2026-08-31 — 已完成（Phase 5① 双静态 mask 输入 A/B）
 
@@ -130,8 +156,8 @@
 - 结论：**方差塌缩主导**（u 方差比 d1 0.87 → d7 起 ~0.55，模糊化）；空间相关
   d7 起低于 persistence（0.48 vs 0.57，d15 0.39 vs 0.61）；bias 漂移且变号
   （u: -0.005 → -0.11 → +0.065）。d1-3 为优势期（ratio 0.85-0.93）。
-- 含义：为 Phase 6 residual diffusion 讨论提供直接证据（生成式采样恢复方差）；
-  Phase 5 A/B 对模糊化改善有限。详见实验 07 RESULTS.md 追加节。
+- 含义：为“恢复方差”的后续假设提供直接证据；当前方向优先检验训练—rollout 暴露偏差。
+  长时效主诊断见实验 07，后续 mask/remask 对照分别见实验 08、09。
 
 ### 边界
 

@@ -2,11 +2,12 @@
 
 > 本文只记录可执行流程和固定约定；实验目的、对照、预期和实际结果分别存放在
 > [实验索引](../experiments/README.md)下各实验的 `EXPERIMENT.md` 与 `RESULTS.md`。
-> 当前 surface SD2 已执行但未通过 persistence 门槛，full3d 暂停；本手册中的
-> full3d 命令表示管线能力，不表示该实验已经完成或建议立即运行。
+> 当前 surface 确定性基线已通过 day-1 门槛，但 15-day overall 尚未优于 persistence；
+> full3d 正式长训未准入。本手册中的 full3d 命令表示当前 K1 管线能力，不表示实验已完成。
 
 > 任务：用连续 7 天的日平均三维 u/v（方案 A：原始交错网格自对齐到 rho 网格，保留网格方向分量，**不旋转**），
-> 通过 DiAFNO 单步条件扩散模型预测第 8 天，再自回归滚动 15 次得到未来 1~15 天；
+> 通过 DiAFNO 单步条件模型（扩散或确定性 persistence-residual）预测第 8 天，再自回归
+> 滚动 15 次得到未来 1~15 天；
 > 按预测天数 × u/v × 垂向层统计 masked RMSE/MAE，并与 persistence baseline 比较。
 > 正式指标一律在**原生 u/v 交错网格**上、对**未经裁剪的原始物理真值**计算。
 
@@ -126,7 +127,7 @@ surface (depth_index=29):    u_sel (days, 400, 440, 1),  v_sel (days, 399, 441, 
   legacy checkpoint 缺这些字段只能打印告警、无法校验）——统计缓存或 mask 变化后绝不静默续训/评估。
 - **rollout 陆地回灌（`REMASK_FEEDBACK`，默认 `False`）**：开启时每步预测先乘双变量 rho mask（陆地置 0）再进入下一窗口；
   关闭时保持历史行为（未 mask 的整帧回灌）。指标本就排除陆地，开关只改变模型下一步"看到"的条件；
-  默认值与最终取值由 Phase 5 的单变量 A/B 决定，输出 tag 携带 `rf{0|1}`、metadata 记录 `remask_feedback`。
+  当前默认值 `False` 由实验 09 的单变量 A/B 确认；输出 tag 携带 `rf{0|1}`、metadata 记录 `remask_feedback`。
 - **条件通道顺序**：day-major 交错 —— ch0=u(d0), ch1=v(d0), ch2=u(d1), …, ch13=v(d6)；rollout 时去掉最旧 2 通道、追加新帧 2 通道
 - **垂向索引**：层 0=海底，层 29=海面；mask 是二维的（30 层 NaN 位置一致，预处理已全量校验）
 - **loss/指标 mask**：训练 loss 用双变量 rho mask（`(1,2,H,W,Z)` 广播，逐样本除以各自有效点数）；
@@ -201,7 +202,7 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_trainer.py
 - 切换 preset 用 `DIAFNO_PRESET=surface_smoke|full3d`。切换 objective 用
   `DIAFNO_OBJECTIVE=diffusion|persistence_residual`（默认 `diffusion`，行为与历史完全一致）；
   `persistence_residual` 走确定性 `masked_mse_loss`（无采样、无 sigma 调度），run 目录带 `_RES`。
-  **Phase 5① 静态 mask 输入（arm B）**：`DIAFNO_STATIC_MASK=1` 把双变量 rho mask 的
+  **实验 08 静态 mask 输入（arm B）**：`DIAFNO_STATIC_MASK=1` 把双变量 rho mask 的
   2 个通道经 `pre_rollout` 的 `static_cond` 单独拼入 backbone 条件（动态滑窗保持纯 14
   通道，persistence base 语义不变），仅限 `persistence_residual`，run 目录追加 `_MSK`，
   checkpoint 记录 `static_mask_input`/`model_cond_chans`，评估端按元数据自动重建；
@@ -251,7 +252,7 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_evaluate.py   # PRESET 与训练一致
   参数（`S_churn`/`sigma_max`/`sampling_steps`/`seed`）在 `sampler_note` 中**显式记为不适用**
   （数值字段写 `sigma_data=nan`、`sampling_steps=-1`）。
 - **remask A/B**：`REMASK_FEEDBACK = True` 时每步预测先重应用双变量 rho mask（陆地置 0）再回灌下一窗口；
-  默认 `False` 保持历史行为。输出 tag 携带 `rf{0|1}`，A/B 两组产物互不覆盖；最终取值由 Phase 5 单变量 A/B 决定。
+  默认 `False` 保持历史行为。输出 tag 携带 `rf{0|1}`，A/B 两组产物互不覆盖；实验 09 的结论是维持该默认值。
 - **validation 选型（checkpoint 选择协议）**：正式选择指标是 **validation day-1 native RMSE**：对候选
   `Ep{n}.pth` 逐个用 `SPLIT = "val"`、`ROLLOUT_DAYS = 1` 跑 `pre_evaluate.py`（确定性模型每窗口仅一次前向，
   开销很小），比较 day-1 pooled RMSE 与 persistence 比值后选型；test 只在配置冻结后报告一次。
@@ -266,9 +267,9 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_evaluate.py   # PRESET 与训练一致
 
 ## 5. 步骤 3：全 30 层全量
 
-1. 先运行 `DIAFNO_PRESET=full3d python pre_trainer.py` 做同结构真实数据烟测；通过后用
-   `DIAFNO_PRESET=full3d DIAFNO_TRAIN_MODE=full ...` 启动单卡或 `torchrun` 多卡正式训练。
-   评估端仍需把 `pre_evaluate.py` 的 `PRESET` 设为 `"full3d"`；
+1. 当前先运行 `DIAFNO_PRESET=full3d DIAFNO_OBJECTIVE=persistence_residual python pre_trainer.py`
+   做 K1 同结构真实数据烟测；正式长训必须再满足实验 06 的数据/资源/pilot 门槛，不因 smoke
+   通过自动启动。评估端需把 `pre_evaluate.py` 的 `PRESET` 设为 `"full3d"`；
 2. 首次运行会重算全 30 层归一化统计（3 遍流式扫描 ~530GB，约 15~30 分钟，一次性）；
 3. 预设：patch (4,3,2) → 100×147×15 = 220.5k token、embed_dim 128、implicit 2、B=1、验证窗口 16 个。
    **若 OOM，按此顺序调**：`embed_dim` 128→96 → `implicit_layer` 2→1 → `batch_size` 已为 1；不要轻易改 patch（441 只能被 1/3/7/9 整除）；

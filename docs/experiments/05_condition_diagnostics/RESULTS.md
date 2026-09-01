@@ -42,13 +42,15 @@
 
 ![条件通路诊断](../../../plots/08_sd2_diagnosis.png)
 
-## 结果分析：根因排序
+## 结果分析
 
-1. 最可能：去噪训练目标与条件点预测目标失配。
-2. 高噪声采样链中的条件约束不足。
-3. mask 未作为输入，AFNO 全局混合放大近岸误差。
-4. 随机采样与 RMSE 点预测不匹配。
-5. 已有反证：旧 sigma 尺度、checkpoint 选错、condition 完全断路、任务无信号。
+1. 数据与时间配对有可预测信号，condition 通路也没有断；
+2. direct diffusion 的主要差距更可能来自去噪/采样目标与确定性点预测不匹配；
+3. coastal 明显更难，但后续 [实验 08](../08_static_mask_ablation/RESULTS.md) 证明显式静态
+   mask 不能稳定改善该问题；
+4. 陆地反馈确实造成中期污染，但后续 [实验 09](../09_remask_feedback_ablation/RESULTS.md)
+   表明持续 remask 会使长段转差，overall 无增益；
+5. 旧 sigma 尺度、checkpoint 选错、condition 完全断路和任务无信号已有反证。
 
 ## 尚未执行
 
@@ -57,9 +59,11 @@
 归档提交实际只有 `probe_linear.log` 与 `probe_sample_conds_full.log/.npz`，所以这些轨迹结论
 在当前证据口径下仍是未核验线索。
 
-## 后续决策
+## 对后续工作的影响
 
-1. 先训练 condition-only 的确定性 IAFNO，优先预测相对 day-7 persistence 的 residual。
-2. 用正式 day-1 native RMSE 选择 checkpoint。
-3. 做双 mask 静态输入 A/B，并报告 overall、coastal、open-ocean RMSE。
-4. 只有确定性 IAFNO 优于 persistence 后，才恢复 diffusion 并运行剩余轨迹探针。
+- condition-only persistence-residual 已由 [实验 07](../07_residual_baseline/RESULTS.md) 完成，
+  day-1 通过门槛，但 15-day overall 尚未通过；
+- 静态 mask 和 remask 两条线索已分别由实验 08、09 检验，均未进入当前配置；
+- 未执行的网络敏感度/采样轨迹探针继续保留为 diffusion 条件分支，不阻塞当前
+  detached multi-step 路线；
+- 当前方向见 [当前困难与下一步](../../project/CURRENT_CHALLENGES_AND_NEXT_STEPS.md)。
