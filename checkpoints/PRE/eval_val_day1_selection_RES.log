@@ -1,0 +1,322 @@
+===== SELECTION Ep1 start 2026-08-31_09:32:07 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep1.pth (epoch=0) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=104/156 elapsed_s=30.0 window_per_s=3.466 sample_per_s=3.466 eta_s=15.0 d1_rmse=0.1387 d1_pers=0.1300 ratio=1.067 status=running
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=43.2 window_per_s=3.610 sample_per_s=3.610 d1_rmse=0.1380 d1_pers=0.1294 ratio=1.067 status=phase_done
+evaluation loop finished: 156 windows in 43.2s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp1.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1380 | 0.1294 | 1.067 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1380 | 0.1294 | 1.067 | 0.1380 | 0.1294 | 1.067
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1688 (pers 0.1555)  
+v: d1 0.0980 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1380 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp1
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=44.0 status=completed
+===== SELECTION Ep1 exit=0 2026-08-31_09:32:56 =====
+===== SELECTION Ep2 start 2026-08-31_09:32:56 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep2.pth (epoch=1) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.6 window_per_s=18.124 sample_per_s=18.124 d1_rmse=0.1260 d1_pers=0.1294 ratio=0.974 status=phase_done
+evaluation loop finished: 156 windows in 8.6s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp2.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1260 | 0.1294 | 0.974 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1260 | 0.1294 | 0.974 | 0.1260 | 0.1294 | 0.974
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1505 (pers 0.1555)  
+v: d1 0.0955 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1260 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp2
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=9.7 status=completed
+===== SELECTION Ep2 exit=0 2026-08-31_09:33:10 =====
+===== SELECTION Ep3 start 2026-08-31_09:33:10 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep3.pth (epoch=2) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=9.5 window_per_s=16.391 sample_per_s=16.391 d1_rmse=0.1209 d1_pers=0.1294 ratio=0.934 status=phase_done
+evaluation loop finished: 156 windows in 9.5s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp3.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1209 | 0.1294 | 0.934 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1209 | 0.1294 | 0.934 | 0.1209 | 0.1294 | 0.934
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1449 (pers 0.1555)  
+v: d1 0.0907 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1209 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp3
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=10.7 status=completed
+===== SELECTION Ep3 exit=0 2026-08-31_09:33:25 =====
+===== SELECTION Ep4 start 2026-08-31_09:33:25 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep4.pth (epoch=3) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.0 window_per_s=19.475 sample_per_s=19.475 d1_rmse=0.1251 d1_pers=0.1294 ratio=0.967 status=phase_done
+evaluation loop finished: 156 windows in 8.0s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp4.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1251 | 0.1294 | 0.967 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1251 | 0.1294 | 0.967 | 0.1251 | 0.1294 | 0.967
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1511 (pers 0.1555)  
+v: d1 0.0922 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1251 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp4
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=8.7 status=completed
+===== SELECTION Ep4 exit=0 2026-08-31_09:33:37 =====
+===== SELECTION Ep5 start 2026-08-31_09:33:37 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep5.pth (epoch=4) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.0 window_per_s=19.398 sample_per_s=19.398 d1_rmse=0.1173 d1_pers=0.1294 ratio=0.907 status=phase_done
+evaluation loop finished: 156 windows in 8.0s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp5.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1173 | 0.1294 | 0.907 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1173 | 0.1294 | 0.907 | 0.1173 | 0.1294 | 0.907
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1396 (pers 0.1555)  
+v: d1 0.0896 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1173 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp5
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=8.7 status=completed
+===== SELECTION Ep5 exit=0 2026-08-31_09:33:50 =====
+===== SELECTION Ep6 start 2026-08-31_09:33:50 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep6.pth (epoch=5) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.0 window_per_s=19.544 sample_per_s=19.544 d1_rmse=0.1125 d1_pers=0.1294 ratio=0.869 status=phase_done
+evaluation loop finished: 156 windows in 8.0s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp6.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1125 | 0.1294 | 0.869 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1125 | 0.1294 | 0.869 | 0.1125 | 0.1294 | 0.869
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1336 (pers 0.1555)  
+v: d1 0.0864 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1125 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp6
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=8.7 status=completed
+===== SELECTION Ep6 exit=0 2026-08-31_09:34:02 =====
+===== SELECTION Ep7 start 2026-08-31_09:34:02 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep7.pth (epoch=6) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.0 window_per_s=19.435 sample_per_s=19.435 d1_rmse=0.1074 d1_pers=0.1294 ratio=0.830 status=phase_done
+evaluation loop finished: 156 windows in 8.0s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp7.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1074 | 0.1294 | 0.830 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1074 | 0.1294 | 0.830 | 0.1074 | 0.1294 | 0.830
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1274 (pers 0.1555)  
+v: d1 0.0828 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1074 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp7
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=8.7 status=completed
+===== SELECTION Ep7 exit=0 2026-08-31_09:34:15 =====
+===== SELECTION Ep8 start 2026-08-31_09:34:15 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep8.pth (epoch=7) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.0 window_per_s=19.514 sample_per_s=19.514 d1_rmse=0.1031 d1_pers=0.1294 ratio=0.797 status=phase_done
+evaluation loop finished: 156 windows in 8.0s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp8.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1031 | 0.1294 | 0.797 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1031 | 0.1294 | 0.797 | 0.1031 | 0.1294 | 0.797
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1225 (pers 0.1555)  
+v: d1 0.0790 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1031 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp8
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=8.7 status=completed
+===== SELECTION Ep8 exit=0 2026-08-31_09:34:27 =====
+===== SELECTION Ep9 start 2026-08-31_09:34:27 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep9.pth (epoch=8) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.0 window_per_s=19.617 sample_per_s=19.617 d1_rmse=0.1022 d1_pers=0.1294 ratio=0.790 status=phase_done
+evaluation loop finished: 156 windows in 8.0s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp9.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1022 | 0.1294 | 0.790 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1022 | 0.1294 | 0.790 | 0.1022 | 0.1294 | 0.790
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1218 (pers 0.1555)  
+v: d1 0.0779 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1022 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp9
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=8.6 status=completed
+===== SELECTION Ep9 exit=0 2026-08-31_09:34:39 =====
+===== SELECTION Ep10 start 2026-08-31_09:34:39 =====
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+loaded /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep10.pth (epoch=9) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=8.1 window_per_s=19.278 sample_per_s=19.278 d1_rmse=0.1011 d1_pers=0.1294 ratio=0.781 status=phase_done
+evaluation loop finished: 156 windows in 8.1s
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/eval_val_h1_ch0_e1_s123_rf0_ckptEp10.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.1011 | 0.1294 | 0.781 | 0.2620 | 0.0032
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.1011 | 0.1294 | 0.781 | 0.1011 | 0.1294 | 0.781
+  zero | 0.2620 | 0.1294 | 2.025 | 0.2620 | 0.1294 | 2.025
+oracle | 0.0032 | 0.1294 | 0.025 | 0.0032 | 0.1294 | 0.025
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1203 (pers 0.1555)  
+v: d1 0.0772 (pers 0.0964)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1011 m/s | persistence 0.1294 m/s | zero 0.2620 m/s | rho-oracle 0.0032 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/figures_h1_ch0_e1_s123_rf0_ckptEp10
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=8.8 status=completed
+===== SELECTION Ep10 exit=0 2026-08-31_09:34:52 =====
+SELECTION_LOOP_DONE 2026-08-31_09:34:52

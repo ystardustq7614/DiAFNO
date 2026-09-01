@@ -1,0 +1,35 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+[A: 14-ch (no static mask input)] [10/39] windows 40/156 elapsed_s=3
+[A: 14-ch (no static mask input)] [20/39] windows 80/156 elapsed_s=5
+[A: 14-ch (no static mask input)] [30/39] windows 120/156 elapsed_s=8
+[A: 14-ch (no static mask input)] [39/39] windows 156/156 elapsed_s=10
+
+=== A: 14-ch (no static mask input)  (val day-1, 156 windows, coastal = within 5 cells of land) ===
+region   | var |   n    | model  | pers   | ratio
+coastal  | u | 2672748 | 0.0726 | 0.0850 | 0.854
+coastal  | v | 2704260 | 0.0542 | 0.0608 | 0.891
+coastal  | all |        | 0.0640 | 0.0738 | 0.867
+offshore | u | 16299660 | 0.1264 | 0.1642 | 0.770
+offshore | v | 16315728 | 0.0804 | 0.1011 | 0.795
+offshore | all |        | 0.1059 | 0.1364 | 0.777
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/region_diag_ckptEp10.npz
+[B: 14-ch + 2 static mask channels] [10/39] windows 40/156 elapsed_s=3
+[B: 14-ch + 2 static mask channels] [20/39] windows 80/156 elapsed_s=5
+[B: 14-ch + 2 static mask channels] [30/39] windows 120/156 elapsed_s=7
+[B: 14-ch + 2 static mask channels] [39/39] windows 156/156 elapsed_s=9
+
+=== B: 14-ch + 2 static mask channels  (val day-1, 156 windows, coastal = within 5 cells of land) ===
+region   | var |   n    | model  | pers   | ratio
+coastal  | u | 2672748 | 0.0734 | 0.0850 | 0.864
+coastal  | v | 2704260 | 0.0547 | 0.0608 | 0.900
+coastal  | all |        | 0.0647 | 0.0738 | 0.876
+offshore | u | 16299660 | 0.1285 | 0.1642 | 0.782
+offshore | v | 16315728 | 0.0810 | 0.1011 | 0.801
+offshore | all |        | 0.1074 | 0.1364 | 0.788
+saved /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MSK/region_diag_ckptEp10.npz
+
+=== A/B region comparison (model/persistence ratio, day-1 val) ===
+arm | coastal_u | coastal_v | offshore_u | offshore_v
+A: 14-ch (no static mask input) | 0.854 | 0.891 | 0.770 | 0.795
+B: 14-ch + 2 static mask channels | 0.864 | 0.900 | 0.782 | 0.801
+PROGRESS phase=diag status=completed

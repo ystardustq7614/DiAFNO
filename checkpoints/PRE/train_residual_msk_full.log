@@ -1,0 +1,690 @@
+Using device: cuda  world_size=1 rank=0
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+train windows: 8394   val windows: 1088
+val subset: 24 windows at indices 0..1087 (1 rank shard(s))
+zero-init check passed: untrained residual model == last-day persistence (with static mask input)
+Model Total Params: 5855184
+preset=surface_smoke mode=full objective=persistence_residual grid=(400,441,1) patch=(4, 3, 1) cond_ch=14 model_cond_ch=16 static_mask_input=True target_ch=2 mask_scheme=bivariate_rho stats_sigma=0.08560 objective=persistence_residual (residual_base=last_day, time_sigma=0.002; sigma_data not applicable) epochs=10 world_size=1 per_device_batch=4 effective_batch=4 run_dir=/data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MSK
+PROGRESS phase=train objective=persistence_residual preset=surface_smoke mode=full world=1 epochs=10 steps_per_epoch=2098 run_dir=/data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MSK status=start
+PROGRESS phase=train epoch=1/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=1/10 scope=whole_split step=46/2098 elapsed_s=30.0 step_per_s=1.533 sample_per_s=6.133 eta_s=1338.3 loss=0.00463 lr=1.00e-03 updates=46 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=95/2098 elapsed_s=60.0 step_per_s=1.583 sample_per_s=6.333 eta_s=1265.1 loss=0.00292 lr=1.00e-03 updates=95 skipped=0 status=running
+  [ep 1] batch 100/2098  avg_loss 0.00283  0.63s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=143/2098 elapsed_s=90.0 step_per_s=1.589 sample_per_s=6.355 eta_s=1230.5 loss=0.00234 lr=1.00e-03 updates=143 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=192/2098 elapsed_s=120.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1191.3 loss=0.00208 lr=1.00e-03 updates=192 skipped=0 status=running
+  [ep 1] batch 200/2098  avg_loss 0.00203  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=240/2098 elapsed_s=150.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1161.3 loss=0.00188 lr=1.00e-03 updates=240 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=289/2098 elapsed_s=180.0 step_per_s=1.605 sample_per_s=6.422 eta_s=1126.8 loss=0.00173 lr=1.00e-03 updates=289 skipped=0 status=running
+  [ep 1] batch 300/2098  avg_loss 0.00171  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=337/2098 elapsed_s=210.0 step_per_s=1.605 sample_per_s=6.419 eta_s=1097.4 loss=0.00164 lr=9.99e-04 updates=337 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=386/2098 elapsed_s=240.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1064.5 loss=0.00156 lr=9.99e-04 updates=386 skipped=0 status=running
+  [ep 1] batch 400/2098  avg_loss 0.00153  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=434/2098 elapsed_s=270.0 step_per_s=1.607 sample_per_s=6.429 eta_s=1035.3 loss=0.00153 lr=9.99e-04 updates=434 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=482/2098 elapsed_s=300.0 step_per_s=1.607 sample_per_s=6.426 eta_s=1005.9 loss=0.00150 lr=9.99e-04 updates=482 skipped=0 status=running
+  [ep 1] batch 500/2098  avg_loss 0.00148  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=531/2098 elapsed_s=330.0 step_per_s=1.609 sample_per_s=6.436 eta_s=973.9 loss=0.00146 lr=9.98e-04 updates=531 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=579/2098 elapsed_s=360.0 step_per_s=1.608 sample_per_s=6.433 eta_s=944.5 loss=0.00143 lr=9.98e-04 updates=579 skipped=0 status=running
+  [ep 1] batch 600/2098  avg_loss 0.00143  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=628/2098 elapsed_s=390.0 step_per_s=1.610 sample_per_s=6.441 eta_s=912.9 loss=0.00142 lr=9.98e-04 updates=628 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=676/2098 elapsed_s=420.0 step_per_s=1.609 sample_per_s=6.438 eta_s=883.5 loss=0.00139 lr=9.97e-04 updates=676 skipped=0 status=running
+  [ep 1] batch 700/2098  avg_loss 0.00138  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=725/2098 elapsed_s=450.0 step_per_s=1.611 sample_per_s=6.444 eta_s=852.3 loss=0.00137 lr=9.97e-04 updates=725 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=774/2098 elapsed_s=480.0 step_per_s=1.612 sample_per_s=6.450 eta_s=821.1 loss=0.00135 lr=9.97e-04 updates=774 skipped=0 status=running
+  [ep 1] batch 800/2098  avg_loss 0.00134  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=822/2098 elapsed_s=510.0 step_per_s=1.612 sample_per_s=6.447 eta_s=791.7 loss=0.00133 lr=9.96e-04 updates=822 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=871/2098 elapsed_s=540.0 step_per_s=1.613 sample_per_s=6.452 eta_s=760.7 loss=0.00132 lr=9.96e-04 updates=871 skipped=0 status=running
+  [ep 1] batch 900/2098  avg_loss 0.00130  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=919/2098 elapsed_s=570.0 step_per_s=1.612 sample_per_s=6.449 eta_s=731.3 loss=0.00130 lr=9.95e-04 updates=919 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=968/2098 elapsed_s=600.0 step_per_s=1.613 sample_per_s=6.453 eta_s=700.4 loss=0.00129 lr=9.95e-04 updates=968 skipped=0 status=running
+  [ep 1] batch 1000/2098  avg_loss 0.00128  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1016/2098 elapsed_s=630.0 step_per_s=1.613 sample_per_s=6.450 eta_s=671.0 loss=0.00128 lr=9.94e-04 updates=1016 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1065/2098 elapsed_s=660.0 step_per_s=1.614 sample_per_s=6.454 eta_s=640.2 loss=0.00126 lr=9.94e-04 updates=1065 skipped=0 status=running
+  [ep 1] batch 1100/2098  avg_loss 0.00125  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1113/2098 elapsed_s=690.0 step_per_s=1.613 sample_per_s=6.452 eta_s=610.7 loss=0.00125 lr=9.93e-04 updates=1113 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1162/2098 elapsed_s=720.0 step_per_s=1.614 sample_per_s=6.455 eta_s=580.0 loss=0.00124 lr=9.92e-04 updates=1162 skipped=0 status=running
+  [ep 1] batch 1200/2098  avg_loss 0.00123  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1211/2098 elapsed_s=750.0 step_per_s=1.615 sample_per_s=6.458 eta_s=549.4 loss=0.00123 lr=9.92e-04 updates=1211 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1259/2098 elapsed_s=780.0 step_per_s=1.614 sample_per_s=6.456 eta_s=519.8 loss=0.00122 lr=9.91e-04 updates=1259 skipped=0 status=running
+  [ep 1] batch 1300/2098  avg_loss 0.00121  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1308/2098 elapsed_s=810.0 step_per_s=1.615 sample_per_s=6.459 eta_s=489.2 loss=0.00121 lr=9.90e-04 updates=1308 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1357/2098 elapsed_s=840.0 step_per_s=1.615 sample_per_s=6.462 eta_s=458.7 loss=0.00120 lr=9.90e-04 updates=1357 skipped=0 status=running
+  [ep 1] batch 1400/2098  avg_loss 0.00119  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1405/2098 elapsed_s=870.0 step_per_s=1.615 sample_per_s=6.459 eta_s=429.1 loss=0.00119 lr=9.89e-04 updates=1405 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1454/2098 elapsed_s=900.0 step_per_s=1.615 sample_per_s=6.462 eta_s=398.6 loss=0.00119 lr=9.88e-04 updates=1454 skipped=0 status=running
+  [ep 1] batch 1500/2098  avg_loss 0.00118  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1503/2098 elapsed_s=930.0 step_per_s=1.616 sample_per_s=6.464 eta_s=368.2 loss=0.00118 lr=9.87e-04 updates=1503 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1551/2098 elapsed_s=960.0 step_per_s=1.616 sample_per_s=6.462 eta_s=338.6 loss=0.00119 lr=9.87e-04 updates=1551 skipped=0 status=running
+  [ep 1] batch 1600/2098  avg_loss 0.00119  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1600/2098 elapsed_s=990.0 step_per_s=1.616 sample_per_s=6.464 eta_s=308.2 loss=0.00119 lr=9.86e-04 updates=1600 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1648/2098 elapsed_s=1020.0 step_per_s=1.616 sample_per_s=6.462 eta_s=278.5 loss=0.00118 lr=9.85e-04 updates=1648 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1697/2098 elapsed_s=1050.0 step_per_s=1.616 sample_per_s=6.464 eta_s=248.1 loss=0.00118 lr=9.84e-04 updates=1697 skipped=0 status=running
+  [ep 1] batch 1700/2098  avg_loss 0.00118  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1746/2098 elapsed_s=1080.0 step_per_s=1.617 sample_per_s=6.466 eta_s=217.7 loss=0.00118 lr=9.83e-04 updates=1746 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1794/2098 elapsed_s=1110.0 step_per_s=1.616 sample_per_s=6.465 eta_s=188.1 loss=0.00117 lr=9.82e-04 updates=1794 skipped=0 status=running
+  [ep 1] batch 1800/2098  avg_loss 0.00117  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1843/2098 elapsed_s=1140.0 step_per_s=1.617 sample_per_s=6.466 eta_s=157.7 loss=0.00117 lr=9.81e-04 updates=1843 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1891/2098 elapsed_s=1170.0 step_per_s=1.616 sample_per_s=6.465 eta_s=128.1 loss=0.00116 lr=9.80e-04 updates=1891 skipped=0 status=running
+  [ep 1] batch 1900/2098  avg_loss 0.00116  0.62s/batch  scale 6.5536e+04
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1940/2098 elapsed_s=1200.1 step_per_s=1.617 sample_per_s=6.466 eta_s=97.7 loss=0.00116 lr=9.79e-04 updates=1940 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=1989/2098 elapsed_s=1230.1 step_per_s=1.617 sample_per_s=6.468 eta_s=67.4 loss=0.00115 lr=9.78e-04 updates=1989 skipped=0 status=running
+  [ep 1] batch 2000/2098  avg_loss 0.00115  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=1/10 scope=whole_split step=2037/2098 elapsed_s=1260.1 step_per_s=1.617 sample_per_s=6.466 eta_s=37.7 loss=0.00114 lr=9.77e-04 updates=2037 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=2086/2098 elapsed_s=1290.1 step_per_s=1.617 sample_per_s=6.468 eta_s=7.4 loss=0.00114 lr=9.76e-04 updates=2086 skipped=0 status=running
+PROGRESS phase=train epoch=1/10 scope=whole_split step=2098/2098 elapsed_s=1297.8 step_per_s=1.617 sample_per_s=6.466 loss=0.00114 lr=9.76e-04 updates=2098 skipped=0 status=phase_done
+PROGRESS phase=val epoch=1/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=1/10 scope=whole_split batch=6/6 elapsed_s=1.4 batch_per_s=4.221 rel_l2=0.63493 status=phase_done
+epoch 1/10  1299.2s  train_loss 0.00114  val_masked_relL2 0.63493  updates/rank 2098 (skipped across ranks 0)  grad_scale 1.3107e+05  lr 9.76e-04
+PROGRESS phase=train epoch=2/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=2/10 scope=whole_split step=48/2098 elapsed_s=30.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1281.3 loss=0.00104 lr=9.74e-04 updates=48 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00100 lr=9.73e-04 updates=96 skipped=0 status=running
+  [ep 2] batch 100/2098  avg_loss 0.00100  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=145/2098 elapsed_s=90.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1212.3 loss=0.00097 lr=9.72e-04 updates=145 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=193/2098 elapsed_s=120.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1184.5 loss=0.00099 lr=9.71e-04 updates=193 skipped=0 status=running
+  [ep 2] batch 200/2098  avg_loss 0.00100  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=242/2098 elapsed_s=150.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1150.5 loss=0.00098 lr=9.70e-04 updates=242 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=290/2098 elapsed_s=180.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1122.2 loss=0.00096 lr=9.68e-04 updates=290 skipped=0 status=running
+  [ep 2] batch 300/2098  avg_loss 0.00096  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00095 lr=9.67e-04 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=387/2098 elapsed_s=240.0 step_per_s=1.612 sample_per_s=6.450 eta_s=1061.1 loss=0.00095 lr=9.66e-04 updates=387 skipped=0 status=running
+  [ep 2] batch 400/2098  avg_loss 0.00095  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=436/2098 elapsed_s=270.0 step_per_s=1.615 sample_per_s=6.459 eta_s=1029.3 loss=0.00094 lr=9.64e-04 updates=436 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=484/2098 elapsed_s=300.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1000.4 loss=0.00097 lr=9.63e-04 updates=484 skipped=0 status=running
+  [ep 2] batch 500/2098  avg_loss 0.00097  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=533/2098 elapsed_s=330.0 step_per_s=1.615 sample_per_s=6.460 eta_s=969.0 loss=0.00096 lr=9.62e-04 updates=533 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=582/2098 elapsed_s=360.0 step_per_s=1.617 sample_per_s=6.466 eta_s=937.8 loss=0.00097 lr=9.60e-04 updates=582 skipped=0 status=running
+  [ep 2] batch 600/2098  avg_loss 0.00097  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=630/2098 elapsed_s=390.0 step_per_s=1.615 sample_per_s=6.461 eta_s=908.8 loss=0.00097 lr=9.59e-04 updates=630 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=679/2098 elapsed_s=420.0 step_per_s=1.617 sample_per_s=6.466 eta_s=877.8 loss=0.00098 lr=9.57e-04 updates=679 skipped=0 status=running
+  [ep 2] batch 700/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=727/2098 elapsed_s=450.0 step_per_s=1.616 sample_per_s=6.462 eta_s=848.7 loss=0.00099 lr=9.56e-04 updates=727 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=776/2098 elapsed_s=480.0 step_per_s=1.617 sample_per_s=6.466 eta_s=817.8 loss=0.00099 lr=9.54e-04 updates=776 skipped=0 status=running
+  [ep 2] batch 800/2098  avg_loss 0.00098  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=825/2098 elapsed_s=510.0 step_per_s=1.618 sample_per_s=6.470 eta_s=787.0 loss=0.00098 lr=9.53e-04 updates=825 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=873/2098 elapsed_s=540.0 step_per_s=1.617 sample_per_s=6.466 eta_s=757.8 loss=0.00099 lr=9.51e-04 updates=873 skipped=0 status=running
+  [ep 2] batch 900/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=922/2098 elapsed_s=570.0 step_per_s=1.617 sample_per_s=6.470 eta_s=727.1 loss=0.00099 lr=9.50e-04 updates=922 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=970/2098 elapsed_s=600.0 step_per_s=1.617 sample_per_s=6.466 eta_s=697.8 loss=0.00099 lr=9.48e-04 updates=970 skipped=0 status=running
+  [ep 2] batch 1000/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1019/2098 elapsed_s=630.0 step_per_s=1.617 sample_per_s=6.470 eta_s=667.1 loss=0.00100 lr=9.47e-04 updates=1019 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1068/2098 elapsed_s=660.0 step_per_s=1.618 sample_per_s=6.473 eta_s=636.5 loss=0.00099 lr=9.45e-04 updates=1068 skipped=0 status=running
+  [ep 2] batch 1100/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1116/2098 elapsed_s=690.0 step_per_s=1.617 sample_per_s=6.469 eta_s=607.2 loss=0.00099 lr=9.43e-04 updates=1116 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1165/2098 elapsed_s=720.0 step_per_s=1.618 sample_per_s=6.472 eta_s=576.6 loss=0.00101 lr=9.41e-04 updates=1165 skipped=0 status=running
+  [ep 2] batch 1200/2098  avg_loss 0.00101  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1213/2098 elapsed_s=750.0 step_per_s=1.617 sample_per_s=6.469 eta_s=547.2 loss=0.00101 lr=9.40e-04 updates=1213 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1262/2098 elapsed_s=780.0 step_per_s=1.618 sample_per_s=6.472 eta_s=516.7 loss=0.00101 lr=9.38e-04 updates=1262 skipped=0 status=running
+  [ep 2] batch 1300/2098  avg_loss 0.00101  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1310/2098 elapsed_s=810.0 step_per_s=1.617 sample_per_s=6.469 eta_s=487.3 loss=0.00101 lr=9.36e-04 updates=1310 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1359/2098 elapsed_s=840.0 step_per_s=1.618 sample_per_s=6.471 eta_s=456.8 loss=0.00100 lr=9.34e-04 updates=1359 skipped=0 status=running
+  [ep 2] batch 1400/2098  avg_loss 0.00100  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1407/2098 elapsed_s=870.0 step_per_s=1.617 sample_per_s=6.469 eta_s=427.3 loss=0.00100 lr=9.33e-04 updates=1407 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1456/2098 elapsed_s=900.0 step_per_s=1.618 sample_per_s=6.471 eta_s=396.9 loss=0.00099 lr=9.31e-04 updates=1456 skipped=0 status=running
+  [ep 2] batch 1500/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1505/2098 elapsed_s=930.0 step_per_s=1.618 sample_per_s=6.473 eta_s=366.5 loss=0.00099 lr=9.29e-04 updates=1505 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1553/2098 elapsed_s=960.0 step_per_s=1.618 sample_per_s=6.471 eta_s=336.9 loss=0.00099 lr=9.27e-04 updates=1553 skipped=0 status=running
+  [ep 2] batch 1600/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1602/2098 elapsed_s=990.0 step_per_s=1.618 sample_per_s=6.473 eta_s=306.5 loss=0.00099 lr=9.25e-04 updates=1602 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1650/2098 elapsed_s=1020.0 step_per_s=1.618 sample_per_s=6.470 eta_s=277.0 loss=0.00098 lr=9.23e-04 updates=1650 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1699/2098 elapsed_s=1050.0 step_per_s=1.618 sample_per_s=6.472 eta_s=246.6 loss=0.00099 lr=9.21e-04 updates=1699 skipped=0 status=running
+  [ep 2] batch 1700/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1747/2098 elapsed_s=1080.0 step_per_s=1.618 sample_per_s=6.470 eta_s=217.0 loss=0.00099 lr=9.19e-04 updates=1747 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1796/2098 elapsed_s=1110.0 step_per_s=1.618 sample_per_s=6.472 eta_s=186.7 loss=0.00099 lr=9.17e-04 updates=1796 skipped=0 status=running
+  [ep 2] batch 1800/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1845/2098 elapsed_s=1140.0 step_per_s=1.618 sample_per_s=6.473 eta_s=156.3 loss=0.00098 lr=9.15e-04 updates=1845 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1893/2098 elapsed_s=1170.0 step_per_s=1.618 sample_per_s=6.472 eta_s=126.7 loss=0.00099 lr=9.13e-04 updates=1893 skipped=0 status=running
+  [ep 2] batch 1900/2098  avg_loss 0.00099  0.62s/batch  scale 1.3107e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1942/2098 elapsed_s=1200.0 step_per_s=1.618 sample_per_s=6.473 eta_s=96.4 loss=0.00100 lr=9.11e-04 updates=1942 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=1990/2098 elapsed_s=1230.0 step_per_s=1.618 sample_per_s=6.471 eta_s=66.8 loss=0.00100 lr=9.09e-04 updates=1990 skipped=0 status=running
+  [ep 2] batch 2000/2098  avg_loss 0.00101  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=2/10 scope=whole_split step=2039/2098 elapsed_s=1260.0 step_per_s=1.618 sample_per_s=6.473 eta_s=36.5 loss=0.00101 lr=9.07e-04 updates=2039 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=2087/2098 elapsed_s=1290.0 step_per_s=1.618 sample_per_s=6.471 eta_s=6.8 loss=0.00101 lr=9.05e-04 updates=2087 skipped=0 status=running
+PROGRESS phase=train epoch=2/10 scope=whole_split step=2098/2098 elapsed_s=1296.9 step_per_s=1.618 sample_per_s=6.471 loss=0.00101 lr=9.05e-04 updates=2098 skipped=0 status=phase_done
+PROGRESS phase=val epoch=2/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=2/10 scope=whole_split batch=6/6 elapsed_s=1.5 batch_per_s=3.900 rel_l2=0.54569 status=phase_done
+epoch 2/10  1298.4s  train_loss 0.00101  val_masked_relL2 0.54569  updates/rank 2098 (skipped across ranks 0)  grad_scale 2.6214e+05  lr 9.05e-04
+PROGRESS phase=train epoch=3/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=3/10 scope=whole_split step=47/2098 elapsed_s=30.0 step_per_s=1.567 sample_per_s=6.266 eta_s=1309.2 loss=0.00095 lr=9.02e-04 updates=47 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00092 lr=9.00e-04 updates=96 skipped=0 status=running
+  [ep 3] batch 100/2098  avg_loss 0.00094  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=144/2098 elapsed_s=90.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1221.3 loss=0.00097 lr=8.98e-04 updates=144 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=193/2098 elapsed_s=120.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1184.5 loss=0.00093 lr=8.96e-04 updates=193 skipped=0 status=running
+  [ep 3] batch 200/2098  avg_loss 0.00093  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=241/2098 elapsed_s=150.0 step_per_s=1.607 sample_per_s=6.426 eta_s=1155.9 loss=0.00096 lr=8.94e-04 updates=241 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=290/2098 elapsed_s=180.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1122.3 loss=0.00098 lr=8.91e-04 updates=290 skipped=0 status=running
+  [ep 3] batch 300/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00098 lr=8.89e-04 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=387/2098 elapsed_s=240.0 step_per_s=1.612 sample_per_s=6.450 eta_s=1061.1 loss=0.00098 lr=8.87e-04 updates=387 skipped=0 status=running
+  [ep 3] batch 400/2098  avg_loss 0.00099  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=436/2098 elapsed_s=270.0 step_per_s=1.615 sample_per_s=6.459 eta_s=1029.3 loss=0.00098 lr=8.84e-04 updates=436 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=484/2098 elapsed_s=300.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1000.5 loss=0.00098 lr=8.82e-04 updates=484 skipped=0 status=running
+  [ep 3] batch 500/2098  avg_loss 0.00097  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=533/2098 elapsed_s=330.0 step_per_s=1.615 sample_per_s=6.460 eta_s=969.0 loss=0.00097 lr=8.80e-04 updates=533 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=581/2098 elapsed_s=360.0 step_per_s=1.614 sample_per_s=6.455 eta_s=940.0 loss=0.00096 lr=8.77e-04 updates=581 skipped=0 status=running
+  [ep 3] batch 600/2098  avg_loss 0.00096  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=630/2098 elapsed_s=390.0 step_per_s=1.615 sample_per_s=6.461 eta_s=908.8 loss=0.00096 lr=8.75e-04 updates=630 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=679/2098 elapsed_s=420.0 step_per_s=1.617 sample_per_s=6.466 eta_s=877.8 loss=0.00098 lr=8.73e-04 updates=679 skipped=0 status=running
+  [ep 3] batch 700/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=727/2098 elapsed_s=450.0 step_per_s=1.615 sample_per_s=6.462 eta_s=848.7 loss=0.00098 lr=8.70e-04 updates=727 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=776/2098 elapsed_s=480.0 step_per_s=1.617 sample_per_s=6.466 eta_s=817.8 loss=0.00097 lr=8.68e-04 updates=776 skipped=0 status=running
+  [ep 3] batch 800/2098  avg_loss 0.00097  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=824/2098 elapsed_s=510.0 step_per_s=1.616 sample_per_s=6.462 eta_s=788.6 loss=0.00098 lr=8.65e-04 updates=824 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=873/2098 elapsed_s=540.0 step_per_s=1.617 sample_per_s=6.466 eta_s=757.8 loss=0.00098 lr=8.63e-04 updates=873 skipped=0 status=running
+  [ep 3] batch 900/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=921/2098 elapsed_s=570.0 step_per_s=1.616 sample_per_s=6.463 eta_s=728.5 loss=0.00098 lr=8.60e-04 updates=921 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=970/2098 elapsed_s=600.0 step_per_s=1.617 sample_per_s=6.466 eta_s=697.8 loss=0.00099 lr=8.58e-04 updates=970 skipped=0 status=running
+  [ep 3] batch 1000/2098  avg_loss 0.00100  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1019/2098 elapsed_s=630.0 step_per_s=1.617 sample_per_s=6.470 eta_s=667.1 loss=0.00099 lr=8.55e-04 updates=1019 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1067/2098 elapsed_s=660.0 step_per_s=1.617 sample_per_s=6.466 eta_s=637.8 loss=0.00099 lr=8.53e-04 updates=1067 skipped=0 status=running
+  [ep 3] batch 1100/2098  avg_loss 0.00099  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1116/2098 elapsed_s=690.0 step_per_s=1.617 sample_per_s=6.469 eta_s=607.2 loss=0.00099 lr=8.50e-04 updates=1116 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1164/2098 elapsed_s=720.0 step_per_s=1.617 sample_per_s=6.466 eta_s=577.8 loss=0.00099 lr=8.47e-04 updates=1164 skipped=0 status=running
+  [ep 3] batch 1200/2098  avg_loss 0.00099  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1213/2098 elapsed_s=750.0 step_per_s=1.617 sample_per_s=6.469 eta_s=547.2 loss=0.00098 lr=8.45e-04 updates=1213 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1262/2098 elapsed_s=780.0 step_per_s=1.618 sample_per_s=6.472 eta_s=516.7 loss=0.00098 lr=8.42e-04 updates=1262 skipped=0 status=running
+  [ep 3] batch 1300/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1310/2098 elapsed_s=810.0 step_per_s=1.617 sample_per_s=6.469 eta_s=487.3 loss=0.00098 lr=8.39e-04 updates=1310 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1359/2098 elapsed_s=840.0 step_per_s=1.618 sample_per_s=6.471 eta_s=456.8 loss=0.00098 lr=8.37e-04 updates=1359 skipped=0 status=running
+  [ep 3] batch 1400/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1408/2098 elapsed_s=870.0 step_per_s=1.618 sample_per_s=6.473 eta_s=426.4 loss=0.00098 lr=8.34e-04 updates=1408 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1456/2098 elapsed_s=900.0 step_per_s=1.618 sample_per_s=6.471 eta_s=396.9 loss=0.00098 lr=8.31e-04 updates=1456 skipped=0 status=running
+  [ep 3] batch 1500/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1505/2098 elapsed_s=930.0 step_per_s=1.618 sample_per_s=6.473 eta_s=366.5 loss=0.00098 lr=8.29e-04 updates=1505 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1553/2098 elapsed_s=960.0 step_per_s=1.618 sample_per_s=6.471 eta_s=336.9 loss=0.00098 lr=8.26e-04 updates=1553 skipped=0 status=running
+  [ep 3] batch 1600/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1602/2098 elapsed_s=990.0 step_per_s=1.618 sample_per_s=6.472 eta_s=306.5 loss=0.00098 lr=8.23e-04 updates=1602 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1650/2098 elapsed_s=1020.0 step_per_s=1.618 sample_per_s=6.470 eta_s=277.0 loss=0.00099 lr=8.20e-04 updates=1650 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1699/2098 elapsed_s=1050.0 step_per_s=1.618 sample_per_s=6.472 eta_s=246.6 loss=0.00098 lr=8.18e-04 updates=1699 skipped=0 status=running
+  [ep 3] batch 1700/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1748/2098 elapsed_s=1080.0 step_per_s=1.618 sample_per_s=6.474 eta_s=216.3 loss=0.00098 lr=8.15e-04 updates=1748 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1796/2098 elapsed_s=1110.0 step_per_s=1.618 sample_per_s=6.472 eta_s=186.7 loss=0.00098 lr=8.12e-04 updates=1796 skipped=0 status=running
+  [ep 3] batch 1800/2098  avg_loss 0.00098  0.62s/batch  scale 2.6214e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1845/2098 elapsed_s=1140.0 step_per_s=1.618 sample_per_s=6.473 eta_s=156.3 loss=0.00098 lr=8.09e-04 updates=1845 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1893/2098 elapsed_s=1170.0 step_per_s=1.618 sample_per_s=6.472 eta_s=126.7 loss=0.00099 lr=8.06e-04 updates=1893 skipped=0 status=running
+  [ep 3] batch 1900/2098  avg_loss 0.00099  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1942/2098 elapsed_s=1200.0 step_per_s=1.618 sample_per_s=6.473 eta_s=96.4 loss=0.00099 lr=8.03e-04 updates=1942 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=1991/2098 elapsed_s=1230.0 step_per_s=1.619 sample_per_s=6.475 eta_s=66.1 loss=0.00098 lr=8.00e-04 updates=1991 skipped=0 status=running
+  [ep 3] batch 2000/2098  avg_loss 0.00098  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=3/10 scope=whole_split step=2039/2098 elapsed_s=1260.0 step_per_s=1.618 sample_per_s=6.473 eta_s=36.5 loss=0.00098 lr=7.97e-04 updates=2039 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=2088/2098 elapsed_s=1290.0 step_per_s=1.619 sample_per_s=6.474 eta_s=6.2 loss=0.00098 lr=7.94e-04 updates=2088 skipped=0 status=running
+PROGRESS phase=train epoch=3/10 scope=whole_split step=2098/2098 elapsed_s=1296.6 step_per_s=1.618 sample_per_s=6.473 loss=0.00098 lr=7.94e-04 updates=2098 skipped=0 status=phase_done
+PROGRESS phase=val epoch=3/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=3/10 scope=whole_split batch=6/6 elapsed_s=1.4 batch_per_s=4.420 rel_l2=0.54017 status=phase_done
+epoch 3/10  1297.9s  train_loss 0.00098  val_masked_relL2 0.54017  updates/rank 2098 (skipped across ranks 0)  grad_scale 5.2429e+05  lr 7.94e-04
+PROGRESS phase=train epoch=4/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=4/10 scope=whole_split step=48/2098 elapsed_s=30.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1281.3 loss=0.00088 lr=7.91e-04 updates=48 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00088 lr=7.88e-04 updates=96 skipped=0 status=running
+  [ep 4] batch 100/2098  avg_loss 0.00088  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=145/2098 elapsed_s=90.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1212.3 loss=0.00091 lr=7.85e-04 updates=145 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=193/2098 elapsed_s=120.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1184.5 loss=0.00094 lr=7.82e-04 updates=193 skipped=0 status=running
+  [ep 4] batch 200/2098  avg_loss 0.00094  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=242/2098 elapsed_s=150.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1150.5 loss=0.00095 lr=7.79e-04 updates=242 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=290/2098 elapsed_s=180.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1122.3 loss=0.00096 lr=7.76e-04 updates=290 skipped=0 status=running
+  [ep 4] batch 300/2098  avg_loss 0.00095  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00093 lr=7.73e-04 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=388/2098 elapsed_s=240.0 step_per_s=1.617 sample_per_s=6.466 eta_s=1057.8 loss=0.00092 lr=7.70e-04 updates=388 skipped=0 status=running
+  [ep 4] batch 400/2098  avg_loss 0.00092  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=436/2098 elapsed_s=270.0 step_per_s=1.615 sample_per_s=6.459 eta_s=1029.3 loss=0.00091 lr=7.67e-04 updates=436 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=485/2098 elapsed_s=300.0 step_per_s=1.617 sample_per_s=6.466 eta_s=997.8 loss=0.00091 lr=7.64e-04 updates=485 skipped=0 status=running
+  [ep 4] batch 500/2098  avg_loss 0.00091  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=533/2098 elapsed_s=330.0 step_per_s=1.615 sample_per_s=6.460 eta_s=969.0 loss=0.00091 lr=7.61e-04 updates=533 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=582/2098 elapsed_s=360.0 step_per_s=1.617 sample_per_s=6.466 eta_s=937.8 loss=0.00092 lr=7.58e-04 updates=582 skipped=0 status=running
+  [ep 4] batch 600/2098  avg_loss 0.00092  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=631/2098 elapsed_s=390.0 step_per_s=1.618 sample_per_s=6.472 eta_s=906.7 loss=0.00093 lr=7.54e-04 updates=631 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=679/2098 elapsed_s=420.0 step_per_s=1.617 sample_per_s=6.466 eta_s=877.8 loss=0.00093 lr=7.51e-04 updates=679 skipped=0 status=running
+  [ep 4] batch 700/2098  avg_loss 0.00093  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=728/2098 elapsed_s=450.0 step_per_s=1.618 sample_per_s=6.471 eta_s=846.9 loss=0.00092 lr=7.48e-04 updates=728 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=776/2098 elapsed_s=480.0 step_per_s=1.617 sample_per_s=6.466 eta_s=817.8 loss=0.00092 lr=7.45e-04 updates=776 skipped=0 status=running
+  [ep 4] batch 800/2098  avg_loss 0.00092  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=825/2098 elapsed_s=510.0 step_per_s=1.618 sample_per_s=6.470 eta_s=787.0 loss=0.00092 lr=7.42e-04 updates=825 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=874/2098 elapsed_s=540.0 step_per_s=1.618 sample_per_s=6.474 eta_s=756.3 loss=0.00092 lr=7.39e-04 updates=874 skipped=0 status=running
+  [ep 4] batch 900/2098  avg_loss 0.00091  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=922/2098 elapsed_s=570.0 step_per_s=1.617 sample_per_s=6.470 eta_s=727.1 loss=0.00092 lr=7.35e-04 updates=922 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=971/2098 elapsed_s=600.0 step_per_s=1.618 sample_per_s=6.473 eta_s=696.4 loss=0.00092 lr=7.32e-04 updates=971 skipped=0 status=running
+  [ep 4] batch 1000/2098  avg_loss 0.00092  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1020/2098 elapsed_s=630.0 step_per_s=1.619 sample_per_s=6.476 eta_s=665.8 loss=0.00092 lr=7.29e-04 updates=1020 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1068/2098 elapsed_s=660.0 step_per_s=1.618 sample_per_s=6.472 eta_s=636.5 loss=0.00092 lr=7.26e-04 updates=1068 skipped=0 status=running
+  [ep 4] batch 1100/2098  avg_loss 0.00091  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1117/2098 elapsed_s=690.0 step_per_s=1.619 sample_per_s=6.475 eta_s=606.0 loss=0.00092 lr=7.22e-04 updates=1117 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1166/2098 elapsed_s=720.0 step_per_s=1.619 sample_per_s=6.478 eta_s=575.5 loss=0.00092 lr=7.19e-04 updates=1166 skipped=0 status=running
+  [ep 4] batch 1200/2098  avg_loss 0.00091  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1214/2098 elapsed_s=750.0 step_per_s=1.619 sample_per_s=6.474 eta_s=546.1 loss=0.00091 lr=7.16e-04 updates=1214 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1263/2098 elapsed_s=780.0 step_per_s=1.619 sample_per_s=6.477 eta_s=515.7 loss=0.00091 lr=7.13e-04 updates=1263 skipped=0 status=running
+  [ep 4] batch 1300/2098  avg_loss 0.00091  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1311/2098 elapsed_s=810.0 step_per_s=1.618 sample_per_s=6.474 eta_s=486.3 loss=0.00091 lr=7.09e-04 updates=1311 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1360/2098 elapsed_s=840.0 step_per_s=1.619 sample_per_s=6.476 eta_s=455.8 loss=0.00091 lr=7.06e-04 updates=1360 skipped=0 status=running
+  [ep 4] batch 1400/2098  avg_loss 0.00091  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1409/2098 elapsed_s=870.0 step_per_s=1.619 sample_per_s=6.478 eta_s=425.4 loss=0.00091 lr=7.03e-04 updates=1409 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1457/2098 elapsed_s=900.0 step_per_s=1.619 sample_per_s=6.475 eta_s=396.0 loss=0.00091 lr=6.99e-04 updates=1457 skipped=0 status=running
+  [ep 4] batch 1500/2098  avg_loss 0.00091  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1506/2098 elapsed_s=930.0 step_per_s=1.619 sample_per_s=6.477 eta_s=365.6 loss=0.00091 lr=6.96e-04 updates=1506 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1554/2098 elapsed_s=960.0 step_per_s=1.619 sample_per_s=6.475 eta_s=336.1 loss=0.00091 lr=6.93e-04 updates=1554 skipped=0 status=running
+  [ep 4] batch 1600/2098  avg_loss 0.00092  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1603/2098 elapsed_s=990.0 step_per_s=1.619 sample_per_s=6.477 eta_s=305.7 loss=0.00092 lr=6.89e-04 updates=1603 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1651/2098 elapsed_s=1020.0 step_per_s=1.619 sample_per_s=6.474 eta_s=276.2 loss=0.00092 lr=6.86e-04 updates=1651 skipped=0 status=running
+  [ep 4] batch 1700/2098  avg_loss 0.00092  0.62s/batch  scale 5.2429e+05
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1700/2098 elapsed_s=1050.0 step_per_s=1.619 sample_per_s=6.476 eta_s=245.8 loss=0.00092 lr=6.83e-04 updates=1700 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1748/2098 elapsed_s=1080.0 step_per_s=1.618 sample_per_s=6.474 eta_s=216.3 loss=0.00092 lr=6.79e-04 updates=1748 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1797/2098 elapsed_s=1110.0 step_per_s=1.619 sample_per_s=6.475 eta_s=185.9 loss=0.00091 lr=6.76e-04 updates=1797 skipped=0 status=running
+  [ep 4] batch 1800/2098  avg_loss 0.00091  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1846/2098 elapsed_s=1140.0 step_per_s=1.619 sample_per_s=6.477 eta_s=155.6 loss=0.00091 lr=6.72e-04 updates=1846 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1894/2098 elapsed_s=1170.0 step_per_s=1.619 sample_per_s=6.475 eta_s=126.0 loss=0.00092 lr=6.69e-04 updates=1894 skipped=0 status=running
+  [ep 4] batch 1900/2098  avg_loss 0.00092  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1943/2098 elapsed_s=1200.0 step_per_s=1.619 sample_per_s=6.476 eta_s=95.7 loss=0.00092 lr=6.66e-04 updates=1943 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=1991/2098 elapsed_s=1230.0 step_per_s=1.619 sample_per_s=6.475 eta_s=66.1 loss=0.00092 lr=6.62e-04 updates=1991 skipped=0 status=running
+  [ep 4] batch 2000/2098  avg_loss 0.00092  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=4/10 scope=whole_split step=2040/2098 elapsed_s=1260.0 step_per_s=1.619 sample_per_s=6.476 eta_s=35.8 loss=0.00092 lr=6.59e-04 updates=2040 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=2088/2098 elapsed_s=1290.0 step_per_s=1.619 sample_per_s=6.474 eta_s=6.2 loss=0.00092 lr=6.55e-04 updates=2088 skipped=0 status=running
+PROGRESS phase=train epoch=4/10 scope=whole_split step=2098/2098 elapsed_s=1296.2 step_per_s=1.619 sample_per_s=6.474 loss=0.00092 lr=6.55e-04 updates=2098 skipped=0 status=phase_done
+PROGRESS phase=val epoch=4/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=4/10 scope=whole_split batch=6/6 elapsed_s=1.4 batch_per_s=4.242 rel_l2=0.53967 status=phase_done
+epoch 4/10  1297.6s  train_loss 0.00092  val_masked_relL2 0.53967  updates/rank 2098 (skipped across ranks 0)  grad_scale 1.0486e+06  lr 6.55e-04
+PROGRESS phase=train epoch=5/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=5/10 scope=whole_split step=48/2098 elapsed_s=30.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1281.3 loss=0.00093 lr=6.51e-04 updates=48 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00092 lr=6.48e-04 updates=96 skipped=0 status=running
+  [ep 5] batch 100/2098  avg_loss 0.00090  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=145/2098 elapsed_s=90.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1212.2 loss=0.00088 lr=6.44e-04 updates=145 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=193/2098 elapsed_s=120.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1184.5 loss=0.00088 lr=6.41e-04 updates=193 skipped=0 status=running
+  [ep 5] batch 200/2098  avg_loss 0.00088  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=242/2098 elapsed_s=150.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1150.4 loss=0.00090 lr=6.37e-04 updates=242 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=291/2098 elapsed_s=180.0 step_per_s=1.617 sample_per_s=6.466 eta_s=1117.8 loss=0.00090 lr=6.34e-04 updates=291 skipped=0 status=running
+  [ep 5] batch 300/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00088 lr=6.30e-04 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=388/2098 elapsed_s=240.0 step_per_s=1.617 sample_per_s=6.466 eta_s=1057.8 loss=0.00089 lr=6.27e-04 updates=388 skipped=0 status=running
+  [ep 5] batch 400/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=437/2098 elapsed_s=270.0 step_per_s=1.618 sample_per_s=6.474 eta_s=1026.3 loss=0.00088 lr=6.23e-04 updates=437 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=485/2098 elapsed_s=300.0 step_per_s=1.617 sample_per_s=6.466 eta_s=997.8 loss=0.00090 lr=6.20e-04 updates=485 skipped=0 status=running
+  [ep 5] batch 500/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=534/2098 elapsed_s=330.0 step_per_s=1.618 sample_per_s=6.473 eta_s=966.5 loss=0.00090 lr=6.16e-04 updates=534 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=582/2098 elapsed_s=360.0 step_per_s=1.617 sample_per_s=6.466 eta_s=937.8 loss=0.00090 lr=6.13e-04 updates=582 skipped=0 status=running
+  [ep 5] batch 600/2098  avg_loss 0.00090  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=631/2098 elapsed_s=390.0 step_per_s=1.618 sample_per_s=6.472 eta_s=906.7 loss=0.00090 lr=6.09e-04 updates=631 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=680/2098 elapsed_s=420.0 step_per_s=1.619 sample_per_s=6.476 eta_s=875.8 loss=0.00090 lr=6.05e-04 updates=680 skipped=0 status=running
+  [ep 5] batch 700/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=728/2098 elapsed_s=450.0 step_per_s=1.618 sample_per_s=6.471 eta_s=846.9 loss=0.00090 lr=6.02e-04 updates=728 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=777/2098 elapsed_s=480.0 step_per_s=1.619 sample_per_s=6.475 eta_s=816.1 loss=0.00090 lr=5.98e-04 updates=777 skipped=0 status=running
+  [ep 5] batch 800/2098  avg_loss 0.00090  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=825/2098 elapsed_s=510.0 step_per_s=1.618 sample_per_s=6.470 eta_s=787.0 loss=0.00090 lr=5.95e-04 updates=825 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=874/2098 elapsed_s=540.0 step_per_s=1.618 sample_per_s=6.474 eta_s=756.3 loss=0.00090 lr=5.91e-04 updates=874 skipped=0 status=running
+  [ep 5] batch 900/2098  avg_loss 0.00090  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=922/2098 elapsed_s=570.0 step_per_s=1.617 sample_per_s=6.470 eta_s=727.0 loss=0.00090 lr=5.88e-04 updates=922 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=971/2098 elapsed_s=600.0 step_per_s=1.618 sample_per_s=6.473 eta_s=696.4 loss=0.00090 lr=5.84e-04 updates=971 skipped=0 status=running
+  [ep 5] batch 1000/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1020/2098 elapsed_s=630.0 step_per_s=1.619 sample_per_s=6.476 eta_s=665.8 loss=0.00089 lr=5.80e-04 updates=1020 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1068/2098 elapsed_s=660.0 step_per_s=1.618 sample_per_s=6.473 eta_s=636.5 loss=0.00090 lr=5.77e-04 updates=1068 skipped=0 status=running
+  [ep 5] batch 1100/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1117/2098 elapsed_s=690.0 step_per_s=1.619 sample_per_s=6.475 eta_s=606.0 loss=0.00090 lr=5.73e-04 updates=1117 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1165/2098 elapsed_s=720.0 step_per_s=1.618 sample_per_s=6.472 eta_s=576.6 loss=0.00090 lr=5.70e-04 updates=1165 skipped=0 status=running
+  [ep 5] batch 1200/2098  avg_loss 0.00090  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1214/2098 elapsed_s=750.0 step_per_s=1.619 sample_per_s=6.474 eta_s=546.1 loss=0.00090 lr=5.66e-04 updates=1214 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1263/2098 elapsed_s=780.0 step_per_s=1.619 sample_per_s=6.477 eta_s=515.7 loss=0.00089 lr=5.62e-04 updates=1263 skipped=0 status=running
+  [ep 5] batch 1300/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1311/2098 elapsed_s=810.0 step_per_s=1.618 sample_per_s=6.474 eta_s=486.3 loss=0.00089 lr=5.59e-04 updates=1311 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1360/2098 elapsed_s=840.0 step_per_s=1.619 sample_per_s=6.476 eta_s=455.8 loss=0.00089 lr=5.55e-04 updates=1360 skipped=0 status=running
+  [ep 5] batch 1400/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1408/2098 elapsed_s=870.0 step_per_s=1.618 sample_per_s=6.473 eta_s=426.4 loss=0.00089 lr=5.52e-04 updates=1408 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1457/2098 elapsed_s=900.0 step_per_s=1.619 sample_per_s=6.475 eta_s=396.0 loss=0.00089 lr=5.48e-04 updates=1457 skipped=0 status=running
+  [ep 5] batch 1500/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1506/2098 elapsed_s=930.0 step_per_s=1.619 sample_per_s=6.477 eta_s=365.6 loss=0.00089 lr=5.44e-04 updates=1506 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1554/2098 elapsed_s=960.0 step_per_s=1.619 sample_per_s=6.475 eta_s=336.1 loss=0.00089 lr=5.41e-04 updates=1554 skipped=0 status=running
+  [ep 5] batch 1600/2098  avg_loss 0.00089  0.62s/batch  scale 1.0486e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1603/2098 elapsed_s=990.0 step_per_s=1.619 sample_per_s=6.477 eta_s=305.7 loss=0.00089 lr=5.37e-04 updates=1603 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1651/2098 elapsed_s=1020.0 step_per_s=1.619 sample_per_s=6.474 eta_s=276.2 loss=0.00089 lr=5.33e-04 updates=1651 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1699/2098 elapsed_s=1050.0 step_per_s=1.618 sample_per_s=6.472 eta_s=246.6 loss=0.00089 lr=5.30e-04 updates=1699 skipped=0 status=running
+  [ep 5] batch 1700/2098  avg_loss 0.00089  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1748/2098 elapsed_s=1080.0 step_per_s=1.618 sample_per_s=6.474 eta_s=216.3 loss=0.00089 lr=5.26e-04 updates=1748 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1797/2098 elapsed_s=1110.0 step_per_s=1.619 sample_per_s=6.475 eta_s=185.9 loss=0.00089 lr=5.23e-04 updates=1797 skipped=0 status=running
+  [ep 5] batch 1800/2098  avg_loss 0.00089  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1845/2098 elapsed_s=1140.0 step_per_s=1.618 sample_per_s=6.473 eta_s=156.3 loss=0.00089 lr=5.19e-04 updates=1845 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1894/2098 elapsed_s=1170.0 step_per_s=1.619 sample_per_s=6.475 eta_s=126.0 loss=0.00089 lr=5.15e-04 updates=1894 skipped=0 status=running
+  [ep 5] batch 1900/2098  avg_loss 0.00089  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1942/2098 elapsed_s=1200.0 step_per_s=1.618 sample_per_s=6.473 eta_s=96.4 loss=0.00089 lr=5.12e-04 updates=1942 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=1991/2098 elapsed_s=1230.0 step_per_s=1.619 sample_per_s=6.475 eta_s=66.1 loss=0.00089 lr=5.08e-04 updates=1991 skipped=0 status=running
+  [ep 5] batch 2000/2098  avg_loss 0.00089  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=5/10 scope=whole_split step=2039/2098 elapsed_s=1260.0 step_per_s=1.618 sample_per_s=6.473 eta_s=36.5 loss=0.00089 lr=5.04e-04 updates=2039 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=2088/2098 elapsed_s=1290.0 step_per_s=1.619 sample_per_s=6.474 eta_s=6.2 loss=0.00088 lr=5.01e-04 updates=2088 skipped=0 status=running
+PROGRESS phase=train epoch=5/10 scope=whole_split step=2098/2098 elapsed_s=1296.5 step_per_s=1.618 sample_per_s=6.473 loss=0.00088 lr=5.00e-04 updates=2098 skipped=0 status=phase_done
+PROGRESS phase=val epoch=5/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=5/10 scope=whole_split batch=6/6 elapsed_s=1.5 batch_per_s=4.003 rel_l2=0.52821 status=phase_done
+epoch 5/10  1298.0s  train_loss 0.00088  val_masked_relL2 0.52821  updates/rank 2098 (skipped across ranks 0)  grad_scale 2.0972e+06  lr 5.00e-04
+PROGRESS phase=train epoch=6/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=6/10 scope=whole_split step=48/2098 elapsed_s=30.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1281.3 loss=0.00088 lr=4.96e-04 updates=48 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00087 lr=4.93e-04 updates=96 skipped=0 status=running
+  [ep 6] batch 100/2098  avg_loss 0.00086  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=145/2098 elapsed_s=90.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1212.2 loss=0.00085 lr=4.89e-04 updates=145 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=194/2098 elapsed_s=120.0 step_per_s=1.617 sample_per_s=6.466 eta_s=1177.8 loss=0.00086 lr=4.85e-04 updates=194 skipped=0 status=running
+  [ep 6] batch 200/2098  avg_loss 0.00086  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=242/2098 elapsed_s=150.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1150.5 loss=0.00087 lr=4.82e-04 updates=242 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=291/2098 elapsed_s=180.0 step_per_s=1.617 sample_per_s=6.466 eta_s=1117.8 loss=0.00087 lr=4.78e-04 updates=291 skipped=0 status=running
+  [ep 6] batch 300/2098  avg_loss 0.00087  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00087 lr=4.75e-04 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=388/2098 elapsed_s=240.0 step_per_s=1.617 sample_per_s=6.466 eta_s=1057.8 loss=0.00086 lr=4.71e-04 updates=388 skipped=0 status=running
+  [ep 6] batch 400/2098  avg_loss 0.00087  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=436/2098 elapsed_s=270.0 step_per_s=1.615 sample_per_s=6.459 eta_s=1029.3 loss=0.00087 lr=4.67e-04 updates=436 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=485/2098 elapsed_s=300.0 step_per_s=1.617 sample_per_s=6.466 eta_s=997.8 loss=0.00088 lr=4.64e-04 updates=485 skipped=0 status=running
+  [ep 6] batch 500/2098  avg_loss 0.00088  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=534/2098 elapsed_s=330.0 step_per_s=1.618 sample_per_s=6.473 eta_s=966.6 loss=0.00088 lr=4.60e-04 updates=534 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=582/2098 elapsed_s=360.0 step_per_s=1.617 sample_per_s=6.466 eta_s=937.8 loss=0.00088 lr=4.56e-04 updates=582 skipped=0 status=running
+  [ep 6] batch 600/2098  avg_loss 0.00088  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=631/2098 elapsed_s=390.0 step_per_s=1.618 sample_per_s=6.472 eta_s=906.7 loss=0.00088 lr=4.53e-04 updates=631 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=680/2098 elapsed_s=420.0 step_per_s=1.619 sample_per_s=6.476 eta_s=875.9 loss=0.00088 lr=4.49e-04 updates=680 skipped=0 status=running
+  [ep 6] batch 700/2098  avg_loss 0.00088  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=728/2098 elapsed_s=450.0 step_per_s=1.618 sample_per_s=6.471 eta_s=846.9 loss=0.00087 lr=4.46e-04 updates=728 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=777/2098 elapsed_s=480.0 step_per_s=1.619 sample_per_s=6.475 eta_s=816.1 loss=0.00088 lr=4.42e-04 updates=777 skipped=0 status=running
+  [ep 6] batch 800/2098  avg_loss 0.00087  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=826/2098 elapsed_s=510.0 step_per_s=1.620 sample_per_s=6.478 eta_s=785.4 loss=0.00087 lr=4.38e-04 updates=826 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=874/2098 elapsed_s=540.0 step_per_s=1.618 sample_per_s=6.474 eta_s=756.3 loss=0.00086 lr=4.35e-04 updates=874 skipped=0 status=running
+  [ep 6] batch 900/2098  avg_loss 0.00086  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=923/2098 elapsed_s=570.0 step_per_s=1.619 sample_per_s=6.477 eta_s=725.6 loss=0.00086 lr=4.31e-04 updates=923 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=971/2098 elapsed_s=600.0 step_per_s=1.618 sample_per_s=6.473 eta_s=696.4 loss=0.00086 lr=4.28e-04 updates=971 skipped=0 status=running
+  [ep 6] batch 1000/2098  avg_loss 0.00086  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1020/2098 elapsed_s=630.0 step_per_s=1.619 sample_per_s=6.476 eta_s=665.8 loss=0.00086 lr=4.24e-04 updates=1020 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1068/2098 elapsed_s=660.0 step_per_s=1.618 sample_per_s=6.473 eta_s=636.5 loss=0.00086 lr=4.20e-04 updates=1068 skipped=0 status=running
+  [ep 6] batch 1100/2098  avg_loss 0.00086  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1117/2098 elapsed_s=690.0 step_per_s=1.619 sample_per_s=6.475 eta_s=606.0 loss=0.00086 lr=4.17e-04 updates=1117 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1165/2098 elapsed_s=720.0 step_per_s=1.618 sample_per_s=6.472 eta_s=576.6 loss=0.00085 lr=4.13e-04 updates=1165 skipped=0 status=running
+  [ep 6] batch 1200/2098  avg_loss 0.00085  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1214/2098 elapsed_s=750.0 step_per_s=1.619 sample_per_s=6.474 eta_s=546.1 loss=0.00085 lr=4.10e-04 updates=1214 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1263/2098 elapsed_s=780.0 step_per_s=1.619 sample_per_s=6.477 eta_s=515.7 loss=0.00085 lr=4.06e-04 updates=1263 skipped=0 status=running
+  [ep 6] batch 1300/2098  avg_loss 0.00085  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1311/2098 elapsed_s=810.0 step_per_s=1.618 sample_per_s=6.474 eta_s=486.3 loss=0.00085 lr=4.02e-04 updates=1311 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1360/2098 elapsed_s=840.0 step_per_s=1.619 sample_per_s=6.476 eta_s=455.8 loss=0.00085 lr=3.99e-04 updates=1360 skipped=0 status=running
+  [ep 6] batch 1400/2098  avg_loss 0.00085  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1408/2098 elapsed_s=870.0 step_per_s=1.618 sample_per_s=6.473 eta_s=426.4 loss=0.00085 lr=3.95e-04 updates=1408 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1457/2098 elapsed_s=900.0 step_per_s=1.619 sample_per_s=6.475 eta_s=396.0 loss=0.00085 lr=3.92e-04 updates=1457 skipped=0 status=running
+  [ep 6] batch 1500/2098  avg_loss 0.00085  0.62s/batch  scale 2.0972e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1505/2098 elapsed_s=930.0 step_per_s=1.618 sample_per_s=6.473 eta_s=366.5 loss=0.00085 lr=3.88e-04 updates=1505 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1554/2098 elapsed_s=960.0 step_per_s=1.619 sample_per_s=6.475 eta_s=336.1 loss=0.00084 lr=3.85e-04 updates=1554 skipped=0 status=running
+  [ep 6] batch 1600/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1602/2098 elapsed_s=990.0 step_per_s=1.618 sample_per_s=6.473 eta_s=306.5 loss=0.00084 lr=3.81e-04 updates=1602 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1651/2098 elapsed_s=1020.0 step_per_s=1.619 sample_per_s=6.474 eta_s=276.2 loss=0.00084 lr=3.78e-04 updates=1651 skipped=0 status=running
+  [ep 6] batch 1700/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1700/2098 elapsed_s=1050.0 step_per_s=1.619 sample_per_s=6.476 eta_s=245.8 loss=0.00084 lr=3.74e-04 updates=1700 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1748/2098 elapsed_s=1080.0 step_per_s=1.618 sample_per_s=6.474 eta_s=216.3 loss=0.00084 lr=3.71e-04 updates=1748 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1797/2098 elapsed_s=1110.0 step_per_s=1.619 sample_per_s=6.475 eta_s=185.9 loss=0.00084 lr=3.67e-04 updates=1797 skipped=0 status=running
+  [ep 6] batch 1800/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1845/2098 elapsed_s=1140.0 step_per_s=1.618 sample_per_s=6.473 eta_s=156.3 loss=0.00084 lr=3.64e-04 updates=1845 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1894/2098 elapsed_s=1170.0 step_per_s=1.619 sample_per_s=6.475 eta_s=126.0 loss=0.00084 lr=3.60e-04 updates=1894 skipped=0 status=running
+  [ep 6] batch 1900/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1942/2098 elapsed_s=1200.0 step_per_s=1.618 sample_per_s=6.473 eta_s=96.4 loss=0.00084 lr=3.57e-04 updates=1942 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=1991/2098 elapsed_s=1230.0 step_per_s=1.619 sample_per_s=6.475 eta_s=66.1 loss=0.00084 lr=3.53e-04 updates=1991 skipped=0 status=running
+  [ep 6] batch 2000/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=6/10 scope=whole_split step=2039/2098 elapsed_s=1260.0 step_per_s=1.618 sample_per_s=6.473 eta_s=36.5 loss=0.00084 lr=3.50e-04 updates=2039 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=2088/2098 elapsed_s=1290.0 step_per_s=1.619 sample_per_s=6.474 eta_s=6.2 loss=0.00084 lr=3.46e-04 updates=2088 skipped=0 status=running
+PROGRESS phase=train epoch=6/10 scope=whole_split step=2098/2098 elapsed_s=1296.4 step_per_s=1.618 sample_per_s=6.473 loss=0.00084 lr=3.45e-04 updates=2098 skipped=0 status=phase_done
+PROGRESS phase=val epoch=6/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=6/10 scope=whole_split batch=6/6 elapsed_s=1.5 batch_per_s=4.098 rel_l2=0.52474 status=phase_done
+epoch 6/10  1297.8s  train_loss 0.00084  val_masked_relL2 0.52474  updates/rank 2098 (skipped across ranks 0)  grad_scale 4.1943e+06  lr 3.45e-04
+PROGRESS phase=train epoch=7/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=7/10 scope=whole_split step=47/2098 elapsed_s=30.0 step_per_s=1.567 sample_per_s=6.266 eta_s=1309.2 loss=0.00083 lr=3.42e-04 updates=47 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00088 lr=3.39e-04 updates=96 skipped=0 status=running
+  [ep 7] batch 100/2098  avg_loss 0.00087  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=145/2098 elapsed_s=90.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1212.2 loss=0.00086 lr=3.35e-04 updates=145 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=193/2098 elapsed_s=120.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1184.5 loss=0.00082 lr=3.32e-04 updates=193 skipped=0 status=running
+  [ep 7] batch 200/2098  avg_loss 0.00083  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=242/2098 elapsed_s=150.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1150.4 loss=0.00083 lr=3.28e-04 updates=242 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=290/2098 elapsed_s=180.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1122.2 loss=0.00084 lr=3.25e-04 updates=290 skipped=0 status=running
+  [ep 7] batch 300/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00085 lr=3.22e-04 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=388/2098 elapsed_s=240.0 step_per_s=1.617 sample_per_s=6.466 eta_s=1057.8 loss=0.00084 lr=3.18e-04 updates=388 skipped=0 status=running
+  [ep 7] batch 400/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=436/2098 elapsed_s=270.0 step_per_s=1.615 sample_per_s=6.459 eta_s=1029.2 loss=0.00084 lr=3.15e-04 updates=436 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=485/2098 elapsed_s=300.0 step_per_s=1.617 sample_per_s=6.466 eta_s=997.8 loss=0.00083 lr=3.11e-04 updates=485 skipped=0 status=running
+  [ep 7] batch 500/2098  avg_loss 0.00083  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=534/2098 elapsed_s=330.0 step_per_s=1.618 sample_per_s=6.473 eta_s=966.5 loss=0.00083 lr=3.08e-04 updates=534 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=582/2098 elapsed_s=360.0 step_per_s=1.617 sample_per_s=6.466 eta_s=937.8 loss=0.00084 lr=3.05e-04 updates=582 skipped=0 status=running
+  [ep 7] batch 600/2098  avg_loss 0.00084  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=631/2098 elapsed_s=390.0 step_per_s=1.618 sample_per_s=6.472 eta_s=906.7 loss=0.00083 lr=3.01e-04 updates=631 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=679/2098 elapsed_s=420.0 step_per_s=1.617 sample_per_s=6.466 eta_s=877.8 loss=0.00084 lr=2.98e-04 updates=679 skipped=0 status=running
+  [ep 7] batch 700/2098  avg_loss 0.00083  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=728/2098 elapsed_s=450.0 step_per_s=1.618 sample_per_s=6.471 eta_s=846.9 loss=0.00082 lr=2.95e-04 updates=728 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=777/2098 elapsed_s=480.0 step_per_s=1.619 sample_per_s=6.475 eta_s=816.1 loss=0.00082 lr=2.91e-04 updates=777 skipped=0 status=running
+  [ep 7] batch 800/2098  avg_loss 0.00082  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=825/2098 elapsed_s=510.0 step_per_s=1.618 sample_per_s=6.470 eta_s=787.0 loss=0.00082 lr=2.88e-04 updates=825 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=874/2098 elapsed_s=540.0 step_per_s=1.618 sample_per_s=6.474 eta_s=756.3 loss=0.00081 lr=2.85e-04 updates=874 skipped=0 status=running
+  [ep 7] batch 900/2098  avg_loss 0.00081  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=922/2098 elapsed_s=570.0 step_per_s=1.617 sample_per_s=6.470 eta_s=727.0 loss=0.00081 lr=2.82e-04 updates=922 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=971/2098 elapsed_s=600.0 step_per_s=1.618 sample_per_s=6.473 eta_s=696.4 loss=0.00081 lr=2.78e-04 updates=971 skipped=0 status=running
+  [ep 7] batch 1000/2098  avg_loss 0.00081  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1020/2098 elapsed_s=630.0 step_per_s=1.619 sample_per_s=6.476 eta_s=665.8 loss=0.00081 lr=2.75e-04 updates=1020 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1068/2098 elapsed_s=660.0 step_per_s=1.618 sample_per_s=6.473 eta_s=636.5 loss=0.00081 lr=2.72e-04 updates=1068 skipped=0 status=running
+  [ep 7] batch 1100/2098  avg_loss 0.00081  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1117/2098 elapsed_s=690.0 step_per_s=1.619 sample_per_s=6.475 eta_s=606.0 loss=0.00080 lr=2.68e-04 updates=1117 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1165/2098 elapsed_s=720.0 step_per_s=1.618 sample_per_s=6.472 eta_s=576.6 loss=0.00080 lr=2.65e-04 updates=1165 skipped=0 status=running
+  [ep 7] batch 1200/2098  avg_loss 0.00080  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1214/2098 elapsed_s=750.0 step_per_s=1.619 sample_per_s=6.474 eta_s=546.1 loss=0.00080 lr=2.62e-04 updates=1214 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1262/2098 elapsed_s=780.0 step_per_s=1.618 sample_per_s=6.472 eta_s=516.7 loss=0.00079 lr=2.59e-04 updates=1262 skipped=0 status=running
+  [ep 7] batch 1300/2098  avg_loss 0.00079  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1311/2098 elapsed_s=810.0 step_per_s=1.618 sample_per_s=6.474 eta_s=486.3 loss=0.00079 lr=2.56e-04 updates=1311 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1360/2098 elapsed_s=840.0 step_per_s=1.619 sample_per_s=6.476 eta_s=455.8 loss=0.00080 lr=2.53e-04 updates=1360 skipped=0 status=running
+  [ep 7] batch 1400/2098  avg_loss 0.00079  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1408/2098 elapsed_s=870.0 step_per_s=1.618 sample_per_s=6.473 eta_s=426.4 loss=0.00079 lr=2.49e-04 updates=1408 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1457/2098 elapsed_s=900.0 step_per_s=1.619 sample_per_s=6.475 eta_s=396.0 loss=0.00079 lr=2.46e-04 updates=1457 skipped=0 status=running
+  [ep 7] batch 1500/2098  avg_loss 0.00079  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1505/2098 elapsed_s=930.0 step_per_s=1.618 sample_per_s=6.473 eta_s=366.4 loss=0.00080 lr=2.43e-04 updates=1505 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1554/2098 elapsed_s=960.0 step_per_s=1.619 sample_per_s=6.475 eta_s=336.1 loss=0.00079 lr=2.40e-04 updates=1554 skipped=0 status=running
+  [ep 7] batch 1600/2098  avg_loss 0.00079  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1603/2098 elapsed_s=990.0 step_per_s=1.619 sample_per_s=6.477 eta_s=305.7 loss=0.00079 lr=2.37e-04 updates=1603 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1651/2098 elapsed_s=1020.0 step_per_s=1.619 sample_per_s=6.474 eta_s=276.2 loss=0.00079 lr=2.34e-04 updates=1651 skipped=0 status=running
+  [ep 7] batch 1700/2098  avg_loss 0.00078  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1700/2098 elapsed_s=1050.0 step_per_s=1.619 sample_per_s=6.476 eta_s=245.8 loss=0.00078 lr=2.31e-04 updates=1700 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1748/2098 elapsed_s=1080.0 step_per_s=1.618 sample_per_s=6.474 eta_s=216.3 loss=0.00078 lr=2.28e-04 updates=1748 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1797/2098 elapsed_s=1110.0 step_per_s=1.619 sample_per_s=6.475 eta_s=185.9 loss=0.00078 lr=2.25e-04 updates=1797 skipped=0 status=running
+  [ep 7] batch 1800/2098  avg_loss 0.00078  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1845/2098 elapsed_s=1140.0 step_per_s=1.618 sample_per_s=6.473 eta_s=156.3 loss=0.00078 lr=2.22e-04 updates=1845 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1894/2098 elapsed_s=1170.0 step_per_s=1.619 sample_per_s=6.475 eta_s=126.0 loss=0.00078 lr=2.19e-04 updates=1894 skipped=0 status=running
+  [ep 7] batch 1900/2098  avg_loss 0.00078  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1942/2098 elapsed_s=1200.0 step_per_s=1.618 sample_per_s=6.473 eta_s=96.4 loss=0.00078 lr=2.16e-04 updates=1942 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=1991/2098 elapsed_s=1230.0 step_per_s=1.619 sample_per_s=6.475 eta_s=66.1 loss=0.00078 lr=2.13e-04 updates=1991 skipped=0 status=running
+  [ep 7] batch 2000/2098  avg_loss 0.00078  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=7/10 scope=whole_split step=2039/2098 elapsed_s=1260.0 step_per_s=1.618 sample_per_s=6.473 eta_s=36.5 loss=0.00077 lr=2.10e-04 updates=2039 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=2088/2098 elapsed_s=1290.0 step_per_s=1.619 sample_per_s=6.474 eta_s=6.2 loss=0.00078 lr=2.07e-04 updates=2088 skipped=0 status=running
+PROGRESS phase=train epoch=7/10 scope=whole_split step=2098/2098 elapsed_s=1296.6 step_per_s=1.618 sample_per_s=6.472 loss=0.00078 lr=2.06e-04 updates=2098 skipped=0 status=phase_done
+PROGRESS phase=val epoch=7/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=7/10 scope=whole_split batch=6/6 elapsed_s=1.4 batch_per_s=4.284 rel_l2=0.47065 status=phase_done
+epoch 7/10  1298.0s  train_loss 0.00078  val_masked_relL2 0.47065  updates/rank 2098 (skipped across ranks 0)  grad_scale 8.3886e+06  lr 2.06e-04
+PROGRESS phase=train epoch=8/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=8/10 scope=whole_split step=48/2098 elapsed_s=30.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1281.3 loss=0.00068 lr=2.03e-04 updates=48 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00071 lr=2.00e-04 updates=96 skipped=0 status=running
+  [ep 8] batch 100/2098  avg_loss 0.00071  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=145/2098 elapsed_s=90.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1212.3 loss=0.00070 lr=1.97e-04 updates=145 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=193/2098 elapsed_s=120.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1184.5 loss=0.00072 lr=1.95e-04 updates=193 skipped=0 status=running
+  [ep 8] batch 200/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=242/2098 elapsed_s=150.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1150.5 loss=0.00075 lr=1.92e-04 updates=242 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=290/2098 elapsed_s=180.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1122.2 loss=0.00074 lr=1.89e-04 updates=290 skipped=0 status=running
+  [ep 8] batch 300/2098  avg_loss 0.00073  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00073 lr=1.86e-04 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=387/2098 elapsed_s=240.0 step_per_s=1.612 sample_per_s=6.450 eta_s=1061.1 loss=0.00073 lr=1.83e-04 updates=387 skipped=0 status=running
+  [ep 8] batch 400/2098  avg_loss 0.00073  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=436/2098 elapsed_s=270.0 step_per_s=1.615 sample_per_s=6.459 eta_s=1029.3 loss=0.00073 lr=1.80e-04 updates=436 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=484/2098 elapsed_s=300.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1000.5 loss=0.00073 lr=1.78e-04 updates=484 skipped=0 status=running
+  [ep 8] batch 500/2098  avg_loss 0.00073  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=533/2098 elapsed_s=330.0 step_per_s=1.615 sample_per_s=6.460 eta_s=969.0 loss=0.00073 lr=1.75e-04 updates=533 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=581/2098 elapsed_s=360.0 step_per_s=1.614 sample_per_s=6.455 eta_s=940.0 loss=0.00073 lr=1.72e-04 updates=581 skipped=0 status=running
+  [ep 8] batch 600/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=630/2098 elapsed_s=390.0 step_per_s=1.615 sample_per_s=6.461 eta_s=908.8 loss=0.00072 lr=1.69e-04 updates=630 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=679/2098 elapsed_s=420.0 step_per_s=1.617 sample_per_s=6.466 eta_s=877.8 loss=0.00072 lr=1.67e-04 updates=679 skipped=0 status=running
+  [ep 8] batch 700/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=727/2098 elapsed_s=450.0 step_per_s=1.615 sample_per_s=6.462 eta_s=848.7 loss=0.00072 lr=1.64e-04 updates=727 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=776/2098 elapsed_s=480.0 step_per_s=1.617 sample_per_s=6.466 eta_s=817.8 loss=0.00072 lr=1.61e-04 updates=776 skipped=0 status=running
+  [ep 8] batch 800/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=824/2098 elapsed_s=510.0 step_per_s=1.616 sample_per_s=6.463 eta_s=788.5 loss=0.00072 lr=1.59e-04 updates=824 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=873/2098 elapsed_s=540.0 step_per_s=1.617 sample_per_s=6.466 eta_s=757.8 loss=0.00072 lr=1.56e-04 updates=873 skipped=0 status=running
+  [ep 8] batch 900/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=922/2098 elapsed_s=570.0 step_per_s=1.617 sample_per_s=6.470 eta_s=727.1 loss=0.00072 lr=1.53e-04 updates=922 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=970/2098 elapsed_s=600.0 step_per_s=1.617 sample_per_s=6.466 eta_s=697.8 loss=0.00072 lr=1.51e-04 updates=970 skipped=0 status=running
+  [ep 8] batch 1000/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1019/2098 elapsed_s=630.0 step_per_s=1.617 sample_per_s=6.470 eta_s=667.1 loss=0.00072 lr=1.48e-04 updates=1019 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1067/2098 elapsed_s=660.0 step_per_s=1.617 sample_per_s=6.466 eta_s=637.8 loss=0.00072 lr=1.45e-04 updates=1067 skipped=0 status=running
+  [ep 8] batch 1100/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1116/2098 elapsed_s=690.0 step_per_s=1.617 sample_per_s=6.469 eta_s=607.2 loss=0.00072 lr=1.43e-04 updates=1116 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1164/2098 elapsed_s=720.0 step_per_s=1.617 sample_per_s=6.466 eta_s=577.8 loss=0.00072 lr=1.40e-04 updates=1164 skipped=0 status=running
+  [ep 8] batch 1200/2098  avg_loss 0.00072  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1213/2098 elapsed_s=750.0 step_per_s=1.617 sample_per_s=6.469 eta_s=547.2 loss=0.00072 lr=1.38e-04 updates=1213 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1261/2098 elapsed_s=780.0 step_per_s=1.617 sample_per_s=6.466 eta_s=517.7 loss=0.00071 lr=1.35e-04 updates=1261 skipped=0 status=running
+  [ep 8] batch 1300/2098  avg_loss 0.00071  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1310/2098 elapsed_s=810.0 step_per_s=1.617 sample_per_s=6.469 eta_s=487.3 loss=0.00071 lr=1.33e-04 updates=1310 skipped=0 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1358/2098 elapsed_s=840.0 step_per_s=1.617 sample_per_s=6.466 eta_s=457.7 loss=0.00071 lr=1.31e-04 updates=1357 skipped=1 status=running
+  [ep 8] batch 1400/2098  avg_loss 0.00072  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1407/2098 elapsed_s=870.0 step_per_s=1.617 sample_per_s=6.469 eta_s=427.3 loss=0.00072 lr=1.28e-04 updates=1405 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1455/2098 elapsed_s=900.0 step_per_s=1.617 sample_per_s=6.466 eta_s=397.8 loss=0.00071 lr=1.26e-04 updates=1453 skipped=2 status=running
+  [ep 8] batch 1500/2098  avg_loss 0.00071  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1504/2098 elapsed_s=930.1 step_per_s=1.617 sample_per_s=6.468 eta_s=367.3 loss=0.00071 lr=1.23e-04 updates=1502 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1552/2098 elapsed_s=960.1 step_per_s=1.617 sample_per_s=6.466 eta_s=337.7 loss=0.00071 lr=1.21e-04 updates=1550 skipped=2 status=running
+  [ep 8] batch 1600/2098  avg_loss 0.00071  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1601/2098 elapsed_s=990.1 step_per_s=1.617 sample_per_s=6.468 eta_s=307.3 loss=0.00071 lr=1.19e-04 updates=1599 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1649/2098 elapsed_s=1020.1 step_per_s=1.617 sample_per_s=6.466 eta_s=277.7 loss=0.00071 lr=1.16e-04 updates=1647 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1698/2098 elapsed_s=1050.1 step_per_s=1.617 sample_per_s=6.468 eta_s=247.4 loss=0.00071 lr=1.14e-04 updates=1696 skipped=2 status=running
+  [ep 8] batch 1700/2098  avg_loss 0.00071  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1746/2098 elapsed_s=1080.1 step_per_s=1.617 sample_per_s=6.466 eta_s=217.7 loss=0.00071 lr=1.12e-04 updates=1744 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1795/2098 elapsed_s=1110.1 step_per_s=1.617 sample_per_s=6.468 eta_s=187.4 loss=0.00071 lr=1.09e-04 updates=1793 skipped=2 status=running
+  [ep 8] batch 1800/2098  avg_loss 0.00071  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1843/2098 elapsed_s=1140.1 step_per_s=1.617 sample_per_s=6.466 eta_s=157.7 loss=0.00070 lr=1.07e-04 updates=1841 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1892/2098 elapsed_s=1170.1 step_per_s=1.617 sample_per_s=6.468 eta_s=127.4 loss=0.00070 lr=1.05e-04 updates=1890 skipped=2 status=running
+  [ep 8] batch 1900/2098  avg_loss 0.00070  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1941/2098 elapsed_s=1200.1 step_per_s=1.617 sample_per_s=6.470 eta_s=97.1 loss=0.00070 lr=1.03e-04 updates=1939 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=1989/2098 elapsed_s=1230.1 step_per_s=1.617 sample_per_s=6.468 eta_s=67.4 loss=0.00070 lr=1.00e-04 updates=1987 skipped=2 status=running
+  [ep 8] batch 2000/2098  avg_loss 0.00070  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=8/10 scope=whole_split step=2038/2098 elapsed_s=1260.1 step_per_s=1.617 sample_per_s=6.470 eta_s=37.1 loss=0.00070 lr=9.82e-05 updates=2036 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=2086/2098 elapsed_s=1290.1 step_per_s=1.617 sample_per_s=6.468 eta_s=7.4 loss=0.00070 lr=9.61e-05 updates=2084 skipped=2 status=running
+PROGRESS phase=train epoch=8/10 scope=whole_split step=2098/2098 elapsed_s=1297.3 step_per_s=1.617 sample_per_s=6.469 loss=0.00070 lr=9.56e-05 updates=2096 skipped=2 status=phase_done
+PROGRESS phase=val epoch=8/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=8/10 scope=whole_split batch=6/6 elapsed_s=1.4 batch_per_s=4.289 rel_l2=0.42781 status=phase_done
+epoch 8/10  1298.7s  train_loss 0.00070  val_masked_relL2 0.42781  updates/rank 2096 (skipped across ranks 2)  grad_scale 4.1943e+06  lr 9.56e-05
+PROGRESS phase=train epoch=9/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=9/10 scope=whole_split step=48/2098 elapsed_s=30.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1281.3 loss=0.00065 lr=9.35e-05 updates=48 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00063 lr=9.14e-05 updates=96 skipped=0 status=running
+  [ep 9] batch 100/2098  avg_loss 0.00063  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=144/2098 elapsed_s=90.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1221.3 loss=0.00067 lr=8.93e-05 updates=144 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=192/2098 elapsed_s=120.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1191.3 loss=0.00067 lr=8.73e-05 updates=192 skipped=0 status=running
+  [ep 9] batch 200/2098  avg_loss 0.00066  0.63s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=241/2098 elapsed_s=150.0 step_per_s=1.607 sample_per_s=6.426 eta_s=1155.9 loss=0.00065 lr=8.52e-05 updates=241 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=289/2098 elapsed_s=180.0 step_per_s=1.605 sample_per_s=6.422 eta_s=1126.8 loss=0.00065 lr=8.32e-05 updates=289 skipped=0 status=running
+  [ep 9] batch 300/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=338/2098 elapsed_s=210.0 step_per_s=1.609 sample_per_s=6.438 eta_s=1093.5 loss=0.00064 lr=8.12e-05 updates=338 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=386/2098 elapsed_s=240.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1064.5 loss=0.00066 lr=7.93e-05 updates=386 skipped=0 status=running
+  [ep 9] batch 400/2098  avg_loss 0.00066  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=435/2098 elapsed_s=270.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1032.2 loss=0.00066 lr=7.73e-05 updates=435 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=483/2098 elapsed_s=300.0 step_per_s=1.610 sample_per_s=6.440 eta_s=1003.1 loss=0.00066 lr=7.54e-05 updates=483 skipped=0 status=running
+  [ep 9] batch 500/2098  avg_loss 0.00066  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=532/2098 elapsed_s=330.0 step_per_s=1.612 sample_per_s=6.448 eta_s=971.4 loss=0.00066 lr=7.35e-05 updates=532 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=580/2098 elapsed_s=360.0 step_per_s=1.611 sample_per_s=6.444 eta_s=942.2 loss=0.00066 lr=7.16e-05 updates=580 skipped=0 status=running
+  [ep 9] batch 600/2098  avg_loss 0.00066  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=629/2098 elapsed_s=390.0 step_per_s=1.613 sample_per_s=6.451 eta_s=910.9 loss=0.00066 lr=6.97e-05 updates=629 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=678/2098 elapsed_s=420.0 step_per_s=1.614 sample_per_s=6.457 eta_s=879.7 loss=0.00066 lr=6.79e-05 updates=678 skipped=0 status=running
+  [ep 9] batch 700/2098  avg_loss 0.00065  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=726/2098 elapsed_s=450.0 step_per_s=1.613 sample_per_s=6.453 eta_s=850.4 loss=0.00065 lr=6.61e-05 updates=726 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=775/2098 elapsed_s=480.0 step_per_s=1.615 sample_per_s=6.458 eta_s=819.4 loss=0.00065 lr=6.43e-05 updates=775 skipped=0 status=running
+  [ep 9] batch 800/2098  avg_loss 0.00065  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=823/2098 elapsed_s=510.0 step_per_s=1.614 sample_per_s=6.455 eta_s=790.1 loss=0.00064 lr=6.25e-05 updates=823 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=872/2098 elapsed_s=540.0 step_per_s=1.615 sample_per_s=6.459 eta_s=759.2 loss=0.00064 lr=6.07e-05 updates=872 skipped=0 status=running
+  [ep 9] batch 900/2098  avg_loss 0.00063  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=920/2098 elapsed_s=570.0 step_per_s=1.614 sample_per_s=6.456 eta_s=729.9 loss=0.00064 lr=5.90e-05 updates=920 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=969/2098 elapsed_s=600.0 step_per_s=1.615 sample_per_s=6.460 eta_s=699.1 loss=0.00064 lr=5.73e-05 updates=969 skipped=0 status=running
+  [ep 9] batch 1000/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1017/2098 elapsed_s=630.0 step_per_s=1.614 sample_per_s=6.457 eta_s=669.7 loss=0.00064 lr=5.57e-05 updates=1017 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1066/2098 elapsed_s=660.0 step_per_s=1.615 sample_per_s=6.460 eta_s=639.0 loss=0.00064 lr=5.40e-05 updates=1066 skipped=0 status=running
+  [ep 9] batch 1100/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1114/2098 elapsed_s=690.0 step_per_s=1.614 sample_per_s=6.458 eta_s=609.5 loss=0.00064 lr=5.24e-05 updates=1114 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1163/2098 elapsed_s=720.0 step_per_s=1.615 sample_per_s=6.461 eta_s=578.9 loss=0.00064 lr=5.08e-05 updates=1163 skipped=0 status=running
+  [ep 9] batch 1200/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1211/2098 elapsed_s=750.0 step_per_s=1.615 sample_per_s=6.458 eta_s=549.4 loss=0.00064 lr=4.92e-05 updates=1211 skipped=0 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1260/2098 elapsed_s=780.0 step_per_s=1.615 sample_per_s=6.461 eta_s=518.8 loss=0.00064 lr=4.76e-05 updates=1260 skipped=0 status=running
+  [ep 9] batch 1300/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1308/2098 elapsed_s=810.0 step_per_s=1.615 sample_per_s=6.459 eta_s=489.2 loss=0.00064 lr=4.61e-05 updates=1307 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1357/2098 elapsed_s=840.0 step_per_s=1.615 sample_per_s=6.462 eta_s=458.7 loss=0.00064 lr=4.46e-05 updates=1356 skipped=1 status=running
+  [ep 9] batch 1400/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1405/2098 elapsed_s=870.0 step_per_s=1.615 sample_per_s=6.460 eta_s=429.1 loss=0.00064 lr=4.31e-05 updates=1404 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1454/2098 elapsed_s=900.0 step_per_s=1.615 sample_per_s=6.462 eta_s=398.6 loss=0.00064 lr=4.16e-05 updates=1453 skipped=1 status=running
+  [ep 9] batch 1500/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1502/2098 elapsed_s=930.0 step_per_s=1.615 sample_per_s=6.460 eta_s=369.0 loss=0.00064 lr=4.02e-05 updates=1501 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1551/2098 elapsed_s=960.0 step_per_s=1.616 sample_per_s=6.462 eta_s=338.6 loss=0.00064 lr=3.88e-05 updates=1550 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1599/2098 elapsed_s=990.0 step_per_s=1.615 sample_per_s=6.460 eta_s=309.0 loss=0.00064 lr=3.74e-05 updates=1598 skipped=1 status=running
+  [ep 9] batch 1600/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1648/2098 elapsed_s=1020.0 step_per_s=1.616 sample_per_s=6.463 eta_s=278.5 loss=0.00063 lr=3.60e-05 updates=1647 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1697/2098 elapsed_s=1050.0 step_per_s=1.616 sample_per_s=6.465 eta_s=248.1 loss=0.00064 lr=3.47e-05 updates=1696 skipped=1 status=running
+  [ep 9] batch 1700/2098  avg_loss 0.00064  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1745/2098 elapsed_s=1080.0 step_per_s=1.616 sample_per_s=6.463 eta_s=218.5 loss=0.00064 lr=3.34e-05 updates=1744 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1794/2098 elapsed_s=1110.0 step_per_s=1.616 sample_per_s=6.465 eta_s=188.1 loss=0.00063 lr=3.21e-05 updates=1793 skipped=1 status=running
+  [ep 9] batch 1800/2098  avg_loss 0.00063  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1842/2098 elapsed_s=1140.0 step_per_s=1.616 sample_per_s=6.463 eta_s=158.4 loss=0.00063 lr=3.08e-05 updates=1841 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1891/2098 elapsed_s=1170.0 step_per_s=1.616 sample_per_s=6.465 eta_s=128.1 loss=0.00063 lr=2.96e-05 updates=1890 skipped=1 status=running
+  [ep 9] batch 1900/2098  avg_loss 0.00063  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1940/2098 elapsed_s=1200.0 step_per_s=1.617 sample_per_s=6.466 eta_s=97.7 loss=0.00063 lr=2.83e-05 updates=1939 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=1988/2098 elapsed_s=1230.0 step_per_s=1.616 sample_per_s=6.465 eta_s=68.1 loss=0.00063 lr=2.72e-05 updates=1987 skipped=1 status=running
+  [ep 9] batch 2000/2098  avg_loss 0.00063  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=9/10 scope=whole_split step=2037/2098 elapsed_s=1260.0 step_per_s=1.617 sample_per_s=6.466 eta_s=37.7 loss=0.00063 lr=2.60e-05 updates=2036 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=2085/2098 elapsed_s=1290.0 step_per_s=1.616 sample_per_s=6.465 eta_s=8.0 loss=0.00063 lr=2.48e-05 updates=2084 skipped=1 status=running
+PROGRESS phase=train epoch=9/10 scope=whole_split step=2098/2098 elapsed_s=1297.9 step_per_s=1.616 sample_per_s=6.466 loss=0.00063 lr=2.45e-05 updates=2097 skipped=1 status=phase_done
+PROGRESS phase=val epoch=9/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=9/10 scope=whole_split batch=6/6 elapsed_s=1.4 batch_per_s=4.206 rel_l2=0.42493 status=phase_done
+epoch 9/10  1299.4s  train_loss 0.00063  val_masked_relL2 0.42493  updates/rank 2097 (skipped across ranks 1)  grad_scale 4.1943e+06  lr 2.45e-05
+PROGRESS phase=train epoch=10/10 scope=whole_split step=0/2098 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=10/10 scope=whole_split step=48/2098 elapsed_s=30.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1281.3 loss=0.00070 lr=2.34e-05 updates=48 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=96/2098 elapsed_s=60.0 step_per_s=1.600 sample_per_s=6.400 eta_s=1251.3 loss=0.00066 lr=2.24e-05 updates=96 skipped=0 status=running
+  [ep 10] batch 100/2098  avg_loss 0.00066  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=145/2098 elapsed_s=90.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1212.2 loss=0.00062 lr=2.13e-05 updates=145 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=193/2098 elapsed_s=120.0 step_per_s=1.608 sample_per_s=6.433 eta_s=1184.5 loss=0.00061 lr=2.03e-05 updates=193 skipped=0 status=running
+  [ep 10] batch 200/2098  avg_loss 0.00061  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=242/2098 elapsed_s=150.0 step_per_s=1.613 sample_per_s=6.453 eta_s=1150.4 loss=0.00059 lr=1.92e-05 updates=242 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=290/2098 elapsed_s=180.0 step_per_s=1.611 sample_per_s=6.444 eta_s=1122.2 loss=0.00059 lr=1.83e-05 updates=290 skipped=0 status=running
+  [ep 10] batch 300/2098  avg_loss 0.00060  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=339/2098 elapsed_s=210.0 step_per_s=1.614 sample_per_s=6.457 eta_s=1089.7 loss=0.00060 lr=1.73e-05 updates=339 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=387/2098 elapsed_s=240.0 step_per_s=1.612 sample_per_s=6.450 eta_s=1061.1 loss=0.00061 lr=1.64e-05 updates=387 skipped=0 status=running
+  [ep 10] batch 400/2098  avg_loss 0.00061  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=436/2098 elapsed_s=270.0 step_per_s=1.615 sample_per_s=6.459 eta_s=1029.3 loss=0.00061 lr=1.55e-05 updates=436 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=485/2098 elapsed_s=300.0 step_per_s=1.617 sample_per_s=6.466 eta_s=997.8 loss=0.00061 lr=1.46e-05 updates=485 skipped=0 status=running
+  [ep 10] batch 500/2098  avg_loss 0.00061  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=533/2098 elapsed_s=330.0 step_per_s=1.615 sample_per_s=6.460 eta_s=969.0 loss=0.00061 lr=1.37e-05 updates=533 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=582/2098 elapsed_s=360.0 step_per_s=1.617 sample_per_s=6.466 eta_s=937.8 loss=0.00061 lr=1.29e-05 updates=582 skipped=0 status=running
+  [ep 10] batch 600/2098  avg_loss 0.00060  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=630/2098 elapsed_s=390.0 step_per_s=1.615 sample_per_s=6.461 eta_s=908.8 loss=0.00061 lr=1.21e-05 updates=630 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=679/2098 elapsed_s=420.0 step_per_s=1.617 sample_per_s=6.466 eta_s=877.8 loss=0.00060 lr=1.13e-05 updates=679 skipped=0 status=running
+  [ep 10] batch 700/2098  avg_loss 0.00060  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=727/2098 elapsed_s=450.0 step_per_s=1.616 sample_per_s=6.462 eta_s=848.7 loss=0.00059 lr=1.05e-05 updates=727 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=776/2098 elapsed_s=480.0 step_per_s=1.617 sample_per_s=6.466 eta_s=817.8 loss=0.00059 lr=9.81e-06 updates=776 skipped=0 status=running
+  [ep 10] batch 800/2098  avg_loss 0.00059  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=825/2098 elapsed_s=510.0 step_per_s=1.618 sample_per_s=6.470 eta_s=787.0 loss=0.00059 lr=9.10e-06 updates=825 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=873/2098 elapsed_s=540.0 step_per_s=1.617 sample_per_s=6.466 eta_s=757.8 loss=0.00059 lr=8.43e-06 updates=873 skipped=0 status=running
+  [ep 10] batch 900/2098  avg_loss 0.00059  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=922/2098 elapsed_s=570.0 step_per_s=1.617 sample_per_s=6.470 eta_s=727.1 loss=0.00059 lr=7.77e-06 updates=922 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=970/2098 elapsed_s=600.0 step_per_s=1.617 sample_per_s=6.466 eta_s=697.8 loss=0.00059 lr=7.15e-06 updates=970 skipped=0 status=running
+  [ep 10] batch 1000/2098  avg_loss 0.00058  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1019/2098 elapsed_s=630.0 step_per_s=1.617 sample_per_s=6.470 eta_s=667.1 loss=0.00058 lr=6.55e-06 updates=1019 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1068/2098 elapsed_s=660.0 step_per_s=1.618 sample_per_s=6.473 eta_s=636.5 loss=0.00059 lr=5.97e-06 updates=1068 skipped=0 status=running
+  [ep 10] batch 1100/2098  avg_loss 0.00059  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1116/2098 elapsed_s=690.0 step_per_s=1.617 sample_per_s=6.469 eta_s=607.2 loss=0.00058 lr=5.43e-06 updates=1116 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1165/2098 elapsed_s=720.0 step_per_s=1.618 sample_per_s=6.472 eta_s=576.6 loss=0.00058 lr=4.90e-06 updates=1165 skipped=0 status=running
+  [ep 10] batch 1200/2098  avg_loss 0.00058  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1213/2098 elapsed_s=750.0 step_per_s=1.617 sample_per_s=6.469 eta_s=547.2 loss=0.00058 lr=4.41e-06 updates=1213 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1262/2098 elapsed_s=780.0 step_per_s=1.618 sample_per_s=6.472 eta_s=516.7 loss=0.00059 lr=3.94e-06 updates=1262 skipped=0 status=running
+  [ep 10] batch 1300/2098  avg_loss 0.00059  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1310/2098 elapsed_s=810.0 step_per_s=1.617 sample_per_s=6.469 eta_s=487.3 loss=0.00059 lr=3.50e-06 updates=1310 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1359/2098 elapsed_s=840.0 step_per_s=1.618 sample_per_s=6.471 eta_s=456.8 loss=0.00059 lr=3.08e-06 updates=1359 skipped=0 status=running
+  [ep 10] batch 1400/2098  avg_loss 0.00059  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1407/2098 elapsed_s=870.0 step_per_s=1.617 sample_per_s=6.469 eta_s=427.3 loss=0.00059 lr=2.70e-06 updates=1407 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1456/2098 elapsed_s=900.0 step_per_s=1.618 sample_per_s=6.471 eta_s=396.9 loss=0.00059 lr=2.33e-06 updates=1456 skipped=0 status=running
+  [ep 10] batch 1500/2098  avg_loss 0.00059  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1505/2098 elapsed_s=930.0 step_per_s=1.618 sample_per_s=6.473 eta_s=366.5 loss=0.00059 lr=1.99e-06 updates=1505 skipped=0 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1553/2098 elapsed_s=960.0 step_per_s=1.618 sample_per_s=6.471 eta_s=336.9 loss=0.00059 lr=1.68e-06 updates=1553 skipped=0 status=running
+  [ep 10] batch 1600/2098  avg_loss 0.00059  0.62s/batch  scale 8.3886e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1602/2098 elapsed_s=990.0 step_per_s=1.618 sample_per_s=6.473 eta_s=306.5 loss=0.00059 lr=1.40e-06 updates=1601 skipped=1 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1650/2098 elapsed_s=1020.0 step_per_s=1.618 sample_per_s=6.470 eta_s=277.0 loss=0.00059 lr=1.14e-06 updates=1649 skipped=1 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1699/2098 elapsed_s=1050.0 step_per_s=1.618 sample_per_s=6.472 eta_s=246.6 loss=0.00059 lr=9.10e-07 updates=1698 skipped=1 status=running
+  [ep 10] batch 1700/2098  avg_loss 0.00059  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1747/2098 elapsed_s=1080.0 step_per_s=1.618 sample_per_s=6.470 eta_s=217.0 loss=0.00059 lr=7.06e-07 updates=1746 skipped=1 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1796/2098 elapsed_s=1110.0 step_per_s=1.618 sample_per_s=6.472 eta_s=186.7 loss=0.00059 lr=5.25e-07 updates=1795 skipped=1 status=running
+  [ep 10] batch 1800/2098  avg_loss 0.00059  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1844/2098 elapsed_s=1140.0 step_per_s=1.617 sample_per_s=6.470 eta_s=157.0 loss=0.00059 lr=3.73e-07 updates=1843 skipped=1 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1893/2098 elapsed_s=1170.0 step_per_s=1.618 sample_per_s=6.472 eta_s=126.7 loss=0.00059 lr=2.45e-07 updates=1892 skipped=1 status=running
+  [ep 10] batch 1900/2098  avg_loss 0.00059  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1942/2098 elapsed_s=1200.0 step_per_s=1.618 sample_per_s=6.473 eta_s=96.4 loss=0.00059 lr=1.43e-07 updates=1941 skipped=1 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=1990/2098 elapsed_s=1230.0 step_per_s=1.618 sample_per_s=6.471 eta_s=66.8 loss=0.00059 lr=7.03e-08 updates=1989 skipped=1 status=running
+  [ep 10] batch 2000/2098  avg_loss 0.00059  0.62s/batch  scale 4.1943e+06
+PROGRESS phase=train epoch=10/10 scope=whole_split step=2039/2098 elapsed_s=1260.0 step_per_s=1.618 sample_per_s=6.473 eta_s=36.5 loss=0.00059 lr=2.22e-08 updates=2038 skipped=1 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=2087/2098 elapsed_s=1290.0 step_per_s=1.618 sample_per_s=6.471 eta_s=6.8 loss=0.00059 lr=1.26e-09 updates=2086 skipped=1 status=running
+PROGRESS phase=train epoch=10/10 scope=whole_split step=2098/2098 elapsed_s=1296.8 step_per_s=1.618 sample_per_s=6.471 loss=0.00059 lr=8.97e-11 updates=2097 skipped=1 status=phase_done
+PROGRESS phase=val epoch=10/10 scope=whole_split batch=0/6 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=10/10 scope=whole_split batch=6/6 elapsed_s=1.5 batch_per_s=4.134 rel_l2=0.40038 status=phase_done
+epoch 10/10  1298.3s  train_loss 0.00059  val_masked_relL2 0.40038  updates/rank 2097 (skipped across ranks 1)  grad_scale 4.1943e+06  lr 8.97e-11
+PROGRESS phase=train objective=persistence_residual epochs_done=10 best_val=0.40038 elapsed_s=12986.1 run_dir=/data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MSK status=completed
+done. best val_masked_relL2 = 0.40038; checkpoints in /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MSK

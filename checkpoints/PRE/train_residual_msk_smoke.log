@@ -1,0 +1,16 @@
+Using device: cuda  world_size=1 rank=0
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d29_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.08560
+train windows: 16   val windows: 1088
+val subset: 2 windows at indices 0..1087 (1 rank shard(s))
+zero-init check passed: untrained residual model == last-day persistence (with static mask input)
+Model Total Params: 5855184
+preset=surface_smoke mode=smoke objective=persistence_residual grid=(400,441,1) patch=(4, 3, 1) cond_ch=14 model_cond_ch=16 static_mask_input=True target_ch=2 mask_scheme=bivariate_rho stats_sigma=0.08560 objective=persistence_residual (residual_base=last_day, time_sigma=0.002; sigma_data not applicable) epochs=1 world_size=1 per_device_batch=4 effective_batch=4 run_dir=/data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S4_C7_SD2_RES_MSK_SMOKE
+PROGRESS phase=train objective=persistence_residual preset=surface_smoke mode=smoke world=1 epochs=1 steps_per_epoch=4 run_dir=/data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S4_C7_SD2_RES_MSK_SMOKE status=start
+PROGRESS phase=train epoch=1/1 scope=whole_split step=0/4 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=1/1 scope=whole_split step=4/4 elapsed_s=3.1 step_per_s=1.282 sample_per_s=5.129 loss=0.02826 lr=0.00e+00 updates=4 skipped=0 status=phase_done
+PROGRESS phase=val epoch=1/1 scope=whole_split batch=0/1 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=1/1 scope=whole_split batch=1/1 elapsed_s=0.3 batch_per_s=3.632 rel_l2=0.55681 status=phase_done
+epoch 1/1  3.4s  train_loss 0.02826  val_masked_relL2 0.55681  updates/rank 4 (skipped across ranks 0)  grad_scale 6.5536e+04  lr 0.00e+00
+SMOKE PASS: finite train/val, 4 updates/rank, no AMP skips, checkpoint outputs complete in /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S4_C7_SD2_RES_MSK_SMOKE
+PROGRESS phase=train objective=persistence_residual epochs_done=1 best_val=0.55681 elapsed_s=3.6 run_dir=/data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S4_C7_SD2_RES_MSK_SMOKE status=completed
+done. best val_masked_relL2 = 0.55681; checkpoints in /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S4_C7_SD2_RES_MSK_SMOKE
