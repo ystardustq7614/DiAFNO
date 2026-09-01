@@ -1,8 +1,12 @@
-# PRE 模型代码修改计划
+# PRE 模型代码修改计划（已归档）
 
-> 状态：首轮代码已实施并通过 CPU 回归测试（2026-08-30，见 [CHANGELOG](./CHANGELOG.md) 与
-> [实验 07](../experiments/07_residual_baseline/EXPERIMENT.md)）；真实数据 GPU smoke、
-> 短训练/选型与 test 报告尚未执行  
+> **归档状态（2026-09-01）：本计划已全部执行完毕并关闭。**
+> Phase 0-2（协议冻结/CPU 回归/真实数据单卡+DDP smoke）、Phase 3（短训练与
+> validation 选型，**Go**：0.1011 vs persistence 0.1294）、Phase 4（test 报告：
+> day-1 0.833 / overall 1.018）与 Phase 5（双静态 mask 输入、remask 回灌两轮
+> A/B，均判"不保留"）全部完成，详见 [实验 07](../../experiments/07_residual_baseline/EXPERIMENT.md)
+> 与 [CHANGELOG](../CHANGELOG.md)。Phase 6（residual diffusion / full3d 决策）
+> 将另立新计划文档，不与本文混用。  
 > 制定日期：2026-08-30  
 > 适用范围：`surface_smoke` / surface 训练路径；`full3d` 暂不启动
 

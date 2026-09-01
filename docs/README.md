@@ -1,6 +1,6 @@
 # DiAFNO / PRE 文档索引
 
-> 更新日期：2026-08-30
+> 更新日期：2026-09-01
 
 文档按用途分为架构、数据、运行、项目交接和实验五类。实验目录统一使用
 `EXPERIMENT.md` 记录实验设计，`RESULTS.md` 记录实际结果与分析，避免把“准备做什么”
@@ -30,7 +30,7 @@ docs/
 | 数据 | [PRE_ocean_data 数据说明](./data/PRE_ocean_data.md) | 变量、shape、网格、mask、时间和数据质量 |
 | 运行 | [PRE 运行手册](./operations/PRE_runbook.md) | 预处理、训练、评估和复现命令 |
 | 项目 | [项目汇报与交接总结](./project/PROJECT_HANDOFF_SUMMARY.md) | 当前结论、证据边界和后续工作 |
-| 项目 | [PRE 模型代码修改计划](./project/CODE_MODIFICATION_PLAN.md) | 下一轮实现顺序、烟测门槛与单卡/DDP 验收 |
+| 项目 | [PRE 模型代码修改计划（已归档）](./project/archive/CODE_MODIFICATION_PLAN_20260830.md) | 2026-08-30 计划，Phase 0-5 已全部执行完毕；Phase 6 新计划待另立 |
 | 项目 | [项目 Changelog](./project/CHANGELOG.md) | 已完成变更与尚未实施计划的状态记录 |
 | 实验 | [实验索引](./experiments/README.md) | 所有实验的状态和结果入口 |
 

@@ -102,6 +102,8 @@ surface (depth_index=29):    u_sel (days, 400, 440, 1),  v_sel (days, 399, 441, 
 | `pre_trainer.py` | 单步训练入口（objective 可选：扩散 EDM masked 去噪损失 或 persistence-residual `masked_mse_loss`；双变量 masked loss、新 AMP API `torch.amp.GradScaler/autocast`、仅在实际 update 后 `scheduler.step()`、skipped-update/scale/lr 统计、cosine scheduler、`fork_rng` 隔离的均匀验证窗口、best/last checkpoint 共享同一 state、断点续训校验 objective/结构参数并严格采用 checkpoint 的 sigma_data（仅扩散）、residual 启动时零初始化 == persistence 自检、rank-0 tqdm/PROGRESS 进度、可选的一次性 `EPOCH_OVERRIDES`、连续 2 epoch 恶化提前停止） |
 | `pre_evaluate.py` | 自回归 rollout（`ROLLOUT_DAYS`/`ENSEMBLE_SIZE`/`SAMPLER_S_CHURN`/`SAMPLER_SIGMA_MAX`/`EVAL_SEED`/`REMASK_FEEDBACK`）+ 按 checkpoint `config.objective` 重建扩散或确定性模型 + persistence/zero/rho-oracle 基线 + 原生网格正式指标 + 复现元数据（objective/residual_base/remask_feedback/sampler 等；确定性模型把采样参数显式记为不适用）+ 代表性图（逐窗口 seed、输出带 tag 且拒绝覆盖、单 reader、`masked_error_sums` 累加、rank-0 tqdm/PROGRESS 进度） |
 | `pre_smoke_test.py` | 无额外依赖的 assert 回归测试（纯合成数据，直接调用正式实现） |
+| `scripts/diag_leadtime_residual.py` | 长时效诊断：重放官方 rollout 协议，逐 lead day 统计 bias/方差比/逐窗口空间相关（评估 NPZ 不含的量） |
+| `scripts/diag_region_breakdown.py` | 区域分解：validation day-1 协议下按 coastal（距陆地 ≤5 格）/offshore 报告 model 与 persistence 的 pooled RMSE |
 
 数据产物（均在仓库外）：
 - 对齐数据：`~/data_processed/PRE/aligned/{u_rho,v_rho}.npy`（各 209GB，float32，陆地 NaN）、双变量 mask、`ocean_time.npy`（日期视图）+ `ocean_time_seconds.npy`（精确时间）
@@ -199,6 +201,11 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_trainer.py
 - 切换 preset 用 `DIAFNO_PRESET=surface_smoke|full3d`。切换 objective 用
   `DIAFNO_OBJECTIVE=diffusion|persistence_residual`（默认 `diffusion`，行为与历史完全一致）；
   `persistence_residual` 走确定性 `masked_mse_loss`（无采样、无 sigma 调度），run 目录带 `_RES`。
+  **Phase 5① 静态 mask 输入（arm B）**：`DIAFNO_STATIC_MASK=1` 把双变量 rho mask 的
+  2 个通道经 `pre_rollout` 的 `static_cond` 单独拼入 backbone 条件（动态滑窗保持纯 14
+  通道，persistence base 语义不变），仅限 `persistence_residual`，run 目录追加 `_MSK`，
+  checkpoint 记录 `static_mask_input`/`model_cond_chans`，评估端按元数据自动重建；
+  A/B 结论为不保留（2026-08-31），路径保留供复核。
   断点续训用 `DIAFNO_CHECKPOINT=/abs/path/EpN.pth`；必须保持原 `train_mode`、`DIAFNO_OBJECTIVE`
   和 GPU 数，避免改变 scheduler/有效 batch 语义；checkpoint 的 objective / 输入通道 / mask 方案
   与当前不一致会直接拒绝（绝不把一类 checkpoint 装进另一类模型）。扩散尺度策略见第 6 节

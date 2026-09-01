@@ -11,12 +11,27 @@
 
 ### Proposed
 
-- Phase 5③（可选）：近岸改善幅度小于离岸（A 臂 0.867 vs 0.777）与 remask 中期
-  改善（day 4-7 达 -7.9%）指向的分段 remask 变体属新变量，是否立项待讨论。
-- residual diffusion 与 full3d 的启动决策（Phase 6；长时效诊断已提供方差塌缩
-  证据，见实验 07 RESULTS.md）。
+- Phase 6 计划文档待另立（旧计划已归档至
+  [archive/CODE_MODIFICATION_PLAN_20260830.md](./archive/CODE_MODIFICATION_PLAN_20260830.md)）：
+  residual diffusion 的残差 sigma 实测定标、短训冒烟与验收门槛
+  （overall ratio < 0.941 且 day 10-15 < 1.0）。
+- Phase 5③（可选）：分段 remask 变体与近岸误差靶点（coastal 0.867 vs offshore
+  0.777）是否立项待讨论。
 
-以上条目均**尚未实施**；详细门槛见 [PRE 模型代码修改计划](./CODE_MODIFICATION_PLAN.md)。
+以上条目均**尚未实施**。
+
+## 2026-09-01 — 已完成（文档归档与交接同步）
+
+- `docs/project/CODE_MODIFICATION_PLAN.md` 归档为
+  `docs/project/archive/CODE_MODIFICATION_PLAN_20260830.md`（补执行完毕状态头；
+  Phase 6 计划将另立新文档，避免同处冲突）。
+- `PROJECT_HANDOFF_SUMMARY.md` 更新至 2026-09-01 现状：一句话结论改为
+  persistence-residual 基线 Go；§5 mask 输入建议改写为 A/B 结论（不保留）；
+  §6/§7 并入基线成绩与 day-2 7.7% 声明更正；新增第 9 节（基线/诊断/Phase 5
+  决策/Phase 6 含义）；未完成项清单 8 条逐项标注完成状态。
+- `docs/README.md`、`docs/experiments/README.md`（实验 07 状态与决策树）、
+  `docs/operations/PRE_runbook.md`（`DIAFNO_STATIC_MASK`/`_MSK` 约定与两个
+  诊断脚本）、`AGENTS.md`（static mask 约定）同步。
 
 ## 2026-09-01 — 已完成（Phase 5② remask_feedback A/B，评估-only）
 

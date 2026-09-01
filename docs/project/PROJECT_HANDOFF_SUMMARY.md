@@ -1,18 +1,23 @@
 # DiAFNO / PRE 海流预报项目汇报与交接总结
 
-> 核对日期：2026-08-30
+> 核对日期：2026-09-01（上一版 2026-08-30；08-31 至 09-01 的 persistence-residual
+> 基线、诊断与 Phase 5 决策已并入，见第 9 节）
 > 项目主线：`PRE_ocean_data` 上的区域三维海流预报；`dataProcess_demo/` 是独立教学样例，不是本模型训练数据。
-> 证据边界：本地仓库含代码、数据审计图、SD1/SD2 checkpoint、`loss.dat`、消融与
-> 15 天评估产物；不含服务器上的 4.1 TB 原始数据和 full3d 实验结果。
+> 证据边界：本地仓库含代码、数据审计图、SD1/SD2 与 persistence-residual A/B
+> checkpoint（`checkpoints/PRE/`，含 `loss.dat`、选型/test/remask/诊断 NPZ 与日志）；
+> 不含服务器上的 4.1 TB 原始数据和 full3d 实验结果。
 
 ## 一句话结论
 
 项目已完成 PRE 数据审计、ROMS C-grid 到 rho-grid 的 u/v 共定位、7 天到次日的条件
-扩散建模、15 天自回归评估管线和合成回归测试；本机 `pre_smoke_test.py` 与
-`smoke_test.py` 均通过（无 CUDA，4 条 GPU 专用分支按设计跳过）。SD1 和修复后的
-SD2 surface 实验均已完成，但 SD2 day-1 与 15-day overall RMSE 仍为 persistence
-的 2.201 倍和 1.640 倍。任务有可预测信号且 condition 已接入，当前 diffusion
-条件预测能力不足；full3d 按 Go/No-Go 规则暂停。
+扩散建模、15 天自回归评估管线和合成回归测试。SD1/SD2 条件扩散路线失败（day-1 为
+persistence 的 2.201×）后，改用同一 backbone 的**确定性 persistence-residual 基线**
+（实验 07，Phase 3 Go）：day-1 native RMSE 反超 persistence（val 0.1011/0.1294 =
+0.781，test 0.0973/0.1167 = 0.833），但 15-day overall 仍仅与 persistence 持平
+（test 1.018）。长时效诊断确认瓶颈是确定性回归的方差塌缩 + 相关衰减 + 偏差漂移；
+Phase 5 两项单变量改进（双静态 mask 输入、remask 回灌）均判"不保留"。当前骨干网与
+数据/条件链路已验证可用，**下一轮（Phase 6）方向是对残差做生成式建模（residual
+diffusion）以恢复长 lead 方差**，计划文档另立；full3d 继续暂缓。
 
 ## 1. 原始数据集有多少变量，各变量是什么
 
@@ -150,7 +155,11 @@ SD2 surface 实验均已完成，但 SD2 day-1 与 15-day overall RMSE 仍为 pe
 
 - 优点：少 1–2 个通道，保持模型简单；固定海岸线也可能从长期为零的陆地填充值中被隐式识别。
 - 风险：陆地填 0 与归一化后的有效值空间重叠；masked loss 又不给陆地区域梯度，而 AFNO 的 FFT 是全局混合，任意陆地输出可能影响近岸表示。
-- 建议：把 `mask_u_rho`、`mask_v_rho` 作为 2 个静态条件通道做 A/B test；不要只用交集 mask，因为 u/v 有不同有效域。以 day-1 和 15-day 的 coastal/offshore RMSE、persistence skill 判断是否保留。
+- **A/B 已完成（2026-08-31，Phase 5①，见第 9.3 节）**：`mask_u_rho`/`mask_v_rho`
+  作为 2 个静态条件通道的 B 臂未带来稳定改善（10 epoch 中 9 个落后于 14 通道 A 臂，
+  区域分解 4 项全部 A 优），**判"不保留"**——FFT 全局混合下，归一化后陆地填 0 的
+  动态通道已隐式携带掩膜信息。当初"不要只用交集 mask"的告诫已在实现中遵守
+  （用的是双变量非交集 mask）。
 
 ## 6. 训练时 H/W/Z、loss 与训练状态
 
@@ -177,10 +186,10 @@ SD2 重训实际运行 5 epoch 后 early stop：train loss 从 0.15017 降至 0.
 主实验 `lr=1e-3` 的 Ep3 结果 0.2584 m/s（1.998 倍）。这能排除“单独降低到
 `3e-4` 即可修复”，但不是系统学习率搜索；相关大型产物不在当前工作树。
 
-远端 No-Go 报告还记录了采样轨迹、错误盆地和“反馈帧陆地置零使 day-2 RMSE
-改善约 7.7%”等诊断，但对应的 sensitivity/trajectory/land-feedback 日志或 NPZ 没有
-随归档提交保存；当前只能确认 `pre_rollout.py` 确实会把未重新 mask 的整帧预测反馈到
-下一步。上述数值结论应保留为待复现线索，不能升级为本仓库已核验结果。
+远端 No-Go 报告记录的“反馈帧陆地置零使 day-2 RMSE 改善约 7.7%”已于 2026-09-01
+在归档协议下复现检验（Phase 5②）：day-2 实际仅 -0.49%，同量级改善实际位于
+**day 4-7（-5.9%~-7.9%）**，且 day 9-15 转差、overall 持平——方向一致、数值
+归属更正，详见第 9.4 节。
 
 ![旧失败实验曲线和 persistence 比较](../../plots/06_legacy_failure.png)
 
@@ -203,9 +212,12 @@ SD2 重训实际运行 5 epoch 后 early stop：train loss 从 0.15017 降至 0.
 
 建议正式汇报最少同时给：RMSE、MAE、相对 persistence 的 skill/ratio、u/v 分项、lead-time 曲线、coastal/offshore 分层、季节/年份分层。若强调扩散模型，还应给 ensemble CRPS 或 spread-skill；若强调物理质量，再加速度模长误差、方向误差（只在速度高于阈值处）、频谱/结构函数或散度诊断。
 
-旧 SD1 test 的原生 masked RMSE 全面败于 persistence；SD2 虽有改善，day-1
-pooled RMSE 仍为 0.2568 vs 0.1167 m/s（2.201×），15-day overall 为
-0.3442 vs 0.2098 m/s（1.640×）。两次实验都是失败记录，不是成功成绩。
+SD1/SD2 两次扩散实验都是失败记录。**现行成功基线是确定性 persistence-residual
+（实验 07，A 臂 Ep10：14 通道、rf0、无 mask 输入）**，同为原生 C-grid masked
+pooled 指标：test day-1 0.0973 m/s（persistence 0.1167，ratio 0.833），
+15-day overall 0.2136 vs 0.2098（ratio 1.018，持平略差）；validation day-1
+0.1011（0.781）。两次实验的对照表与逐 lead 曲线见
+[实验 07 RESULTS](../experiments/07_residual_baseline/RESULTS.md)。
 
 ## 8. 结果可视化质量
 
@@ -218,6 +230,54 @@ pooled RMSE 仍为 0.2568 vs 0.1167 m/s（2.201×），15-day overall 为
    极值。由于前三项色标问题仍存在，不能仅凭颜色相似判断预测质量。
 
 建议正式版布局：同一变量/层/lead day 固定共享 truth/pred 色标，误差用独立对称色标；每行一个 lead day，每列 Truth / Prediction / Error；标题明确日期、层深、变量和单位；旁边再放 lead-time RMSE ratio 曲线。不要把 `04_distributions.png` 混入最终结果页，修正后再用。
+
+## 9. persistence-residual 基线、长时效诊断与 Phase 5 决策（2026-08-31/09-01）
+
+完整数据与表格见 [实验 07](../experiments/07_residual_baseline/RESULTS.md)；
+checkpoint/评估产物已随 git 归档（提交 `7cf959e`）。
+
+### 9.1 基线建立与 Phase 3 Go
+
+- 同一 IAFNO backbone 的确定性封装 `PersistenceResidualIAFNO`：预测 = 条件第 7 天
+  persistence + 零初始化残差头；单卡/`DDP2` smoke 均 `SMOKE PASS`；10 epoch 短训练
+  （3 h 35 min）val_relL2 从 0.583 单调降至 0.40325。
+- validation day-1 native RMSE 选型（逐 `Ep{n}.pth`，禁用 `best.pth`）：**Go**——
+  Ep10 0.1011 m/s vs persistence 0.1294（ratio 0.781），也优于 ridge probe 0.1177。
+- test 报告：day-1 0.0973（ratio 0.833）；15-day overall 1.018（持平略差）。
+  **Phase 6 准入门槛（确定性优于 persistence）已满足。**
+
+### 9.2 长时效诊断（解释 overall 为何只持平）
+
+对 77 个 test 窗口重放 15 天 rollout，补齐评估 NPZ 不含的三类统计
+（`scripts/diag_leadtime_residual.py`）：
+
+1. **方差塌缩（主导）**：u 方差比 d1 0.87 → d7 起 ~0.55——MSE 确定性回归的均值回归；
+2. **空间相关中段塌缩**：d7 起模型 0.48 < persistence 0.57，d15 0.39 vs 0.61；
+3. **偏差漂移且变号**：u bias -0.005 → -0.11 → +0.065（模糊预测回灌条件窗的污染）。
+
+交叉点 day 4-5；u/v 不对称（v 的长段劣化主因是相关损失+正偏差，非模糊）。
+
+### 9.3 Phase 5①：双静态 mask 输入 A/B → 不保留
+
+`DIAFNO_STATIC_MASK=1` 路径（`static_cond` 单独前传、`_MSK` 目录隔离、元数据驱动
+重建、47 项 CPU 测试）已实现并入库；B 臂（14+2 通道）完成 smoke + 10 epoch 训练
++ 选型：**A 臂 9/10 epoch 领先、最优 0.1011 < B 0.1024、区域分解 4 项全部 A 优**，
+判"不保留"。附带观察：**近岸改善（0.867）< 离岸（0.777）**，近岸是后续靶点。
+
+### 9.4 Phase 5②：remask 回灌 A/B → 维持 rf0
+
+同 checkpoint、validation 15 天 rollout、rf0（历史整帧回灌）vs rf1（每步重应用
+mask）：rf1 呈**分段效应**——day 2-8 改善（最大 -7.9%@day7），day 9-15 转差
+（+1.5%~+7.8%），overall 持平略差 → **默认维持 rf0**。远端"day-2 改善 7.7%"声明
+更正为"day 4-7 改善"（day-2 实际 -0.49%）。
+
+### 9.5 对 Phase 6 的含义
+
+骨干网/条件链路/数据管线已验证；当前瓶颈是**生成式目标缺位导致的方差塌缩**——
+确定性回归只能给出条件均值。Phase 6 方向是对**残差**（target − 条件第 7 天）做
+条件扩散（residual diffusion）：残差分布以 0 为中心、尺度远小于场本身，集成采样
+均值的 MSE 期望不劣于确定性基线；验收门槛建议为 15-day overall ratio < 0.941 且
+day 10-15 首次 < 1.0。新计划文档待另立。
 
 ## 当前代码/数据流地图
 
@@ -248,11 +308,13 @@ raw PRE NetCDF / processed u.npy,v.npy,mask
 - 训练：`pre_trainer.py`
 - 评估：`pre_evaluate.py`
 
-## 交接时必须明确的未完成项
+## 交接时必须明确的未完成项（2026-09-01 更新）
 
-1. 建立 condition-only 确定性 IAFNO / persistence-residual 基线，以 day-1 native RMSE 选 checkpoint。
-2. 做双 mask 输入和 `clip_pct=None/0.1` 消融；churn/ensemble 已完成，不重复扩大搜索。
-3. 运行尚缺日志的 `probe_net_sensitivity.py` 与 `probe_trajectory.py`，但应放在确定性基线过关之后。
-4. 修正 `scripts/analyze_pre_dataset.py` 的 surface 层索引、盐度 fill value、闰年分组和 zoom，再重画 `04_distributions.png`。
-5. 复现“rollout 反馈帧陆地置零”消融并保存日志/NPZ；远端报告中的 day-2 改善约 7.7% 尚无归档证据。
-6. surface 未稳定优于 persistence 前不投入 full3d；目前只能称为“管线支持、实验未执行”。
+1. ~~建立 condition-only 确定性 IAFNO / persistence-residual 基线~~ **已完成（实验 07，Phase 3 Go）**。
+2. ~~双 mask 输入消融~~ **已完成（Phase 5①，不保留）**；`clip_pct=None/0.1` 消融**仍未执行**（优先级降低：day-1 已过门槛，裁剪对主体分布的压缩问题依然存在）。
+3. ~~probe_net_sensitivity / probe_trajectory~~ 被实验 07 自建诊断（长时效/区域分解）取代；如需更深根因分析可在 Phase 6 中重启。
+4. 修正 `scripts/analyze_pre_dataset.py` 的 surface 层索引、盐度 fill value、闰年分组和 zoom，再重画 `04_distributions.png`。**仍未执行**（不影响训练/评估结论，影响对外展示图）。
+5. ~~复现"rollout 反馈帧陆地置零"消融~~ **已完成（Phase 5②，维持 rf0）**；远端 7.7% 声明已更正归属（day 4-7）。
+6. ~~surface 未稳定优于 persistence 前不投入 full3d~~ **day-1 门槛已过**；但 15-day overall 未过 persistence，且 full3d 训练/评估成本 ~30×，**建议在 surface 长 lead 问题（方差塌缩）解决后再启动**。
+7. **Phase 6 计划文档待另立**（旧计划已归档至 `archive/CODE_MODIFICATION_PLAN_20260830.md`）：residual diffusion 的 sigma_data 实测定标、短训冒烟、验收门槛（overall ratio < 0.941 且 day 10-15 < 1.0）。
+8. 评估可视化三问题（truth/pred 各自色阶、error 色阶不对称、无经纬度）仍未修，正式汇报前需处理。
