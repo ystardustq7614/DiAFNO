@@ -72,10 +72,10 @@ def make_model(embed=8):
     )
 
 
-def make_residual_model(embed=8, time_sigma=RESIDUAL_TIME_SIGMA):
+def make_residual_model(embed=8, time_sigma=RESIDUAL_TIME_SIGMA, cond_chans=14):
     net = IAFNODiff(
         dim=(H, W, Z), patch_size=(2, 2, 1), embed_dim=embed, num_blocks=1,
-        in_chans=2, out_chans=2, cond_chans=14, ex_layer=1, nlayer=1,
+        in_chans=2, out_chans=2, cond_chans=cond_chans, ex_layer=1, nlayer=1,
         hidden_size_factor=1, dim_f=(H, W, Z), self_condition=True,
     )
     return PersistenceResidualIAFNO(net, time_sigma=time_sigma)
@@ -1218,6 +1218,92 @@ def test_persistence_residual_checkpoint_roundtrip():
             b = fresh(cond)
         assert torch.allclose(a, b, atol=1e-6)
         assert not torch.equal(b, cond[:, -2:])   # trained: no longer persistence
+
+
+def test_persistence_residual_static_mask_input():
+    # Phase-5 arm B: the wrapper concatenates the static mask channels onto the
+    # DYNAMIC condition for the backbone only; base stays last-day u/v and the
+    # untrained model is still EXACTLY persistence (zero-init identity).
+    model = make_residual_model(cond_chans=16)
+    assert model.cond_chans == 16
+    torch.manual_seed(1)
+    cond = torch.rand(2, 14, H, W, Z)
+    static = (torch.rand(1, 2, H, W, Z) > 0.5).float()
+    with torch.no_grad():
+        out = model(cond, static_cond=static)
+    assert out.shape == (2, 2, H, W, Z)
+    assert torch.equal(out, cond[:, -2:])          # zero-init identity holds
+    # explicit batch-broadcast equals manually feeding the concatenated
+    # x_self_cond to the backbone (the documented static-channel layout)
+    import math
+    with torch.no_grad():
+        a = model(cond, static_cond=static)
+        t = torch.full((2,), 0.25 * math.log(model.time_sigma))
+        manual = model.net(torch.zeros_like(cond[:, :2]), t,
+                           torch.cat([cond, static.expand(2, -1, -1, -1, -1)],
+                                     dim=1)) + cond[:, -2:]
+    assert torch.equal(a, manual)
+    # wrong dynamic/static channel split is rejected loudly
+    try:
+        model(cond)                                 # 14 ch into a 16-ch model
+        raise AssertionError("expected AssertionError for missing static_cond")
+    except AssertionError:
+        pass
+    try:
+        model(torch.cat([cond, cond], dim=1), static_cond=static)
+        raise AssertionError("expected AssertionError for extra static channels")
+    except AssertionError:
+        pass
+    try:
+        model(cond, static_cond=static[0:1, :, :, :1, :])
+        raise AssertionError("expected AssertionError for spatial mismatch")
+    except AssertionError:
+        pass
+    # clamp path of sample() with static channels
+    with torch.no_grad():
+        trained_out = model.sample(cond, static_cond=static, clamp=True)
+    assert trained_out.min() >= 0.0 and trained_out.max() <= 1.0
+
+
+def test_rollout_static_cond_threading():
+    # ensemble_rollout forwards static_cond to EVERY sample() call unchanged,
+    # while the sliding window stays the pure 14-channel dynamic condition
+    # (drop-oldest/append-prediction slicing untouched).
+    class _StaticRecorder:
+        def __init__(self):
+            self.calls = []
+        def sample(self, cur, num_sample_steps=None, clamp=True, static_cond=None):
+            self.calls.append((cur.clone(), None if static_cond is None
+                               else static_cond.clone()))
+            return cur[:, :2] + 1.0
+
+    torch.manual_seed(2)
+    cond = torch.rand(2, 14, H, W, Z)
+    static = (torch.rand(1, 2, H, W, Z) > 0.5).float()
+
+    rec = _StaticRecorder()
+    preds = ensemble_rollout(rec, cond, 3, 1, seed=0, static_cond=static)
+    assert preds.shape == (2, 1, 3, 2, H, W, Z)
+    assert len(rec.calls) == 3
+    for step, (cur, sc) in enumerate(rec.calls):
+        assert cur.shape == (2, 14, H, W, Z)        # window stays pure dynamic
+        assert sc.shape == (1, 2, H, W, Z) and sc.dim() == 5
+        assert torch.equal(sc, static)              # same tensor every step
+        if step > 0:
+            prev_pred = rec.calls[step - 1][0][:, :2] + 1.0
+            # channels 0-1 dropped, prediction appended at the END of the window
+            assert torch.equal(cur[:, :-2], rec.calls[step - 1][0][:, 2:])
+            assert torch.equal(cur[:, -2:], prev_pred)
+    # without static_cond the model receives None (historical call signature)
+    rec_plain = _StaticRecorder()
+    ensemble_rollout(rec_plain, cond, 2, 1, seed=0)
+    assert all(sc is None for _, sc in rec_plain.calls)
+    # per-window seeds path forwards static_cond as well
+    rec_seeds = _StaticRecorder()
+    ensemble_rollout(rec_seeds, cond, 2, 1, seeds=[5, 6], static_cond=static)
+    assert len(rec_seeds.calls) == 4                # 2 windows x 2 steps
+    assert all(sc is not None and torch.equal(sc, static)
+               for _, sc in rec_seeds.calls)
 
 
 def test_rollout_remask_feedback():

@@ -81,6 +81,22 @@ MASK_SCHEME = "bivariate_rho"
 # is valid — the value is recorded in checkpoints for exact rebuilds)
 RESIDUAL_TIME_SIGMA = 0.002
 
+# Phase-5 mask-input A/B (arm B): append the two bivariate rho mask channels
+# (mask_u_rho / mask_v_rho) to the backbone's condition. The DYNAMIC window
+# stays 14-channel everywhere (dataset, rollout sliding window, persistence
+# base); the masks are forwarded to the model separately via pre_rollout's
+# `static_cond`. Enabled per-run with DIAFNO_STATIC_MASK=1 and recorded in
+# checkpoint config as `static_mask_input` (run tag suffix "_MSK").
+STATIC_MASK_ENV = "DIAFNO_STATIC_MASK"
+STATIC_MASK_CHANNELS = 2
+
+
+def static_mask_input(env=None):
+    """Read the DIAFNO_STATIC_MASK flag ("1"/"true"/"yes" -> True)."""
+    import os
+    value = (env if env is not None else os.environ.get(STATIC_MASK_ENV, ""))
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
 
 def validate_objective(objective):
     """Normalize/validate a training-objective name."""
@@ -258,11 +274,14 @@ def training_config(preset, mode="full", world_size=1):
     return cfg
 
 
-def run_tag_for(preset, sd2=True, config=None, objective=DEFAULT_OBJECTIVE):
+def run_tag_for(preset, sd2=True, config=None, objective=DEFAULT_OBJECTIVE,
+                static_mask=False):
     """Checkpoint/output dir tag. sd2=True appends the fixed-scale suffix so a
     re-trained run NEVER shares a directory with the legacy (sd1) runs.
     objective="persistence_residual" additionally appends "_RES" so the
-    deterministic baseline never shares a directory with a diffusion run."""
+    deterministic baseline never shares a directory with a diffusion run.
+    static_mask=True appends "_MSK" so the Phase-5 mask-input arm never shares
+    a directory with the 14-channel baseline."""
     cfg = PRESETS[preset] if config is None else config
     tag = (f"{preset}_BS{cfg['batch_size']}_EMD{cfg['embed_dim']}"
            f"_I{cfg['implicit_layer']}_E{cfg['explicit_layer']}"
@@ -271,13 +290,16 @@ def run_tag_for(preset, sd2=True, config=None, objective=DEFAULT_OBJECTIVE):
         tag += "_SD2"
     if validate_objective(objective) == "persistence_residual":
         tag += "_RES"
+    if static_mask:
+        tag += "_MSK"
     return tag
 
 
 def training_run_tag(preset, config, mode="full", world_size=1,
-                     objective=DEFAULT_OBJECTIVE):
+                     objective=DEFAULT_OBJECTIVE, static_mask=False):
     """Run tag with smoke/DDP isolation; single-GPU full tags stay legacy-compatible."""
-    tag = run_tag_for(preset, config=config, objective=objective)
+    tag = run_tag_for(preset, config=config, objective=objective,
+                      static_mask=static_mask)
     if mode == "smoke":
         tag += "_SMOKE"
     if int(world_size) > 1:

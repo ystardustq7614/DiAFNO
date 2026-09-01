@@ -42,29 +42,38 @@ or the model.
 import torch
 
 
-def _sample(model, cur, num_sample_steps, clamp):
+def _sample(model, cur, num_sample_steps, clamp, static_cond=None):
     """model.sample under autocast — matches the historical evaluation path
     (CUDA AMP; CPU autocast is a no-op for models without autocast-sensitive
-    ops but is applied uniformly for identical semantics)."""
+    ops but is applied uniformly for identical semantics). `static_cond` is
+    forwarded only when given, so models unaware of it (e.g. the EDM sampler)
+    keep their exact historical call signature."""
     device_type = "cuda" if cur.is_cuda else "cpu"
     with torch.amp.autocast(device_type=device_type):
-        return model.sample(cur, num_sample_steps=num_sample_steps, clamp=clamp)
+        if static_cond is None:
+            return model.sample(cur, num_sample_steps=num_sample_steps, clamp=clamp)
+        return model.sample(cur, num_sample_steps=num_sample_steps, clamp=clamp,
+                            static_cond=static_cond)
 
 
 def _rollout_one(model, cond, horizon, num_sample_steps, clamp,
-                 remask_feedback=False, ocean_mask=None):
+                 remask_feedback=False, ocean_mask=None, static_cond=None):
     """Rollout one batch of windows (already expanded) under one seed.
 
     cond: (B, C, H, W, Z); returns (B, horizon, 2, H, W, Z) float32 preds.
     With remask_feedback=True, each prediction is remasked (land -> 0) before
     it is stored AND before it is appended to the next condition window.
+    `static_cond` (optional) is forwarded to every model call unchanged: the
+    sliding window `cur` stays the PURE dynamic condition, so the drop-oldest/
+    append-prediction slicing below is untouched.
     """
     if remask_feedback:
         assert ocean_mask is not None, "remask_feedback=True requires ocean_mask"
     cur = cond
     preds = []
     for _ in range(int(horizon)):
-        p = _sample(model, cur, num_sample_steps, clamp).float()
+        p = _sample(model, cur, num_sample_steps, clamp,
+                    static_cond=static_cond).float()
         if remask_feedback:
             p = p * ocean_mask
         preds.append(p)
@@ -88,7 +97,7 @@ def expand_ensemble(cond, ensemble_size):
 
 def ensemble_rollout(model, cond, horizon, ensemble_size=1, num_sample_steps=None,
                      seed=None, seeds=None, clamp=True,
-                     remask_feedback=False, ocean_mask=None):
+                     remask_feedback=False, ocean_mask=None, static_cond=None):
     """Autoregressive rollout with `ensemble_size` fully independent members.
 
     Args:
@@ -114,6 +123,11 @@ def ensemble_rollout(model, cond, horizon, ensemble_size=1, num_sample_steps=Non
             unmasked feedback).
         ocean_mask: broadcastable ocean mask (1 = valid ocean, 0 = land), e.g.
             (1, 2, H, W, Z); required iff remask_feedback is True.
+        static_cond: optional static condition channels (e.g. (1, 2, H, W, Z)
+            bivariate rho masks) forwarded to EVERY model.sample call via its
+            `static_cond` kwarg; the sliding window `cur` remains the pure
+            dynamic condition. Only models that accept the kwarg (the
+            deterministic baseline) can be used with it.
 
     Returns (B, E, horizon, 2, H, W, Z) float32 normalized predictions, one
     slice per member. E=1 reproduces the plain sequential rollout exactly
@@ -136,13 +150,15 @@ def ensemble_rollout(model, cond, horizon, ensemble_size=1, num_sample_steps=Non
             torch.manual_seed(seeds[w])                       # window-scoped RNG
             outs.append(_rollout_one(model, expand_ensemble(cond[w:w + 1], E),
                                      horizon, num_sample_steps, clamp,
-                                     remask_feedback, ocean_mask))
+                                     remask_feedback, ocean_mask,
+                                     static_cond=static_cond))
         return torch.stack(outs, dim=0)                       # (B, E, L, 2, H, W, Z)
 
     if seed is not None:
         torch.manual_seed(seed)
     out = _rollout_one(model, expand_ensemble(cond, E), horizon,
-                       num_sample_steps, clamp, remask_feedback, ocean_mask)
+                       num_sample_steps, clamp, remask_feedback, ocean_mask,
+                       static_cond=static_cond)
     return out.view(B, E, out.shape[1], *out.shape[2:])       # (B, E, L, 2, H, W, Z)
 
 

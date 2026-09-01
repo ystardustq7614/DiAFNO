@@ -39,10 +39,11 @@ from diffusion import ElucidatedDiffusion
 from IAFNO import IAFNODiff
 from pre_models import PersistenceResidualIAFNO, masked_mse_loss
 from pre_config import (OUT_ROOT, CONTEXT, TARGET_CH, training_config,
-                        training_run_tag,
+                        training_run_tag, static_mask_input,
                         SIGMA_DATA_SCALE, sigma_data_from_stats,
                         sigma_data_from_checkpoint, resume_sigma_decision,
                         DEFAULT_OBJECTIVE, MASK_SCHEME, RESIDUAL_TIME_SIGMA,
+                        STATIC_MASK_CHANNELS,
                         validate_objective, ensure_objective_compatible,
                         check_norm_fingerprint, check_residual_time_sigma,
                         ProgressReporter, format_progress,
@@ -93,6 +94,15 @@ PROGRESS_SCOPE = f"rank{RANK}_shard_of_{WORLD_SIZE}" if DISTRIBUTED else "whole_
 PRESET = os.environ.get("DIAFNO_PRESET", "surface_smoke")
 TRAIN_MODE = os.environ.get("DIAFNO_TRAIN_MODE", "smoke").lower()
 OBJECTIVE = validate_objective(os.environ.get("DIAFNO_OBJECTIVE", DEFAULT_OBJECTIVE))
+# Phase-5 mask-input A/B (arm B): static mask channels are implemented for the
+# deterministic objective only; the diffusion path keeps its exact historical
+# layout (refuse rather than silently change the EDM input shape).
+STATIC_MASK = static_mask_input()
+if STATIC_MASK and OBJECTIVE != "persistence_residual":
+    raise RuntimeError(
+        "DIAFNO_STATIC_MASK=1 is only supported with "
+        "DIAFNO_OBJECTIVE=persistence_residual (the diffusion path keeps its "
+        "historical 14-channel layout)")
 cfg = training_config(PRESET, TRAIN_MODE, WORLD_SIZE)
 
 # Optional per-preset overrides for one-off runs.  Normal defaults live only in
@@ -120,6 +130,9 @@ LEGACY_RESUME_DIR = "legacy_resume"
 ########## fixed task constants ##########
 
 COND_CH = 2 * CONTEXT              # 14, day-major interleaved (see pre_dataset.py)
+# backbone condition channels: the dynamic window plus (arm B) the two static
+# mask channels forwarded separately via static_cond
+MODEL_COND_CH = COND_CH + (STATIC_MASK_CHANNELS if STATIC_MASK else 0)
 H, W = 400, 441
 Z = 30 if cfg["depth_index"] is None else 1
 
@@ -129,7 +142,8 @@ checkpoint_path = os.environ.get("DIAFNO_CHECKPOINT") or None
 if checkpoint_path is not None:
     checkpoint_path = os.path.expanduser(checkpoint_path)
 
-run_tag = training_run_tag(PRESET, cfg, TRAIN_MODE, WORLD_SIZE, OBJECTIVE)
+run_tag = training_run_tag(PRESET, cfg, TRAIN_MODE, WORLD_SIZE, OBJECTIVE,
+                           static_mask=STATIC_MASK)
 run_dir = os.path.join(OUT_ROOT, run_tag)   # redirected to the checkpoint's own
                                             # directory under "adopt"
 
@@ -187,7 +201,7 @@ dm_backbone = IAFNODiff(
     num_blocks=num_blocks,
     in_chans=TARGET_CH,
     out_chans=TARGET_CH,
-    cond_chans=COND_CH,
+    cond_chans=MODEL_COND_CH,
     ex_layer=cfg["explicit_layer"],
     nlayer=cfg["implicit_layer"],
     hidden_size_factor=hidden_size_factor,
@@ -212,12 +226,14 @@ else:
     model = PersistenceResidualIAFNO(dm_backbone, time_sigma=RESIDUAL_TIME_SIGMA)
     with torch.no_grad():
         probe = torch.rand(1, COND_CH, H, W, Z, device=device)
-        ident = model(probe)
+        probe_static = mask if STATIC_MASK else None
+        ident = model(probe, static_cond=probe_static)
     if not torch.equal(ident, probe[:, -TARGET_CH:]):
         raise RuntimeError(
             "zero-initialized persistence-residual model does not reduce to "
             "last-day persistence; refusing to train")
-    log("zero-init check passed: untrained residual model == last-day persistence")
+    log("zero-init check passed: untrained residual model == last-day persistence"
+        + (" (with static mask input)" if STATIC_MASK else ""))
 
 optimizer = optim.Adam(model.parameters(), lr=cfg["lr"], weight_decay=0)
 n_epochs = EPOCH_OVERRIDES.get(PRESET) or cfg["num_epochs"]
@@ -255,7 +271,8 @@ if checkpoint_path is not None:
     # objective split and can only be diffusion runs — guarded below)
     ckpt_objective = ensure_objective_compatible(ckpt, OBJECTIVE)
     for key, current in (("cond_chans", COND_CH), ("target_ch", TARGET_CH),
-                         ("mask_scheme", MASK_SCHEME)):
+                         ("mask_scheme", MASK_SCHEME),
+                         ("static_mask_input", STATIC_MASK)):
         if key in ckpt_cfg and ckpt_cfg[key] != current:
             raise RuntimeError(
                 f"checkpoint {key}={ckpt_cfg[key]!r} vs current {current!r}; "
@@ -350,7 +367,8 @@ else:
                   f"(residual_base={model.residual_base}, time_sigma={model.time_sigma:g}; "
                   "sigma_data not applicable)")
 log(f"preset={PRESET} mode={TRAIN_MODE} objective={OBJECTIVE} grid=({H},{W},{Z}) "
-    f"patch={cfg['patch_size']} cond_ch={COND_CH} target_ch={TARGET_CH} "
+    f"patch={cfg['patch_size']} cond_ch={COND_CH} model_cond_ch={MODEL_COND_CH} "
+    f"static_mask_input={STATIC_MASK} target_ch={TARGET_CH} "
     f"mask_scheme={MASK_SCHEME} {scale_info} epochs={n_epochs} "
     f"world_size={WORLD_SIZE} per_device_batch={cfg['batch_size']} "
     f"effective_batch={cfg['batch_size'] * WORLD_SIZE} run_dir={run_dir}")
@@ -440,7 +458,7 @@ try:
                 if OBJECTIVE == "diffusion":
                     loss = train_model(yy, xx, mask=mask)
                 else:
-                    pred = train_model(xx)
+                    pred = train_model(xx, static_cond=mask if STATIC_MASK else None)
                     loss = masked_mse_loss(pred, yy, mask)
             finite = torch.tensor(int(torch.isfinite(loss).item()), device=device)
             if DISTRIBUTED:
@@ -513,7 +531,7 @@ try:
                 xx = cond.to(device, non_blocking=True)
                 yy = target[:, 0].to(device, non_blocking=True)
                 with autocast(device_type=device.type):
-                    pred = model.sample(xx)
+                    pred = model.sample(xx, static_cond=mask if STATIC_MASK else None)
                 batch_n = xx.shape[0]
                 val_rel_sum += (masked_rel_l2(unnormalize(pred.float()), unnormalize(yy),
                                               mask) * batch_n)
@@ -566,6 +584,8 @@ try:
                     "effective_batch_size": cfg["batch_size"] * WORLD_SIZE,
                     "objective": OBJECTIVE,
                     "cond_chans": COND_CH,
+                    "model_cond_chans": MODEL_COND_CH,
+                    "static_mask_input": STATIC_MASK,
                     "target_ch": TARGET_CH,
                     "mask_scheme": MASK_SCHEME,
                     "stats_sigma": float(stats["sigma"]),

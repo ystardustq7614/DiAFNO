@@ -1,6 +1,9 @@
 # 实验 07：surface persistence-residual 确定性基线
 
-> 状态：未执行（代码已实现并通过 CPU 回归测试；真实数据训练与评估待服务器执行）
+> 状态：smoke / Phase 3 / validation 选型 / Phase 4 test / 长时效诊断 /
+> Phase 5①（mask 输入，保留 A）/ Phase 5②（remask，维持 rf0）均已执行
+> （2026-08-31 / 09-01，见 [RESULTS.md](./RESULTS.md)）。Phase 3 **Go**；
+> test day-1 0.833、15-day overall 1.018。剩余：Phase 6 决策。
 
 ## 实验目的
 
@@ -75,9 +78,11 @@ CUDA_VISIBLE_DEVICES=<gpu> DIAFNO_OBJECTIVE=persistence_residual \
 - Go 之后的后续决策（不属本实验）：residual diffusion、双静态 mask 输入 A/B、
   remask A/B，再评估 full3d。
 
-## 当前为什么不执行
+## 执行状态（2026-08-31）
 
-代码与 CPU 回归测试已完成；真实数据训练需要服务器 GPU 与 `/data2` 数据，
-单卡/DDP smoke 尚未运行，validation 选型与 test 报告更无从谈起。
-
-实际状态见 [RESULTS.md](./RESULTS.md)。
+单卡与 DDP×2 smoke 均 `SMOKE PASS`；Phase 3 短训练 10/10 epochs 完成（3 h 35 min，
+best `val_masked_relL2 0.40325`@ep10）；validation day-1 选型 Ep10 以 `0.1011 m/s`
+优于 persistence `0.1294 m/s`（ratio 0.781），Phase 3 判定 **Go**。Phase 4 test
+报告：day-1 `0.0973 m/s` 优于 persistence `0.1167`（ratio 0.833），15-day overall
+`0.2136` vs `0.2098`（ratio 1.018，基本持平）。数值、表格与产物路径见
+[RESULTS.md](./RESULTS.md)。Phase 5 A/B 尚未执行。

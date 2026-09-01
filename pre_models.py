@@ -79,24 +79,49 @@ class PersistenceResidualIAFNO(nn.Module):
         # zero-init the residual head: untrained forward() is EXACTLY `base`
         nn.init.zeros_(net.head.weight)
 
-    def forward(self, cond):
-        """(B, cond_ch, H, W, Z) normalized condition -> (B, target_ch, H, W, Z)."""
-        if cond.shape[1] != self.cond_chans:
+    def forward(self, cond, static_cond=None):
+        """(B, cond_ch, H, W, Z) normalized condition -> (B, target_ch, H, W, Z).
+
+        With `static_cond` (Phase-5 mask-input A/B, e.g. (1, 2, H, W, Z)
+        bivariate rho masks broadcast over the batch) the backbone's
+        x_self_cond slot receives `cat([cond, static_cond], dim=1)` — the
+        DYNAMIC window must stay pure so `base = cond[:, -target_ch:]` is
+        always the last-day persistence. Without `static_cond` the behaviour
+        is bitwise identical to the historical 14-channel path.
+        """
+        if static_cond is not None:
+            if static_cond.dim() != 5 or \
+                    static_cond.shape[0] not in (1, cond.shape[0]):
+                raise AssertionError(
+                    f"static_cond shape {tuple(static_cond.shape)} is not "
+                    f"broadcastable to batch {cond.shape[0]}")
+            if static_cond.shape[2:] != cond.shape[2:]:
+                raise AssertionError(
+                    f"static_cond spatial shape {tuple(static_cond.shape[2:])} "
+                    f"!= condition {tuple(cond.shape[2:])}")
+            if static_cond.shape[0] == 1 and cond.shape[0] > 1:
+                static_cond = static_cond.expand(cond.shape[0], -1, -1, -1, -1)
+            x_self_cond = torch.cat([cond, static_cond], dim=1)
+        else:
+            x_self_cond = cond
+        if x_self_cond.shape[1] != self.cond_chans:
             raise AssertionError(
-                f"condition channels {cond.shape[1]} != expected {self.cond_chans}")
+                f"condition channels {x_self_cond.shape[1]} != expected "
+                f"{self.cond_chans}")
         base = cond[:, -self.target_ch:]
         batch = cond.shape[0]
         time = torch.full((batch,), 0.25 * math.log(self.time_sigma),
                           device=cond.device)
-        residual = self.net(torch.zeros_like(base), time, cond)
+        residual = self.net(torch.zeros_like(base), time, x_self_cond)
         return base + residual
 
-    def sample(self, cond, batch_size=None, num_sample_steps=None, clamp=True):
+    def sample(self, cond, batch_size=None, num_sample_steps=None, clamp=True,
+               static_cond=None):
         """Deterministic prediction; `num_sample_steps` is accepted and ignored
         (rollout compatibility with the EDM sampler's call signature). With
         clamp=True the normalized prediction is clamped to [0, 1], matching the
         EDM sampler output range."""
-        pred = self.forward(cond)
+        pred = self.forward(cond, static_cond=static_cond)
         if clamp:
             pred = pred.clamp(0., 1.)
         return pred
