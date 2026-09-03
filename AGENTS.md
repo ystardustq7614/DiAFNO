@@ -52,5 +52,5 @@ These strings must be replaced or the run crashes/fails silently:
 
 - Global seeds are fixed at module import (`torch.manual_seed(123)` in trainer.py/IAFNO.py).
 - Hyperparameters are module-level constants in trainer.py (batch_size, embed_dim, implicit/explicit_layer, sampling_steps, ...) — not CLI args.
-- Do not commit checkpoints, runs/, outputs/, *.pt/*.pth (all gitignored).
+- Do not commit checkpoints, runs/, outputs/, *.pt/*.pth (all gitignored). Established exception — experiment archiving: when a work package finishes, selected artifacts are deliberately `git add -f`-ed into dedicated `归档…` commits (see 7cf959e / 04ef0f0 / 78b7a66..cbc5c61): run-dir `.pth` checkpoints, `loss.dat`, eval npz/figures, top-level training/eval/diag logs. The repo working-tree `checkpoints/PRE/` is a snapshot copied from the authoritative on-disk output `~/checkpoints/PRE/` (not a symlink). Hard rules: never archive files >100 MB (GitHub rejects them — full3d 342 MB `.pth` stay disk-only) and never re-add files a previous cleanup commit deliberately removed (e.g. the non-rfab duplicate rf1 npz, c2ffbc0).
 - Upstream repo: https://github.com/yuchi-richard-jiang/DiAFNO (adds dataset link + citation); origin is this adaptation fork.

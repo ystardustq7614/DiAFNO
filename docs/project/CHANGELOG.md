@@ -17,6 +17,18 @@
 - 后续分支准入评估（方向文档 §10）：物理单位 loss weighting、direct multi-horizon
   head（MS10 后 d15 ratio 回升 0.894 与方差塌缩仍是指向证据）。
 
+## 2026-09-03 — 已完成（文档同步：交接概要与归档约定成文）
+
+- `PROJECT_HANDOFF_SUMMARY.md` 更新至 2026-09-03 现状：当前最优改为 MS10 Ep2
+  （test overall ratio 0.838，crossover 消除），实验表补 10/11 行、06 行改为
+  "部分执行"；困难与下一步改写为 full3d K3/预算决策与 §10 分支准入；已解决项
+  （exposure bias、垂向证据、资源实测、NPZ key 缺陷）相应移出。
+- `AGENTS.md` Conventions 把实验归档例外成文：`checkpoints/` 默认不提交，但工作包
+  结束时以 `git add -f` 专门 `归档…` commit 入库（先例 7cf959e / 04ef0f0 /
+  78b7a66..cbc5c61）；硬规则 = >100MB 文件绝不入库（full3d 342MB `.pth` 仅留磁盘）、
+  不重新加入先前清理 commit 有意移除的文件；并注明仓库内 `checkpoints/PRE/` 是磁盘
+  `~/checkpoints/PRE/` 的拷贝快照而非符号链接。
+
 ## 2026-09-03 — 已完成（工作包 5：代表层 + 工作包 6 第 1–4 步）
 
 实验 11（`docs/experiments/11_representative_layers/`）与实验 06 恢复，详细数字见

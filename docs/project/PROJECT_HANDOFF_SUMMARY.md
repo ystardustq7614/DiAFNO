@@ -1,6 +1,6 @@
 # DiAFNO / PRE 项目交接概要
 
-> 更新日期：2026-09-01
+> 更新日期：2026-09-03
 > 用途：让新成员或 agent 在几分钟内了解项目目标、当前证据、主要困难和接手入口。
 > 当前困难与执行顺序以
 > [《当前困难与下一步》](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)为唯一方向文档；
@@ -9,21 +9,28 @@
 ## 当前结论
 
 项目的首要科学目标是：用过去 7 天的海流场，确定性预测未来 1–15 天的 `u/v`。
-当前 surface 模型已经证明 IAFNO backbone 能利用条件信息预测次日流场，但尚未解决
-连续 15 天自回归时的误差累积：
+当前 surface 模型已经证明 IAFNO backbone 能利用条件信息预测次日流场，且
+detached-autoregressive multi-step 训练（实验 10）已把长时效误差累积压到
+persistence 之下：
 
-- 最佳确定性模型 test day-1 RMSE 为 `0.0973 m/s`，优于 persistence 的
-  `0.1167 m/s`（ratio `0.833`）；
-- test 15-day overall 为 `0.2136`，略差于 persistence 的 `0.2098`
-  （ratio `1.018`）；
-- 优势约在 day 4–5 后消失，并出现方差塌缩、空间相关衰减和偏差漂移；
+- 当前最优模型为 surface **MS10 Ep2**（实验 10）：test day-1 RMSE `0.0972 m/s`
+  vs persistence `0.1167`（ratio `0.833`，不退化）；test 15-day overall
+  `0.1759` vs `0.2098`（**ratio `0.838`**），day 4–5 crossover 消除；
+- 演进链：单步基线（实验 07）overall ratio `1.018`（day 4–5 后失去优势）→
+  MS5 Ep4 `0.871` → MS10 Ep2 `0.838`；
+- 修复可垂向泛化（实验 11）：middle/bottom 单层 MS5 过全部预注册门槛，test
+  overall `0.830` / `0.813`（单步为 `1.183` / `0.930`）；
+- 遗留缺陷：方差塌缩（var_ratio ~0.3@d15）、d15 附近 ratio 回升（test 0.894）
+  与轻微 bias 漂移仍在，是后续分支（loss weighting / direct multi-horizon）的
+  指向证据；
 - 静态 mask 输入与逐步 remask 两项消融均没有稳定改善 overall，因此当前保留
   14 个动态 condition 通道、无静态 mask、`remask_feedback=False`；
-- full3d 30 层正式训练尚未执行。
+- full3d 30 层：画像/资源 probe/K1 smoke/1-epoch pilot 已完成（实测 ≈2.3 h/epoch，
+  50 epoch ≈ 5 天；单步峰值 22.6 GB），pilot 无逐层信号，K3 与正式预算按预注册
+  条件阻塞待决策（实验 06）。
 
-下一步不是直接加入扩散或完整 BPTT，而是先建立 detached-autoregressive multi-step
-训练：训练时真实回灌模型预测，但只对选定 lead 的最后一步反传，以较低显存成本检验
-exposure bias 是否是长时效退化的关键原因。
+下一步不是加入扩散或完整 BPTT，而是对 full3d K3/正式预算做出路径决策，并评估
+§10 分支（loss weighting、direct multi-horizon head）的准入。
 
 ## 任务与数据
 
@@ -47,7 +54,9 @@ mask、异常值和归一化说明见 [PRE 数据说明](../data/PRE_ocean_data.
 - 已完成原始数据审计，以及 staggered C-grid `u/v` 到 rho-grid 的共定位；
 - 已建立连续时间 split、train-only 归一化、双变量 mask 和 surface/full3d preset；
 - 已建立单步训练、15 天自回归评估、persistence/zero/rho-oracle 基线和逐 lead 指标；
-- 已有 CPU 合成回归测试、真实数据 smoke、checkpoint 恢复和单卡/DDP 保护；
+- 已有 CPU 合成回归测试（pre_smoke_test 56 项）、真实数据 smoke、checkpoint 恢复
+  和单卡/DDP 保护；
+- 已实现 detached multi-step（MS5/MS10）训练与单卡/DDP2 smoke；
 - 训练与评估都能输出适合服务器长任务监控的进度行。
 
 ### 模型与实验结论
@@ -59,37 +68,38 @@ mask、异常值和归一化说明见 [PRE 数据说明](../data/PRE_ocean_data.
 | [03 sampler/checkpoint 消融](../experiments/03_sampler_ablation/RESULTS.md) | 采样参数只能小幅改善，不能救回模型 |
 | [04 SD2 15-day rollout](../experiments/04_surface_sd2_rollout/RESULTS.md) | 所有 lead 均败于 persistence |
 | [05 条件与可预测性诊断](../experiments/05_condition_diagnostics/RESULTS.md) | condition 中有可利用信号，模型也确实读取 condition |
-| [06 full3d](../experiments/06_full3d/RESULTS.md) | 尚未执行 |
+| [06 full3d](../experiments/06_full3d/RESULTS.md) | 画像/资源 probe/K1/pilot 完成；pilot 无逐层信号，K3 与正式训练阻塞待决策 |
 | [07 persistence-residual](../experiments/07_residual_baseline/RESULTS.md) | day-1 明确优于 persistence；15-day overall 仍持平略差 |
 | [08 静态 mask 输入 A/B](../experiments/08_static_mask_ablation/RESULTS.md) | 不保留静态 mask；原 14 通道模型更好 |
 | [09 remask feedback A/B](../experiments/09_remask_feedback_ablation/RESULTS.md) | 保持 `rf0`；中段改善但长段转差，overall 无增益 |
+| [10 multi-step MS5/MS10](../experiments/10_multistep_deterministic/RESULTS.md) | detached multi-step 成立：test overall 1.018→0.871→0.838，crossover 消除 |
+| [11 代表层 middle/bottom](../experiments/11_representative_layers/RESULTS.md) | 垂向泛化成立：两层 MS5 全门槛 Go（test 0.830/0.813） |
 
 每个实验的目标、任务与执行状态在 `EXPERIMENT.md`，实际数字、分析和科学结论在
 `RESULTS.md`。入口见 [实验索引](../experiments/README.md)。
 
 ## 当前主要困难
 
-1. **训练与使用方式不一致**：当前训练只优化真实 condition 下的 day-1，正式使用却把
-   自己的预测连续回灌 15 次。
-2. **长时效结构退化**：问题不只是 RMSE 变大，还包括方差、空间相关和 bias 同时恶化。
-3. **u/v 机制不完全相同**：u 更明显方差不足；v 的长 lead 更受相关损失和正偏差影响。
-4. **垂向证据不足**：当前可靠实验集中在 surface，不能直接推断 30 层 full3d 表现。
-5. **资源证据不足**：full3d 尚无实测峰值显存、吞吐和 I/O 基线。
-6. **诊断产物缺陷**：`scripts/diag_leadtime_residual.py` 保存 NPZ 时 model/persistence
-   key 重名；已归档 PNG 和终端统计有效，但复用 NPZ 前必须修复。
+1. **长时效残差缺陷**：crossover 已由 multi-step 消除，但方差塌缩
+   （var_ratio ~0.3@d15）、d15 附近 ratio 回升（test 0.894）与轻微 bias 漂移仍在。
+2. **full3d pilot 无信号**：1-epoch single-step pilot 训练健康但 60 个逐层 day-1
+   ratio 全部 ≈1.000，K3 按预注册条件阻塞；追加 epochs/冻结预算/调参三条路径待决策。
+3. **full3d 资源门槛高**：实测 ≈2.3 h/epoch（50 epoch ≈ 5 天）、单步峰值 22.6 GB
+   （24 GB 卡无同卡推理余量），正式投入需另行冻结预算。
+4. **u/v 机制不完全相同**：u 更明显方差不足；v 的长 lead 更受相关损失和正偏差影响。
+5. **DDP+AMP 陷阱**：detached 反馈 forward 必须包在 `autocast(enabled=False)` 内
+   （autocast 权重缓存会使 fp16 副本 detached、DDP 梯度规约失败；2026-09-03 已修复，
+   新增多步相关代码时需保持警惕）。
 
 ## 下一步怎么做
 
 详细门槛、文件改动和执行后回顾表见
 [《当前困难与下一步》](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)。当前顺序是：
 
-1. 审计全 30 层 `u/v` 的尺度、增量、persistence 和归一化压缩；
-2. 实现并测试 detached multi-step 训练，同时修复诊断 NPZ key；
-3. 从实验 07 Ep10 权重启动 surface MS5，使用 fresh optimizer/scheduler；
-4. 只有 MS5 保住 day-1 并改善 15-day validation，才继续 MS10；
-5. 再做 surface/middle/bottom 代表层，以及 full3d 资源 probe、K1 smoke、K3 pilot；
-6. TBPTT、新输入、loss weighting、direct multi-horizon 和 residual diffusion 都是
-   证据触发的后续分支，不与 MS5 同时修改。
+1. full3d K3/正式预算决策（实验 06 候选路径 A/B/C，需拍板）；
+2. §10 分支准入评估：物理单位 loss weighting、direct multi-horizon head
+   （方差塌缩与 d15 回升为指向证据）；
+3. TBPTT、新输入、residual diffusion 仍是证据触发的后续分支，不与上述同时修改。
 
 ## 接手入口
 
