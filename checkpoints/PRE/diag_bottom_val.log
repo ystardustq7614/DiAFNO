@@ -1,0 +1,68 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d0_clipnone.npz: lo=[-0.8395327  -0.83728635], hi=[1.146635   0.58786476], sigma=0.09815
+loaded /data2/user/zyq/checkpoints/PRE/bottom_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/Ep10.pth (epoch=9) objective=persistence_residual
+val diagnosis windows: 77 (stride 14, horizon 15, deterministic)
+[1/20] windows_done=4/77 elapsed_s=8
+[2/20] windows_done=8/77 elapsed_s=14
+[3/20] windows_done=12/77 elapsed_s=19
+[4/20] windows_done=16/77 elapsed_s=24
+[5/20] windows_done=20/77 elapsed_s=29
+[6/20] windows_done=24/77 elapsed_s=34
+[7/20] windows_done=28/77 elapsed_s=39
+[8/20] windows_done=32/77 elapsed_s=43
+[9/20] windows_done=36/77 elapsed_s=48
+[10/20] windows_done=40/77 elapsed_s=53
+[11/20] windows_done=44/77 elapsed_s=58
+[12/20] windows_done=48/77 elapsed_s=62
+[13/20] windows_done=52/77 elapsed_s=67
+[14/20] windows_done=56/77 elapsed_s=72
+[15/20] windows_done=60/77 elapsed_s=77
+[16/20] windows_done=64/77 elapsed_s=82
+[17/20] windows_done=68/77 elapsed_s=86
+[18/20] windows_done=72/77 elapsed_s=92
+[19/20] windows_done=76/77 elapsed_s=98
+[20/20] windows_done=77/77 elapsed_s=100
+
+=== u: per-lead-day native stats over 77 windows ===
+lead | rmse_m | rmse_p | ratio | bias_m | bias_p | var_ratio_m | corr_m | corr_p
+  1  | 0.0334 | 0.0571 | 0.585 | -0.0001 | +0.0012 | 0.857 | 0.941 | 0.806
+  2  | 0.0533 | 0.0740 | 0.720 | +0.0006 | -0.0055 | 0.841 | 0.803 | 0.604
+  3  | 0.0771 | 0.0882 | 0.874 | +0.0105 | -0.0050 | 0.572 | 0.640 | 0.547
+  4  | 0.0815 | 0.0935 | 0.872 | +0.0203 | -0.0001 | 0.509 | 0.581 | 0.504
+  5  | 0.0843 | 0.0926 | 0.910 | +0.0288 | +0.0057 | 0.556 | 0.556 | 0.473
+  6  | 0.0886 | 0.0970 | 0.914 | +0.0336 | +0.0073 | 0.557 | 0.536 | 0.448
+  7  | 0.0916 | 0.0960 | 0.953 | +0.0346 | +0.0060 | 0.586 | 0.497 | 0.459
+  8  | 0.0960 | 0.0965 | 0.995 | +0.0340 | +0.0081 | 0.544 | 0.439 | 0.460
+  9  | 0.0913 | 0.0954 | 0.957 | +0.0191 | +0.0010 | 0.593 | 0.432 | 0.460
+ 10  | 0.0890 | 0.0936 | 0.951 | +0.0128 | -0.0032 | 0.577 | 0.454 | 0.490
+ 11  | 0.0850 | 0.0931 | 0.913 | +0.0104 | -0.0060 | 0.605 | 0.455 | 0.489
+ 12  | 0.0869 | 0.0928 | 0.937 | +0.0141 | -0.0044 | 0.700 | 0.420 | 0.490
+ 13  | 0.0873 | 0.0959 | 0.911 | +0.0127 | -0.0023 | 0.736 | 0.430 | 0.435
+ 14  | 0.0898 | 0.0974 | 0.921 | +0.0082 | +0.0013 | 0.760 | 0.428 | 0.404
+ 15  | 0.0998 | 0.1038 | 0.962 | +0.0004 | +0.0023 | 0.644 | 0.408 | 0.445
+
+=== v: per-lead-day native stats over 77 windows ===
+lead | rmse_m | rmse_p | ratio | bias_m | bias_p | var_ratio_m | corr_m | corr_p
+  1  | 0.0185 | 0.0294 | 0.629 | -0.0015 | -0.0010 | 0.919 | 0.918 | 0.798
+  2  | 0.0292 | 0.0405 | 0.721 | +0.0016 | -0.0014 | 0.835 | 0.779 | 0.605
+  3  | 0.0383 | 0.0448 | 0.855 | +0.0021 | -0.0024 | 0.664 | 0.649 | 0.565
+  4  | 0.0396 | 0.0450 | 0.882 | +0.0047 | -0.0006 | 0.668 | 0.615 | 0.554
+  5  | 0.0421 | 0.0462 | 0.910 | +0.0071 | +0.0007 | 0.721 | 0.582 | 0.515
+  6  | 0.0442 | 0.0497 | 0.889 | +0.0074 | +0.0005 | 0.685 | 0.556 | 0.473
+  7  | 0.0451 | 0.0492 | 0.918 | +0.0072 | +0.0005 | 0.725 | 0.533 | 0.470
+  8  | 0.0487 | 0.0504 | 0.965 | +0.0069 | +0.0025 | 0.693 | 0.471 | 0.455
+  9  | 0.0473 | 0.0498 | 0.950 | +0.0010 | -0.0003 | 0.772 | 0.466 | 0.474
+ 10  | 0.0463 | 0.0486 | 0.953 | +0.0004 | -0.0009 | 0.773 | 0.488 | 0.501
+ 11  | 0.0473 | 0.0492 | 0.961 | -0.0002 | -0.0011 | 0.759 | 0.463 | 0.495
+ 12  | 0.0485 | 0.0482 | 1.006 | +0.0006 | -0.0007 | 0.886 | 0.433 | 0.498
+ 13  | 0.0492 | 0.0489 | 1.005 | -0.0018 | -0.0011 | 0.963 | 0.410 | 0.466
+ 14  | 0.0502 | 0.0493 | 1.017 | -0.0039 | +0.0002 | 1.008 | 0.417 | 0.439
+ 15  | 0.0539 | 0.0497 | 1.084 | -0.0080 | -0.0007 | 1.003 | 0.380 | 0.477
+
+pooled ratio per lead: [np.float64(0.594), np.float64(0.721), np.float64(0.871), np.float64(0.874), np.float64(0.91), np.float64(0.909), np.float64(0.946), np.float64(0.989), np.float64(0.956), np.float64(0.952), np.float64(0.924), np.float64(0.952), np.float64(0.931), np.float64(0.942), np.float64(0.986)]
+crossover day (pooled ratio first > 1): None
+var_ratio_m @ d1/d7/d15 (u): [np.float64(0.857), np.float64(0.586), np.float64(0.644)]
+corr_mean_m @ d1/d7/d15 (u): [np.float64(0.941), np.float64(0.497), np.float64(0.408)]
+
+saved /data2/user/zyq/checkpoints/PRE/bottom_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/leadtime_diag_ckptEp10.npz
+saved /data2/user/zyq/checkpoints/PRE/bottom_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES/leadtime_diag_ckptEp10.png
+PROGRESS phase=diag status=completed

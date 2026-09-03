@@ -1,0 +1,53 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d14_clipnone.npz: lo=[-1.5264404 -1.5511675], hi=[2.0259528  0.86111003], sigma=0.11998
+loaded /data2/user/zyq/checkpoints/PRE/middle_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5/Ep2.pth (epoch=1) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+test rollout windows: 154 (stride 7, horizon 15, ensemble 1)
+PROGRESS phase=eval split=test objective=persistence_residual window=0/154 elapsed_s=0.0 status=start
+PROGRESS phase=eval split=test objective=persistence_residual window=12/154 elapsed_s=30.0 window_per_s=0.400 sample_per_s=6.000 eta_s=355.0 d1_rmse=0.0549 d1_pers=0.0888 ratio=0.619 status=running
+PROGRESS phase=eval split=test objective=persistence_residual window=28/154 elapsed_s=60.0 window_per_s=0.467 sample_per_s=7.000 eta_s=270.0 d1_rmse=0.0484 d1_pers=0.0794 ratio=0.610 status=running
+  [10/39] windows done
+PROGRESS phase=eval split=test objective=persistence_residual window=44/154 elapsed_s=90.0 window_per_s=0.489 sample_per_s=7.333 eta_s=225.0 d1_rmse=0.0480 d1_pers=0.0756 ratio=0.636 status=running
+PROGRESS phase=eval split=test objective=persistence_residual window=56/154 elapsed_s=120.0 window_per_s=0.467 sample_per_s=6.999 eta_s=210.0 d1_rmse=0.0504 d1_pers=0.0748 ratio=0.673 status=running
+PROGRESS phase=eval split=test objective=persistence_residual window=72/154 elapsed_s=150.0 window_per_s=0.480 sample_per_s=7.199 eta_s=170.9 d1_rmse=0.0524 d1_pers=0.0813 ratio=0.645 status=running
+  [20/39] windows done
+PROGRESS phase=eval split=test objective=persistence_residual window=88/154 elapsed_s=180.0 window_per_s=0.489 sample_per_s=7.332 eta_s=135.0 d1_rmse=0.0507 d1_pers=0.0768 ratio=0.660 status=running
+PROGRESS phase=eval split=test objective=persistence_residual window=104/154 elapsed_s=210.0 window_per_s=0.495 sample_per_s=7.427 eta_s=101.0 d1_rmse=0.0498 d1_pers=0.0761 ratio=0.654 status=running
+  [30/39] windows done
+PROGRESS phase=eval split=test objective=persistence_residual window=120/154 elapsed_s=240.0 window_per_s=0.500 sample_per_s=7.499 eta_s=68.0 d1_rmse=0.0493 d1_pers=0.0747 ratio=0.660 status=running
+PROGRESS phase=eval split=test objective=persistence_residual window=136/154 elapsed_s=270.0 window_per_s=0.504 sample_per_s=7.555 eta_s=35.7 d1_rmse=0.0481 d1_pers=0.0722 ratio=0.666 status=running
+  [39/39] windows done
+PROGRESS phase=eval split=test objective=persistence_residual window=154/154 elapsed_s=298.5 window_per_s=0.516 sample_per_s=7.738 d1_rmse=0.0490 d1_pers=0.0727 ratio=0.674 status=phase_done
+evaluation loop finished: 154 windows in 298.5s
+saved /data2/user/zyq/checkpoints/PRE/middle_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5/eval_test_h15_ch0_e1_s123_rf0_ckptEp2_test15.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.0490 | 0.0727 | 0.674 | 0.1706 | 0.0024
+  2  | 0.0839 | 0.1132 | 0.742 | 0.1636 | 0.0023
+  3  | 0.0947 | 0.1230 | 0.770 | 0.1541 | 0.0023
+  4  | 0.1007 | 0.1259 | 0.800 | 0.1558 | 0.0023
+  5  | 0.1078 | 0.1333 | 0.809 | 0.1635 | 0.0024
+  6  | 0.1150 | 0.1428 | 0.805 | 0.1676 | 0.0024
+  7  | 0.1202 | 0.1507 | 0.798 | 0.1709 | 0.0024
+  8  | 0.1212 | 0.1534 | 0.790 | 0.1709 | 0.0024
+  9  | 0.1156 | 0.1448 | 0.799 | 0.1630 | 0.0023
+ 10  | 0.1118 | 0.1375 | 0.813 | 0.1539 | 0.0023
+ 11  | 0.1161 | 0.1395 | 0.832 | 0.1567 | 0.0023
+ 12  | 0.1236 | 0.1447 | 0.854 | 0.1645 | 0.0024
+ 13  | 0.1276 | 0.1428 | 0.894 | 0.1683 | 0.0024
+ 14  | 0.1319 | 0.1422 | 0.927 | 0.1714 | 0.0024
+ 15  | 0.1331 | 0.1391 | 0.957 | 0.1712 | 0.0024
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.0490 | 0.0727 | 0.674 | 0.1121 | 0.1351 | 0.830
+  zero | 0.1706 | 0.0727 | 2.348 | 0.1645 | 0.1351 | 1.218
+oracle | 0.0024 | 0.0727 | 0.033 | 0.0023 | 0.1351 | 0.017
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.0619 (pers 0.0933)  d5 0.1410 (pers 0.1754)  d10 0.1461 (pers 0.1816)  d15 0.1746 (pers 0.1841)  
+v: d1 0.0311 (pers 0.0431)  d5 0.0581 (pers 0.0692)  d10 0.0605 (pers 0.0699)  d15 0.0706 (pers 0.0698)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1121 m/s | persistence 0.1351 m/s | zero 0.1645 m/s | rho-oracle 0.0023 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/middle_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5/figures_h15_ch0_e1_s123_rf0_ckptEp2_test15
+PROGRESS phase=eval objective=persistence_residual windows=154 remask_feedback=False elapsed_s=303.4 status=completed

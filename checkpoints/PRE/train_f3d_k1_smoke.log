@@ -1,0 +1,16 @@
+Using device: cuda  world_size=1 rank=0
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_all_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.07115
+train windows: 4   val windows: 1088
+val subset: 2 windows at indices 0..1087 (1 rank shard(s))
+zero-init check passed: untrained residual model == last-day persistence
+Model Total Params: 29895008
+preset=full3d mode=smoke objective=persistence_residual grid=(400,441,30) patch=(4, 3, 2) cond_ch=14 model_cond_ch=14 static_mask_input=False target_ch=2 mask_scheme=bivariate_rho stats_sigma=0.07115 objective=persistence_residual (residual_base=last_day, time_sigma=0.002; sigma_data not applicable) epochs=1 train_horizon=1 lead_schedule=1 init_checkpoint=None world_size=1 per_device_batch=1 effective_batch=1 run_dir=/data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S4_C7_SD2_RES_SMOKE
+PROGRESS phase=train objective=persistence_residual preset=full3d mode=smoke world=1 epochs=1 steps_per_epoch=4 train_horizon=1 lead_schedule=1 run_dir=/data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S4_C7_SD2_RES_SMOKE status=start
+PROGRESS phase=train epoch=1/1 scope=whole_split step=0/4 elapsed_s=0.0 status=start
+PROGRESS phase=train epoch=1/1 scope=whole_split step=4/4 elapsed_s=5.2 step_per_s=0.764 sample_per_s=0.764 loss=0.01410 lr=0.00e+00 updates=4 skipped=0 status=phase_done
+PROGRESS phase=val epoch=1/1 scope=whole_split batch=0/2 elapsed_s=0.0 status=start
+PROGRESS phase=val epoch=1/1 scope=whole_split batch=2/2 elapsed_s=2.5 batch_per_s=0.811 rel_l2=0.85136 status=phase_done
+epoch 1/1  7.7s  train_loss 0.01410  val_masked_relL2 0.85136  updates/rank 4 (skipped across ranks 0)  max_lead 1  grad_scale 6.5536e+04  lr 0.00e+00
+SMOKE PASS: finite train/val, 4 updates/rank, no AMP skips, checkpoint outputs complete in /data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S4_C7_SD2_RES_SMOKE
+PROGRESS phase=train objective=persistence_residual epochs_done=1 best_val=0.85136 elapsed_s=8.8 run_dir=/data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S4_C7_SD2_RES_SMOKE status=completed
+done. best val_masked_relL2 = 0.85136; checkpoints in /data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S4_C7_SD2_RES_SMOKE

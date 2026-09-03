@@ -1,0 +1,31 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_d14_clipnone.npz: lo=[-1.5264404 -1.5511675], hi=[2.0259528  0.86111003], sigma=0.11998
+loaded /data2/user/zyq/checkpoints/PRE/middle_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5/Ep2.pth (epoch=1) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 156 (stride 7, horizon 1, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/156 elapsed_s=0.0 status=start
+  [10/39] windows done
+  [20/39] windows done
+  [30/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=148/156 elapsed_s=30.0 window_per_s=4.933 sample_per_s=4.933 eta_s=1.6 d1_rmse=0.0560 d1_pers=0.0898 ratio=0.624 status=running
+  [39/39] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=156/156 elapsed_s=31.4 window_per_s=4.971 sample_per_s=4.971 d1_rmse=0.0551 d1_pers=0.0887 ratio=0.621 status=phase_done
+evaluation loop finished: 156 windows in 31.4s
+saved /data2/user/zyq/checkpoints/PRE/middle_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5/eval_val_h1_ch0_e1_s123_rf0_ckptEp2.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.0551 | 0.0887 | 0.621 | 0.1622 | 0.0024
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.0551 | 0.0887 | 0.621 | 0.0551 | 0.0887 | 0.621
+  zero | 0.1622 | 0.0887 | 1.828 | 0.1622 | 0.0887 | 1.828
+oracle | 0.0024 | 0.0887 | 0.027 | 0.0024 | 0.0887 | 0.027
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.0700 (pers 0.1148)  
+v: d1 0.0343 (pers 0.0509)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.0551 m/s | persistence 0.0887 m/s | zero 0.1622 m/s | rho-oracle 0.0024 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/middle_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5/figures_h1_ch0_e1_s123_rf0_ckptEp2
+PROGRESS phase=eval objective=persistence_residual windows=156 remask_feedback=False elapsed_s=32.1 status=completed

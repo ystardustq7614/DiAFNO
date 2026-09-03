@@ -1,0 +1,15 @@
+2026-09-02 15:59:02 watcher started (need 2 GPUs with free >= 19968 MiB; max 3 attempts; 5h budget)
+2026-09-02 18:24:35 attempt1: launching DDP2 smoke on GPU 0,3 (log: /data2/user/zyq/checkpoints/PRE/train_ms5_smoke_ddp2_try1.log)
+2026-09-02 18:24:45 attempt1: FAILED (rc=1) RuntimeError:_Expected_to_have_finished_reduction_in_the_prior_iteration_before_starting_a_new_one._This_error_indicates_that_your_m
+2026-09-02 18:24:45 cooldown 30 min before next attempt
+2026-09-02 19:00:16 attempt2: launching DDP2 smoke on GPU 0,3 (log: /data2/user/zyq/checkpoints/PRE/train_ms5_smoke_ddp2_try2.log)
+2026-09-02 19:00:25 attempt2: FAILED (rc=1) RuntimeError: Expected to have finished reduction in the prior iteration before starting a new one. This error indicates that your m
+2026-09-02 19:00:25 cooldown 30 min before next attempt
+2026-09-02 19:35:55 attempt3: launching DDP2 smoke on GPU 0,3 (log: /data2/user/zyq/checkpoints/PRE/train_ms5_smoke_ddp2_try3.log)
+2026-09-02 19:36:05 attempt3: FAILED (rc=1) RuntimeError:_Expected_to_have_finished_reduction_in_the_prior_iteration_before_starting_a_new_one._This_error_indicates_that_your_m
+2026-09-02 19:36:05 watcher finished: GAVE UP after 3 attempts
+2026-09-03 00:34:59 watcher started (need 2 GPUs with free >= 19968 MiB; max 3 attempts; 5h budget)
+2026-09-03 00:35:29 attempt1: launching DDP2 smoke on GPU 0,3 (log: /data2/user/zyq/checkpoints/PRE/train_ms5_smoke_ddp2_20260903_003529.log)
+2026-09-03 00:35:40 attempt1: SMOKE PASS (rc=0) on GPU 0,3
+2026-09-03 00:35:40 run dir: /data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S4_C7_SD2_RES_MS5_SMOKE_DDP2
+2026-09-03 00:35:40 watcher finished: SUCCESS

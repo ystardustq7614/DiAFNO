@@ -1,0 +1,304 @@
+[stats] loaded /data2/user/zyq/data_processed/PRE/norm/stats_all_clipnone.npz: lo=[-2.3323388 -2.1205492], hi=[2.2596378 1.3131903], sigma=0.07115
+loaded /data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S32_C7_SD2_RES/Ep1.pth (epoch=0) objective=persistence_residual  residual_base=last_day  time_sigma=0.002  (sampler parameters not applicable; remask_feedback=False)
+val rollout windows: 154 (stride 7, horizon 15, ensemble 1)
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=0.0 status=start
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=30.0 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=60.6 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=90.6 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=120.6 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=150.6 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=180.6 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=0/154 elapsed_s=210.6 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=240.6 window_per_s=0.004 sample_per_s=0.062 eta_s=36817.2 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=270.6 window_per_s=0.004 sample_per_s=0.055 eta_s=41408.5 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=300.7 window_per_s=0.003 sample_per_s=0.050 eta_s=46000.5 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=330.7 window_per_s=0.003 sample_per_s=0.045 eta_s=50591.2 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=360.7 window_per_s=0.003 sample_per_s=0.042 eta_s=55181.7 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=390.7 window_per_s=0.003 sample_per_s=0.038 eta_s=59772.6 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=420.7 window_per_s=0.002 sample_per_s=0.036 eta_s=64363.5 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=450.7 window_per_s=0.002 sample_per_s=0.033 eta_s=68955.3 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=480.7 window_per_s=0.002 sample_per_s=0.031 eta_s=73546.8 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=510.7 window_per_s=0.002 sample_per_s=0.029 eta_s=78137.5 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=1/154 elapsed_s=540.7 window_per_s=0.002 sample_per_s=0.028 eta_s=82728.7 d1_rmse=0.0527 d1_pers=0.0527 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=2/154 elapsed_s=570.7 window_per_s=0.004 sample_per_s=0.053 eta_s=43374.3 d1_rmse=0.0561 d1_pers=0.0562 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=2/154 elapsed_s=600.7 window_per_s=0.003 sample_per_s=0.050 eta_s=45655.9 d1_rmse=0.0561 d1_pers=0.0562 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=3/154 elapsed_s=630.7 window_per_s=0.005 sample_per_s=0.071 eta_s=31747.2 d1_rmse=0.0538 d1_pers=0.0538 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=3/154 elapsed_s=660.8 window_per_s=0.005 sample_per_s=0.068 eta_s=33259.0 d1_rmse=0.0538 d1_pers=0.0538 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=4/154 elapsed_s=690.8 window_per_s=0.006 sample_per_s=0.087 eta_s=25904.1 d1_rmse=0.0571 d1_pers=0.0571 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=4/154 elapsed_s=720.8 window_per_s=0.006 sample_per_s=0.083 eta_s=27029.2 d1_rmse=0.0571 d1_pers=0.0571 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=4/154 elapsed_s=750.8 window_per_s=0.005 sample_per_s=0.080 eta_s=28154.3 d1_rmse=0.0571 d1_pers=0.0571 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=5/154 elapsed_s=780.8 window_per_s=0.006 sample_per_s=0.096 eta_s=23267.4 d1_rmse=0.0655 d1_pers=0.0655 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=5/154 elapsed_s=810.8 window_per_s=0.006 sample_per_s=0.093 eta_s=24161.4 d1_rmse=0.0655 d1_pers=0.0655 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=6/154 elapsed_s=840.8 window_per_s=0.007 sample_per_s=0.107 eta_s=20740.1 d1_rmse=0.0649 d1_pers=0.0649 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=6/154 elapsed_s=870.8 window_per_s=0.007 sample_per_s=0.103 eta_s=21480.2 d1_rmse=0.0649 d1_pers=0.0649 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=7/154 elapsed_s=900.8 window_per_s=0.008 sample_per_s=0.117 eta_s=18917.3 d1_rmse=0.0802 d1_pers=0.0802 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=7/154 elapsed_s=930.8 window_per_s=0.008 sample_per_s=0.113 eta_s=19547.4 d1_rmse=0.0802 d1_pers=0.0802 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=7/154 elapsed_s=961.1 window_per_s=0.007 sample_per_s=0.109 eta_s=20183.6 d1_rmse=0.0802 d1_pers=0.0802 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=8/154 elapsed_s=991.1 window_per_s=0.008 sample_per_s=0.121 eta_s=18088.2 d1_rmse=0.0766 d1_pers=0.0766 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=8/154 elapsed_s=1021.1 window_per_s=0.008 sample_per_s=0.118 eta_s=18635.8 d1_rmse=0.0766 d1_pers=0.0766 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=8/154 elapsed_s=1051.2 window_per_s=0.008 sample_per_s=0.114 eta_s=19183.6 d1_rmse=0.0766 d1_pers=0.0766 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=8/154 elapsed_s=1081.2 window_per_s=0.007 sample_per_s=0.111 eta_s=19731.3 d1_rmse=0.0766 d1_pers=0.0766 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=8/154 elapsed_s=1111.2 window_per_s=0.007 sample_per_s=0.108 eta_s=20278.9 d1_rmse=0.0766 d1_pers=0.0766 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=9/154 elapsed_s=1141.2 window_per_s=0.008 sample_per_s=0.118 eta_s=18385.6 d1_rmse=0.0794 d1_pers=0.0794 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=9/154 elapsed_s=1171.2 window_per_s=0.008 sample_per_s=0.115 eta_s=18869.0 d1_rmse=0.0794 d1_pers=0.0794 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=9/154 elapsed_s=1201.2 window_per_s=0.007 sample_per_s=0.112 eta_s=19352.4 d1_rmse=0.0794 d1_pers=0.0794 ratio=1.000 status=running
+  [10/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=10/154 elapsed_s=1231.2 window_per_s=0.008 sample_per_s=0.122 eta_s=17729.1 d1_rmse=0.0783 d1_pers=0.0783 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=10/154 elapsed_s=1261.2 window_per_s=0.008 sample_per_s=0.119 eta_s=18161.1 d1_rmse=0.0783 d1_pers=0.0783 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=11/154 elapsed_s=1291.2 window_per_s=0.009 sample_per_s=0.128 eta_s=16785.5 d1_rmse=0.0775 d1_pers=0.0775 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=11/154 elapsed_s=1321.3 window_per_s=0.008 sample_per_s=0.125 eta_s=17176.8 d1_rmse=0.0775 d1_pers=0.0775 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=11/154 elapsed_s=1351.3 window_per_s=0.008 sample_per_s=0.122 eta_s=17566.9 d1_rmse=0.0775 d1_pers=0.0775 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=12/154 elapsed_s=1381.3 window_per_s=0.009 sample_per_s=0.130 eta_s=16345.4 d1_rmse=0.0811 d1_pers=0.0811 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=12/154 elapsed_s=1411.4 window_per_s=0.009 sample_per_s=0.128 eta_s=16701.0 d1_rmse=0.0811 d1_pers=0.0811 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=12/154 elapsed_s=1441.4 window_per_s=0.008 sample_per_s=0.125 eta_s=17056.1 d1_rmse=0.0811 d1_pers=0.0811 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=13/154 elapsed_s=1471.4 window_per_s=0.009 sample_per_s=0.133 eta_s=15958.6 d1_rmse=0.0806 d1_pers=0.0807 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=13/154 elapsed_s=1501.4 window_per_s=0.009 sample_per_s=0.130 eta_s=16284.1 d1_rmse=0.0806 d1_pers=0.0807 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=13/154 elapsed_s=1531.4 window_per_s=0.008 sample_per_s=0.127 eta_s=16609.8 d1_rmse=0.0806 d1_pers=0.0807 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=14/154 elapsed_s=1561.4 window_per_s=0.009 sample_per_s=0.134 eta_s=15614.0 d1_rmse=0.0792 d1_pers=0.0792 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=14/154 elapsed_s=1591.4 window_per_s=0.009 sample_per_s=0.132 eta_s=15914.1 d1_rmse=0.0792 d1_pers=0.0792 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=14/154 elapsed_s=1621.6 window_per_s=0.009 sample_per_s=0.130 eta_s=16215.5 d1_rmse=0.0792 d1_pers=0.0792 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=15/154 elapsed_s=1651.6 window_per_s=0.009 sample_per_s=0.136 eta_s=15304.4 d1_rmse=0.0792 d1_pers=0.0792 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=16/154 elapsed_s=1681.6 window_per_s=0.010 sample_per_s=0.143 eta_s=14503.5 d1_rmse=0.0830 d1_pers=0.0830 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=16/154 elapsed_s=1711.6 window_per_s=0.009 sample_per_s=0.140 eta_s=14762.5 d1_rmse=0.0830 d1_pers=0.0830 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=17/154 elapsed_s=1741.6 window_per_s=0.010 sample_per_s=0.146 eta_s=14035.3 d1_rmse=0.0850 d1_pers=0.0850 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=18/154 elapsed_s=1771.6 window_per_s=0.010 sample_per_s=0.152 eta_s=13385.5 d1_rmse=0.0869 d1_pers=0.0870 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=19/154 elapsed_s=1801.6 window_per_s=0.011 sample_per_s=0.158 eta_s=12800.9 d1_rmse=0.0859 d1_pers=0.0860 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=19/154 elapsed_s=1831.6 window_per_s=0.010 sample_per_s=0.156 eta_s=13014.1 d1_rmse=0.0859 d1_pers=0.0860 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=19/154 elapsed_s=1861.7 window_per_s=0.010 sample_per_s=0.153 eta_s=13228.2 d1_rmse=0.0859 d1_pers=0.0860 ratio=1.000 status=running
+  [20/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=20/154 elapsed_s=1891.8 window_per_s=0.011 sample_per_s=0.159 eta_s=12675.1 d1_rmse=0.0872 d1_pers=0.0872 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=20/154 elapsed_s=1921.8 window_per_s=0.010 sample_per_s=0.156 eta_s=12876.1 d1_rmse=0.0872 d1_pers=0.0872 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=20/154 elapsed_s=1951.8 window_per_s=0.010 sample_per_s=0.154 eta_s=13077.2 d1_rmse=0.0872 d1_pers=0.0872 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=20/154 elapsed_s=1981.8 window_per_s=0.010 sample_per_s=0.151 eta_s=13278.2 d1_rmse=0.0872 d1_pers=0.0872 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=20/154 elapsed_s=2011.8 window_per_s=0.010 sample_per_s=0.149 eta_s=13479.2 d1_rmse=0.0872 d1_pers=0.0872 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=21/154 elapsed_s=2041.8 window_per_s=0.010 sample_per_s=0.154 eta_s=12931.7 d1_rmse=0.0865 d1_pers=0.0865 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=21/154 elapsed_s=2072.0 window_per_s=0.010 sample_per_s=0.152 eta_s=13122.6 d1_rmse=0.0865 d1_pers=0.0865 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=22/154 elapsed_s=2102.0 window_per_s=0.010 sample_per_s=0.157 eta_s=12612.0 d1_rmse=0.0854 d1_pers=0.0854 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=22/154 elapsed_s=2132.0 window_per_s=0.010 sample_per_s=0.155 eta_s=12792.0 d1_rmse=0.0854 d1_pers=0.0854 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=22/154 elapsed_s=2162.0 window_per_s=0.010 sample_per_s=0.153 eta_s=12972.0 d1_rmse=0.0854 d1_pers=0.0854 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=22/154 elapsed_s=2192.0 window_per_s=0.010 sample_per_s=0.151 eta_s=13152.0 d1_rmse=0.0854 d1_pers=0.0854 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=23/154 elapsed_s=2222.0 window_per_s=0.010 sample_per_s=0.155 eta_s=12655.8 d1_rmse=0.0843 d1_pers=0.0844 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=23/154 elapsed_s=2252.0 window_per_s=0.010 sample_per_s=0.153 eta_s=12826.7 d1_rmse=0.0843 d1_pers=0.0844 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=23/154 elapsed_s=2282.3 window_per_s=0.010 sample_per_s=0.151 eta_s=12999.1 d1_rmse=0.0843 d1_pers=0.0844 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=24/154 elapsed_s=2312.3 window_per_s=0.010 sample_per_s=0.156 eta_s=12524.9 d1_rmse=0.0835 d1_pers=0.0835 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=24/154 elapsed_s=2342.3 window_per_s=0.010 sample_per_s=0.154 eta_s=12687.4 d1_rmse=0.0835 d1_pers=0.0835 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=24/154 elapsed_s=2372.3 window_per_s=0.010 sample_per_s=0.152 eta_s=12849.9 d1_rmse=0.0835 d1_pers=0.0835 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=24/154 elapsed_s=2402.3 window_per_s=0.010 sample_per_s=0.150 eta_s=13012.5 d1_rmse=0.0835 d1_pers=0.0835 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=24/154 elapsed_s=2432.3 window_per_s=0.010 sample_per_s=0.148 eta_s=13175.1 d1_rmse=0.0835 d1_pers=0.0835 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=25/154 elapsed_s=2462.3 window_per_s=0.010 sample_per_s=0.152 eta_s=12705.6 d1_rmse=0.0824 d1_pers=0.0824 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=25/154 elapsed_s=2492.3 window_per_s=0.010 sample_per_s=0.150 eta_s=12860.5 d1_rmse=0.0824 d1_pers=0.0824 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=25/154 elapsed_s=2522.3 window_per_s=0.010 sample_per_s=0.149 eta_s=13015.3 d1_rmse=0.0824 d1_pers=0.0824 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=26/154 elapsed_s=2552.4 window_per_s=0.010 sample_per_s=0.153 eta_s=12565.4 d1_rmse=0.0823 d1_pers=0.0823 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=26/154 elapsed_s=2582.4 window_per_s=0.010 sample_per_s=0.151 eta_s=12713.2 d1_rmse=0.0823 d1_pers=0.0823 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=27/154 elapsed_s=2612.5 window_per_s=0.010 sample_per_s=0.155 eta_s=12288.4 d1_rmse=0.0815 d1_pers=0.0815 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=27/154 elapsed_s=2642.5 window_per_s=0.010 sample_per_s=0.153 eta_s=12429.5 d1_rmse=0.0815 d1_pers=0.0815 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=28/154 elapsed_s=2672.5 window_per_s=0.010 sample_per_s=0.157 eta_s=12026.2 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=28/154 elapsed_s=2702.5 window_per_s=0.010 sample_per_s=0.155 eta_s=12161.4 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2732.5 window_per_s=0.011 sample_per_s=0.159 eta_s=11778.2 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2762.5 window_per_s=0.010 sample_per_s=0.157 eta_s=11907.5 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2792.6 window_per_s=0.010 sample_per_s=0.156 eta_s=12037.1 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2822.7 window_per_s=0.010 sample_per_s=0.154 eta_s=12166.9 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2853.1 window_per_s=0.010 sample_per_s=0.152 eta_s=12298.0 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2883.1 window_per_s=0.010 sample_per_s=0.151 eta_s=12427.4 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2913.2 window_per_s=0.010 sample_per_s=0.149 eta_s=12556.7 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2943.4 window_per_s=0.010 sample_per_s=0.148 eta_s=12687.2 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=2973.5 window_per_s=0.010 sample_per_s=0.146 eta_s=12816.6 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=3003.5 window_per_s=0.010 sample_per_s=0.145 eta_s=12946.0 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=29/154 elapsed_s=3033.5 window_per_s=0.010 sample_per_s=0.143 eta_s=13075.4 d1_rmse=0.0816 d1_pers=0.0816 ratio=1.000 status=running
+  [30/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=30/154 elapsed_s=3063.5 window_per_s=0.010 sample_per_s=0.147 eta_s=12662.5 d1_rmse=0.0821 d1_pers=0.0821 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=30/154 elapsed_s=3093.5 window_per_s=0.010 sample_per_s=0.145 eta_s=12786.5 d1_rmse=0.0821 d1_pers=0.0821 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=30/154 elapsed_s=3123.6 window_per_s=0.010 sample_per_s=0.144 eta_s=12910.7 d1_rmse=0.0821 d1_pers=0.0821 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=30/154 elapsed_s=3153.6 window_per_s=0.010 sample_per_s=0.143 eta_s=13034.8 d1_rmse=0.0821 d1_pers=0.0821 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=30/154 elapsed_s=3183.6 window_per_s=0.009 sample_per_s=0.141 eta_s=13158.9 d1_rmse=0.0821 d1_pers=0.0821 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=31/154 elapsed_s=3213.7 window_per_s=0.010 sample_per_s=0.145 eta_s=12751.1 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=31/154 elapsed_s=3243.7 window_per_s=0.010 sample_per_s=0.143 eta_s=12870.2 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=31/154 elapsed_s=3273.7 window_per_s=0.009 sample_per_s=0.142 eta_s=12989.3 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=31/154 elapsed_s=3304.0 window_per_s=0.009 sample_per_s=0.141 eta_s=13109.6 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=31/154 elapsed_s=3334.7 window_per_s=0.009 sample_per_s=0.139 eta_s=13231.4 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=31/154 elapsed_s=3364.8 window_per_s=0.009 sample_per_s=0.138 eta_s=13350.5 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=31/154 elapsed_s=3394.8 window_per_s=0.009 sample_per_s=0.137 eta_s=13469.6 d1_rmse=0.0818 d1_pers=0.0818 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=32/154 elapsed_s=3424.8 window_per_s=0.009 sample_per_s=0.140 eta_s=13057.0 d1_rmse=0.0808 d1_pers=0.0808 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=32/154 elapsed_s=3454.8 window_per_s=0.009 sample_per_s=0.139 eta_s=13171.4 d1_rmse=0.0808 d1_pers=0.0808 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=32/154 elapsed_s=3484.8 window_per_s=0.009 sample_per_s=0.138 eta_s=13285.8 d1_rmse=0.0808 d1_pers=0.0808 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=32/154 elapsed_s=3515.3 window_per_s=0.009 sample_per_s=0.137 eta_s=13402.1 d1_rmse=0.0808 d1_pers=0.0808 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=32/154 elapsed_s=3545.3 window_per_s=0.009 sample_per_s=0.135 eta_s=13516.5 d1_rmse=0.0808 d1_pers=0.0808 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=32/154 elapsed_s=3576.5 window_per_s=0.009 sample_per_s=0.134 eta_s=13635.5 d1_rmse=0.0808 d1_pers=0.0808 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=33/154 elapsed_s=3606.5 window_per_s=0.009 sample_per_s=0.137 eta_s=13224.0 d1_rmse=0.0799 d1_pers=0.0800 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=33/154 elapsed_s=3636.7 window_per_s=0.009 sample_per_s=0.136 eta_s=13334.4 d1_rmse=0.0799 d1_pers=0.0800 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=33/154 elapsed_s=3666.7 window_per_s=0.009 sample_per_s=0.135 eta_s=13444.4 d1_rmse=0.0799 d1_pers=0.0800 ratio=1.000 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=34/154 elapsed_s=3696.7 window_per_s=0.009 sample_per_s=0.138 eta_s=13047.3 d1_rmse=0.0853 d1_pers=0.0854 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=34/154 elapsed_s=3726.7 window_per_s=0.009 sample_per_s=0.137 eta_s=13153.2 d1_rmse=0.0853 d1_pers=0.0854 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=34/154 elapsed_s=3756.7 window_per_s=0.009 sample_per_s=0.136 eta_s=13259.1 d1_rmse=0.0853 d1_pers=0.0854 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=34/154 elapsed_s=3786.8 window_per_s=0.009 sample_per_s=0.135 eta_s=13365.1 d1_rmse=0.0853 d1_pers=0.0854 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=34/154 elapsed_s=3816.9 window_per_s=0.009 sample_per_s=0.134 eta_s=13471.2 d1_rmse=0.0853 d1_pers=0.0854 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=34/154 elapsed_s=3846.9 window_per_s=0.009 sample_per_s=0.133 eta_s=13577.2 d1_rmse=0.0853 d1_pers=0.0854 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=35/154 elapsed_s=3876.9 window_per_s=0.009 sample_per_s=0.135 eta_s=13181.4 d1_rmse=0.0853 d1_pers=0.0853 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=35/154 elapsed_s=3906.9 window_per_s=0.009 sample_per_s=0.134 eta_s=13283.4 d1_rmse=0.0853 d1_pers=0.0853 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=36/154 elapsed_s=3936.9 window_per_s=0.009 sample_per_s=0.137 eta_s=12904.3 d1_rmse=0.0844 d1_pers=0.0845 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=36/154 elapsed_s=3966.9 window_per_s=0.009 sample_per_s=0.136 eta_s=13002.6 d1_rmse=0.0844 d1_pers=0.0845 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=37/154 elapsed_s=3996.9 window_per_s=0.009 sample_per_s=0.139 eta_s=12638.9 d1_rmse=0.0844 d1_pers=0.0844 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=37/154 elapsed_s=4026.9 window_per_s=0.009 sample_per_s=0.138 eta_s=12733.7 d1_rmse=0.0844 d1_pers=0.0844 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=38/154 elapsed_s=4056.9 window_per_s=0.009 sample_per_s=0.140 eta_s=12384.4 d1_rmse=0.0847 d1_pers=0.0847 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=38/154 elapsed_s=4087.0 window_per_s=0.009 sample_per_s=0.139 eta_s=12476.0 d1_rmse=0.0847 d1_pers=0.0847 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=38/154 elapsed_s=4117.0 window_per_s=0.009 sample_per_s=0.138 eta_s=12567.6 d1_rmse=0.0847 d1_pers=0.0847 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=39/154 elapsed_s=4147.0 window_per_s=0.009 sample_per_s=0.141 eta_s=12228.3 d1_rmse=0.0846 d1_pers=0.0846 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=39/154 elapsed_s=4177.0 window_per_s=0.009 sample_per_s=0.140 eta_s=12316.7 d1_rmse=0.0846 d1_pers=0.0846 ratio=0.999 status=running
+  [40/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=40/154 elapsed_s=4207.0 window_per_s=0.010 sample_per_s=0.143 eta_s=11989.9 d1_rmse=0.0842 d1_pers=0.0842 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=40/154 elapsed_s=4237.1 window_per_s=0.009 sample_per_s=0.142 eta_s=12075.7 d1_rmse=0.0842 d1_pers=0.0842 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=40/154 elapsed_s=4267.1 window_per_s=0.009 sample_per_s=0.141 eta_s=12161.2 d1_rmse=0.0842 d1_pers=0.0842 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=41/154 elapsed_s=4297.1 window_per_s=0.010 sample_per_s=0.143 eta_s=11843.2 d1_rmse=0.0852 d1_pers=0.0853 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=41/154 elapsed_s=4327.1 window_per_s=0.009 sample_per_s=0.142 eta_s=11926.0 d1_rmse=0.0852 d1_pers=0.0853 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=41/154 elapsed_s=4357.1 window_per_s=0.009 sample_per_s=0.141 eta_s=12008.7 d1_rmse=0.0852 d1_pers=0.0853 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=42/154 elapsed_s=4387.1 window_per_s=0.010 sample_per_s=0.144 eta_s=11699.0 d1_rmse=0.0843 d1_pers=0.0843 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=42/154 elapsed_s=4417.1 window_per_s=0.010 sample_per_s=0.143 eta_s=11779.1 d1_rmse=0.0843 d1_pers=0.0843 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=43/154 elapsed_s=4447.3 window_per_s=0.010 sample_per_s=0.145 eta_s=11480.3 d1_rmse=0.0841 d1_pers=0.0842 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=43/154 elapsed_s=4477.3 window_per_s=0.010 sample_per_s=0.144 eta_s=11557.8 d1_rmse=0.0841 d1_pers=0.0842 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=43/154 elapsed_s=4507.4 window_per_s=0.010 sample_per_s=0.143 eta_s=11635.4 d1_rmse=0.0841 d1_pers=0.0842 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=44/154 elapsed_s=4537.4 window_per_s=0.010 sample_per_s=0.145 eta_s=11343.6 d1_rmse=0.0836 d1_pers=0.0836 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=44/154 elapsed_s=4567.4 window_per_s=0.010 sample_per_s=0.145 eta_s=11418.6 d1_rmse=0.0836 d1_pers=0.0836 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=44/154 elapsed_s=4597.4 window_per_s=0.010 sample_per_s=0.144 eta_s=11493.6 d1_rmse=0.0836 d1_pers=0.0836 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=45/154 elapsed_s=4627.4 window_per_s=0.010 sample_per_s=0.146 eta_s=11208.7 d1_rmse=0.0833 d1_pers=0.0834 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=45/154 elapsed_s=4657.5 window_per_s=0.010 sample_per_s=0.145 eta_s=11281.4 d1_rmse=0.0833 d1_pers=0.0834 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=45/154 elapsed_s=4687.5 window_per_s=0.010 sample_per_s=0.144 eta_s=11354.1 d1_rmse=0.0833 d1_pers=0.0834 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=46/154 elapsed_s=4717.5 window_per_s=0.010 sample_per_s=0.146 eta_s=11075.8 d1_rmse=0.0882 d1_pers=0.0883 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=46/154 elapsed_s=4747.5 window_per_s=0.010 sample_per_s=0.145 eta_s=11146.3 d1_rmse=0.0882 d1_pers=0.0883 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=47/154 elapsed_s=4777.5 window_per_s=0.010 sample_per_s=0.148 eta_s=10876.5 d1_rmse=0.0880 d1_pers=0.0881 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=49/154 elapsed_s=4807.5 window_per_s=0.010 sample_per_s=0.153 eta_s=10301.8 d1_rmse=0.0874 d1_pers=0.0874 ratio=0.999 status=running
+  [50/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=51/154 elapsed_s=4837.6 window_per_s=0.011 sample_per_s=0.158 eta_s=9770.0 d1_rmse=0.0873 d1_pers=0.0874 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=52/154 elapsed_s=4867.6 window_per_s=0.011 sample_per_s=0.160 eta_s=9548.1 d1_rmse=0.0866 d1_pers=0.0867 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=54/154 elapsed_s=4897.6 window_per_s=0.011 sample_per_s=0.165 eta_s=9069.7 d1_rmse=0.0858 d1_pers=0.0859 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=55/154 elapsed_s=4927.7 window_per_s=0.011 sample_per_s=0.167 eta_s=8869.8 d1_rmse=0.0854 d1_pers=0.0854 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=57/154 elapsed_s=4957.7 window_per_s=0.011 sample_per_s=0.172 eta_s=8436.8 d1_rmse=0.0852 d1_pers=0.0853 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=58/154 elapsed_s=4987.7 window_per_s=0.012 sample_per_s=0.174 eta_s=8255.6 d1_rmse=0.0855 d1_pers=0.0855 ratio=0.999 status=running
+  [60/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=60/154 elapsed_s=5017.7 window_per_s=0.012 sample_per_s=0.179 eta_s=7861.1 d1_rmse=0.0870 d1_pers=0.0871 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=61/154 elapsed_s=5047.7 window_per_s=0.012 sample_per_s=0.181 eta_s=7695.7 d1_rmse=0.0865 d1_pers=0.0866 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=62/154 elapsed_s=5077.8 window_per_s=0.012 sample_per_s=0.183 eta_s=7534.7 d1_rmse=0.0863 d1_pers=0.0864 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=64/154 elapsed_s=5107.8 window_per_s=0.013 sample_per_s=0.188 eta_s=7182.8 d1_rmse=0.0863 d1_pers=0.0864 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=65/154 elapsed_s=5137.8 window_per_s=0.013 sample_per_s=0.190 eta_s=7034.8 d1_rmse=0.0860 d1_pers=0.0860 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=67/154 elapsed_s=5167.8 window_per_s=0.013 sample_per_s=0.194 eta_s=6710.4 d1_rmse=0.0871 d1_pers=0.0872 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=68/154 elapsed_s=5197.8 window_per_s=0.013 sample_per_s=0.196 eta_s=6573.6 d1_rmse=0.0867 d1_pers=0.0868 ratio=0.999 status=running
+  [70/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=70/154 elapsed_s=5227.8 window_per_s=0.013 sample_per_s=0.201 eta_s=6273.3 d1_rmse=0.0882 d1_pers=0.0882 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=71/154 elapsed_s=5257.8 window_per_s=0.014 sample_per_s=0.203 eta_s=6146.4 d1_rmse=0.0889 d1_pers=0.0889 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=71/154 elapsed_s=5287.8 window_per_s=0.013 sample_per_s=0.201 eta_s=6181.5 d1_rmse=0.0889 d1_pers=0.0889 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=73/154 elapsed_s=5317.8 window_per_s=0.014 sample_per_s=0.206 eta_s=5900.5 d1_rmse=0.0882 d1_pers=0.0882 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=74/154 elapsed_s=5347.8 window_per_s=0.014 sample_per_s=0.208 eta_s=5781.4 d1_rmse=0.0880 d1_pers=0.0881 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=75/154 elapsed_s=5377.8 window_per_s=0.014 sample_per_s=0.209 eta_s=5664.7 d1_rmse=0.0878 d1_pers=0.0879 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=77/154 elapsed_s=5407.8 window_per_s=0.014 sample_per_s=0.214 eta_s=5407.8 d1_rmse=0.0875 d1_pers=0.0875 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=78/154 elapsed_s=5437.8 window_per_s=0.014 sample_per_s=0.215 eta_s=5298.4 d1_rmse=0.0870 d1_pers=0.0871 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=79/154 elapsed_s=5467.9 window_per_s=0.014 sample_per_s=0.217 eta_s=5191.1 d1_rmse=0.0871 d1_pers=0.0872 ratio=0.999 status=running
+  [80/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=81/154 elapsed_s=5497.9 window_per_s=0.015 sample_per_s=0.221 eta_s=4954.9 d1_rmse=0.0876 d1_pers=0.0877 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=82/154 elapsed_s=5527.9 window_per_s=0.015 sample_per_s=0.223 eta_s=4853.8 d1_rmse=0.0872 d1_pers=0.0873 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=84/154 elapsed_s=5557.9 window_per_s=0.015 sample_per_s=0.227 eta_s=4631.6 d1_rmse=0.0866 d1_pers=0.0866 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=85/154 elapsed_s=5588.0 window_per_s=0.015 sample_per_s=0.228 eta_s=4536.1 d1_rmse=0.0862 d1_pers=0.0863 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=87/154 elapsed_s=5618.0 window_per_s=0.015 sample_per_s=0.232 eta_s=4326.5 d1_rmse=0.0855 d1_pers=0.0856 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=88/154 elapsed_s=5648.0 window_per_s=0.016 sample_per_s=0.234 eta_s=4236.0 d1_rmse=0.0858 d1_pers=0.0858 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=89/154 elapsed_s=5678.1 window_per_s=0.016 sample_per_s=0.235 eta_s=4146.9 d1_rmse=0.0955 d1_pers=0.0956 ratio=0.999 status=running
+  [90/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=90/154 elapsed_s=5708.1 window_per_s=0.016 sample_per_s=0.237 eta_s=4059.1 d1_rmse=0.0952 d1_pers=0.0952 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=91/154 elapsed_s=5738.1 window_per_s=0.016 sample_per_s=0.238 eta_s=3972.5 d1_rmse=0.0951 d1_pers=0.0952 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=92/154 elapsed_s=5768.1 window_per_s=0.016 sample_per_s=0.239 eta_s=3887.2 d1_rmse=0.0948 d1_pers=0.0948 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=94/154 elapsed_s=5798.1 window_per_s=0.016 sample_per_s=0.243 eta_s=3700.9 d1_rmse=0.0944 d1_pers=0.0944 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=95/154 elapsed_s=5828.1 window_per_s=0.016 sample_per_s=0.245 eta_s=3619.6 d1_rmse=0.0944 d1_pers=0.0945 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=96/154 elapsed_s=5858.1 window_per_s=0.016 sample_per_s=0.246 eta_s=3539.3 d1_rmse=0.0941 d1_pers=0.0942 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=98/154 elapsed_s=5888.2 window_per_s=0.017 sample_per_s=0.250 eta_s=3364.7 d1_rmse=0.0938 d1_pers=0.0938 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=99/154 elapsed_s=5918.2 window_per_s=0.017 sample_per_s=0.251 eta_s=3287.9 d1_rmse=0.0937 d1_pers=0.0937 ratio=0.999 status=running
+  [100/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=101/154 elapsed_s=5948.2 window_per_s=0.017 sample_per_s=0.255 eta_s=3121.3 d1_rmse=0.0936 d1_pers=0.0937 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=102/154 elapsed_s=5978.2 window_per_s=0.017 sample_per_s=0.256 eta_s=3047.7 d1_rmse=0.0937 d1_pers=0.0937 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=103/154 elapsed_s=6008.4 window_per_s=0.017 sample_per_s=0.257 eta_s=2975.0 d1_rmse=0.0937 d1_pers=0.0937 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=104/154 elapsed_s=6038.4 window_per_s=0.017 sample_per_s=0.258 eta_s=2903.1 d1_rmse=0.0933 d1_pers=0.0934 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=105/154 elapsed_s=6068.4 window_per_s=0.017 sample_per_s=0.260 eta_s=2831.9 d1_rmse=0.0933 d1_pers=0.0934 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=106/154 elapsed_s=6098.4 window_per_s=0.017 sample_per_s=0.261 eta_s=2761.5 d1_rmse=0.0933 d1_pers=0.0933 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=108/154 elapsed_s=6128.4 window_per_s=0.018 sample_per_s=0.264 eta_s=2610.2 d1_rmse=0.0937 d1_pers=0.0938 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=109/154 elapsed_s=6158.4 window_per_s=0.018 sample_per_s=0.265 eta_s=2542.5 d1_rmse=0.0944 d1_pers=0.0945 ratio=0.999 status=running
+  [110/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=110/154 elapsed_s=6188.4 window_per_s=0.018 sample_per_s=0.267 eta_s=2475.4 d1_rmse=0.0947 d1_pers=0.0948 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=111/154 elapsed_s=6218.4 window_per_s=0.018 sample_per_s=0.268 eta_s=2408.9 d1_rmse=0.0952 d1_pers=0.0953 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=112/154 elapsed_s=6248.4 window_per_s=0.018 sample_per_s=0.269 eta_s=2343.2 d1_rmse=0.0953 d1_pers=0.0953 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=113/154 elapsed_s=6278.4 window_per_s=0.018 sample_per_s=0.270 eta_s=2278.0 d1_rmse=0.0952 d1_pers=0.0952 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=114/154 elapsed_s=6308.4 window_per_s=0.018 sample_per_s=0.271 eta_s=2213.5 d1_rmse=0.0956 d1_pers=0.0957 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=115/154 elapsed_s=6338.4 window_per_s=0.018 sample_per_s=0.272 eta_s=2149.6 d1_rmse=0.0954 d1_pers=0.0955 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=116/154 elapsed_s=6368.4 window_per_s=0.018 sample_per_s=0.273 eta_s=2086.2 d1_rmse=0.0960 d1_pers=0.0960 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=118/154 elapsed_s=6398.4 window_per_s=0.018 sample_per_s=0.277 eta_s=1952.1 d1_rmse=0.0963 d1_pers=0.0964 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=119/154 elapsed_s=6428.4 window_per_s=0.019 sample_per_s=0.278 eta_s=1890.7 d1_rmse=0.0963 d1_pers=0.0963 ratio=0.999 status=running
+  [120/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=121/154 elapsed_s=6458.4 window_per_s=0.019 sample_per_s=0.281 eta_s=1761.4 d1_rmse=0.0962 d1_pers=0.0963 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=122/154 elapsed_s=6488.4 window_per_s=0.019 sample_per_s=0.282 eta_s=1701.9 d1_rmse=0.0961 d1_pers=0.0962 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=124/154 elapsed_s=6518.5 window_per_s=0.019 sample_per_s=0.285 eta_s=1577.0 d1_rmse=0.0956 d1_pers=0.0956 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=125/154 elapsed_s=6548.5 window_per_s=0.019 sample_per_s=0.286 eta_s=1519.2 d1_rmse=0.0956 d1_pers=0.0957 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=127/154 elapsed_s=6578.5 window_per_s=0.019 sample_per_s=0.290 eta_s=1398.6 d1_rmse=0.0956 d1_pers=0.0956 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=128/154 elapsed_s=6608.5 window_per_s=0.019 sample_per_s=0.291 eta_s=1342.3 d1_rmse=0.0955 d1_pers=0.0955 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=129/154 elapsed_s=6638.5 window_per_s=0.019 sample_per_s=0.291 eta_s=1286.5 d1_rmse=0.0952 d1_pers=0.0952 ratio=0.999 status=running
+  [130/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=131/154 elapsed_s=6668.7 window_per_s=0.020 sample_per_s=0.295 eta_s=1170.8 d1_rmse=0.0947 d1_pers=0.0947 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=132/154 elapsed_s=6698.7 window_per_s=0.020 sample_per_s=0.296 eta_s=1116.5 d1_rmse=0.0944 d1_pers=0.0945 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=133/154 elapsed_s=6728.7 window_per_s=0.020 sample_per_s=0.296 eta_s=1062.4 d1_rmse=0.0942 d1_pers=0.0942 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=134/154 elapsed_s=6758.7 window_per_s=0.020 sample_per_s=0.297 eta_s=1008.8 d1_rmse=0.0940 d1_pers=0.0940 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=135/154 elapsed_s=6788.7 window_per_s=0.020 sample_per_s=0.298 eta_s=955.4 d1_rmse=0.0937 d1_pers=0.0938 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=136/154 elapsed_s=6818.7 window_per_s=0.020 sample_per_s=0.299 eta_s=902.5 d1_rmse=0.0941 d1_pers=0.0941 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=138/154 elapsed_s=6848.7 window_per_s=0.020 sample_per_s=0.302 eta_s=794.1 d1_rmse=0.0937 d1_pers=0.0938 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=139/154 elapsed_s=6878.7 window_per_s=0.020 sample_per_s=0.303 eta_s=742.3 d1_rmse=0.0943 d1_pers=0.0943 ratio=0.999 status=running
+  [140/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=141/154 elapsed_s=6908.8 window_per_s=0.020 sample_per_s=0.306 eta_s=637.0 d1_rmse=0.0939 d1_pers=0.0939 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=142/154 elapsed_s=6938.8 window_per_s=0.020 sample_per_s=0.307 eta_s=586.4 d1_rmse=0.0938 d1_pers=0.0939 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=144/154 elapsed_s=6968.8 window_per_s=0.021 sample_per_s=0.310 eta_s=483.9 d1_rmse=0.0944 d1_pers=0.0945 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=145/154 elapsed_s=6998.8 window_per_s=0.021 sample_per_s=0.311 eta_s=434.4 d1_rmse=0.0943 d1_pers=0.0943 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=145/154 elapsed_s=7028.8 window_per_s=0.021 sample_per_s=0.309 eta_s=436.3 d1_rmse=0.0943 d1_pers=0.0943 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=146/154 elapsed_s=7058.8 window_per_s=0.021 sample_per_s=0.310 eta_s=386.8 d1_rmse=0.0940 d1_pers=0.0941 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=147/154 elapsed_s=7088.8 window_per_s=0.021 sample_per_s=0.311 eta_s=337.6 d1_rmse=0.0937 d1_pers=0.0938 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=147/154 elapsed_s=7118.9 window_per_s=0.021 sample_per_s=0.310 eta_s=339.0 d1_rmse=0.0937 d1_pers=0.0938 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=148/154 elapsed_s=7148.9 window_per_s=0.021 sample_per_s=0.311 eta_s=289.8 d1_rmse=0.0935 d1_pers=0.0935 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=149/154 elapsed_s=7178.9 window_per_s=0.021 sample_per_s=0.311 eta_s=240.9 d1_rmse=0.0933 d1_pers=0.0933 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=149/154 elapsed_s=7208.9 window_per_s=0.021 sample_per_s=0.310 eta_s=241.9 d1_rmse=0.0933 d1_pers=0.0933 ratio=0.999 status=running
+  [150/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=150/154 elapsed_s=7238.9 window_per_s=0.021 sample_per_s=0.311 eta_s=193.0 d1_rmse=0.0933 d1_pers=0.0933 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=150/154 elapsed_s=7269.0 window_per_s=0.021 sample_per_s=0.310 eta_s=193.8 d1_rmse=0.0933 d1_pers=0.0933 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=151/154 elapsed_s=7299.0 window_per_s=0.021 sample_per_s=0.310 eta_s=145.0 d1_rmse=0.0930 d1_pers=0.0930 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=151/154 elapsed_s=7329.0 window_per_s=0.021 sample_per_s=0.309 eta_s=145.6 d1_rmse=0.0930 d1_pers=0.0930 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=152/154 elapsed_s=7359.0 window_per_s=0.021 sample_per_s=0.310 eta_s=96.8 d1_rmse=0.0931 d1_pers=0.0931 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=153/154 elapsed_s=7389.0 window_per_s=0.021 sample_per_s=0.311 eta_s=48.3 d1_rmse=0.0928 d1_pers=0.0928 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=153/154 elapsed_s=7419.0 window_per_s=0.021 sample_per_s=0.309 eta_s=48.5 d1_rmse=0.0928 d1_pers=0.0928 ratio=0.999 status=running
+PROGRESS phase=eval split=val objective=persistence_residual window=153/154 elapsed_s=7449.0 window_per_s=0.021 sample_per_s=0.308 eta_s=48.7 d1_rmse=0.0928 d1_pers=0.0928 ratio=0.999 status=running
+  [154/154] windows done
+PROGRESS phase=eval split=val objective=persistence_residual window=154/154 elapsed_s=7454.2 window_per_s=0.021 sample_per_s=0.310 d1_rmse=0.0925 d1_pers=0.0926 ratio=0.999 status=phase_done
+evaluation loop finished: 154 windows in 7454.2s
+saved /data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S32_C7_SD2_RES/eval_val_h15_ch0_e1_s123_rf0_ckptEp1.npz
+
+=== objective=persistence_residual  residual_base=last_day  remask_feedback=False  sampler=deterministic ===
+=== NATIVE-grid masked RMSE (m/s), pooled over u/v/layers, per lead day ===
+lead |  model  |  pers  | model/pers |  zero  | oracle
+  1  | 0.0925 | 0.0926 | 0.999 | 0.1787 | 0.0026
+  2  | 0.1277 | 0.1278 | 0.999 | 0.1680 | 0.0026
+  3  | 0.1492 | 0.1492 | 0.999 | 0.1726 | 0.0026
+  4  | 0.1584 | 0.1586 | 0.999 | 0.1718 | 0.0026
+  5  | 0.1638 | 0.1640 | 0.998 | 0.1730 | 0.0026
+  6  | 0.1680 | 0.1684 | 0.998 | 0.1759 | 0.0026
+  7  | 0.1645 | 0.1649 | 0.998 | 0.1748 | 0.0026
+  8  | 0.1701 | 0.1705 | 0.997 | 0.1789 | 0.0026
+  9  | 0.1640 | 0.1643 | 0.998 | 0.1679 | 0.0026
+ 10  | 0.1602 | 0.1604 | 0.999 | 0.1717 | 0.0026
+ 11  | 0.1620 | 0.1623 | 0.998 | 0.1711 | 0.0026
+ 12  | 0.1651 | 0.1656 | 0.997 | 0.1724 | 0.0026
+ 13  | 0.1696 | 0.1701 | 0.997 | 0.1756 | 0.0026
+ 14  | 0.1684 | 0.1690 | 0.996 | 0.1747 | 0.0026
+ 15  | 0.1757 | 0.1764 | 0.996 | 0.1782 | 0.0026
+
+=== day-1 and overall comparison table (native-grid pooled RMSE, m/s) ===
+mode | d1 RMSE | pers d1 | ratio | overall RMSE | pers overall | ratio
+ model | 0.0925 | 0.0926 | 0.999 | 0.1586 | 0.1589 | 0.998
+  zero | 0.1787 | 0.0926 | 1.931 | 0.1737 | 0.1589 | 1.093
+oracle | 0.0026 | 0.0926 | 0.028 | 0.0026 | 0.1589 | 0.016
+
+=== native per-variable pooled RMSE at lead days 1/5/10/15 ===
+u: d1 0.1144 (pers 0.1144)  d5 0.2083 (pers 0.2085)  d10 0.2014 (pers 0.2015)  d15 0.2229 (pers 0.2235)  
+v: d1 0.0636 (pers 0.0637)  d5 0.1013 (pers 0.1019)  d10 0.1037 (pers 0.1043)  d15 0.1102 (pers 0.1112)  
+
+overall native RMSE (sqrt(sum_se/sum_n)): model 0.1586 m/s | persistence 0.1589 m/s | zero 0.1737 m/s | rho-oracle 0.0026 m/s
+figures saved to /data2/user/zyq/checkpoints/PRE/full3d_BS1_EMD128_I2_E4_S32_C7_SD2_RES/figures_h15_ch0_e1_s123_rf0_ckptEp1
+PROGRESS phase=eval objective=persistence_residual windows=154 remask_feedback=False elapsed_s=7492.9 status=completed
