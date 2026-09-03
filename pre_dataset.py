@@ -247,6 +247,13 @@ class PREUVDataset(Dataset):
 
     def __init__(self, split, stats, context=CONTEXT, horizon=1,
                  depth_index=None, stride=1, max_windows=None):
+        """`horizon` > 1 serves detached multi-step training (pre_config
+        train_horizon / lead_for_batch): windows never cross the split
+        boundary (last_start below subtracts context+horizon) and
+        target[:, J-1] is the absolute day start+context+J-1 (0-based), so the
+        trainer can index the selected training lead directly. Evaluation
+        keeps using horizon=ROLLOUT_DAYS windows for autoregressive rollout.
+        """
         assert split in SPLITS
         self.context = context
         self.horizon = horizon

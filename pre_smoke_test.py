@@ -37,7 +37,8 @@ import numpy as np
 import torch
 
 from scripts import preprocess_align_uv as pre_pp
-from pre_dataset import NativeUVReader, _clip_range, compute_or_load_stats
+from pre_dataset import (NativeUVReader, PREUVDataset, _clip_range,
+                         compute_or_load_stats)
 from pre_metrics import (rho_to_native, masked_error_sums, pooled_rmse, masked_rel_l2,
                          oracle_native_error_sums)
 from pre_models import PersistenceResidualIAFNO, masked_mse_loss
@@ -45,16 +46,21 @@ from pre_rollout import expand_ensemble, ensemble_rollout, ensemble_mean
 from pre_config import (PRESETS, SIGMA_DATA_SCALE, SMOKE_BATCHES_PER_RANK,
                         sigma_data_from_stats, sigma_data_from_checkpoint,
                         resume_sigma_decision, training_config, training_run_tag,
-                        OBJECTIVES, DEFAULT_OBJECTIVE, MASK_SCHEME,
+                        run_tag_for, OBJECTIVES, DEFAULT_OBJECTIVE, MASK_SCHEME,
                         RESIDUAL_TIME_SIGMA, validate_objective,
                         objective_from_checkpoint, ensure_objective_compatible,
                         check_norm_fingerprint, check_residual_time_sigma,
+                        train_horizon, init_checkpoint,
+                        TRAIN_HORIZON_ENV, INIT_CHECKPOINT_ENV, MS_DEFAULTS,
+                        lead_for_batch, lead_schedule_str, check_multistep_config,
                         format_progress, ProgressReporter,
                         install_progress_failure_hook, mark_progress_failed,
                         reset_progress_failure_state)
 from utilities3 import load_checkpoint
 from diffusion import ElucidatedDiffusion
 from IAFNO import IAFNODiff
+from pre_rollout import detached_feedback_window
+from scripts.diag_leadtime_residual import build_npz_payload
 
 B, H, W, Z = 2, 4, 4, 2
 
@@ -1586,6 +1592,329 @@ def test_norm_fingerprint_and_time_sigma_checks():
             assert "time_sigma" in str(e), str(e)
         else:
             raise AssertionError(f"expected time_sigma refusal for {bad_cfg}")
+
+
+def test_lead_schedule_pattern_and_rank_consistency():
+    # doc §5.1 fixed schedule: 50% day-1 anchor + one full 2..K cycle per period
+    assert [lead_for_batch(i, 5) for i in range(8)] == [1, 2, 1, 3, 1, 4, 1, 5]
+    assert [lead_for_batch(i, 5) for i in range(8, 16)] == [1, 2, 1, 3, 1, 4, 1, 5]
+    assert lead_schedule_str(5) == "1,2,1,3,1,4,1,5"
+    assert lead_schedule_str(10) == "1,2,1,3,1,4,1,5,1,6,1,7,1,8,1,9,1,10"
+    # K=1 is the historical single-step path: schedule inert
+    assert all(lead_for_batch(i, 1) == 1 for i in range(32))
+    assert lead_schedule_str(1) == "1"
+    # distribution: exactly 50% anchor, uniform 2..K
+    K = 5
+    per = 2 * (K - 1)
+    counts = {j: [lead_for_batch(i, K) for i in range(per)].count(j)
+              for j in range(1, K + 1)}
+    assert counts == {1: K - 1, 2: 1, 3: 1, 4: 1, 5: 1}
+    # purity: a pure function of (batch_index, K) — same inputs, same output;
+    # DDP ranks call it with their own batch index, so identical step indices
+    # on every rank yield identical J (equal batch counts via drop_last=True)
+    assert all(lead_for_batch(bi, K) == lead_for_batch(bi, K)
+               for bi in range(3 * per))
+    # env reading: default/empty -> 1; valid int; garbage refused
+    assert train_horizon("") == 1 and train_horizon("5") == 5
+    for bad in ("0", "-2", "x"):
+        try:
+            train_horizon(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected ValueError for {TRAIN_HORIZON_ENV}={bad!r}")
+    assert init_checkpoint("") is None
+    assert init_checkpoint("~/a.pth") == os.path.expanduser("~/a.pth")
+
+
+def test_training_config_ms_defaults_and_tags():
+    # multi-step runs use the frozen MS_DEFAULTS instead of the preset values
+    cfg1 = training_config("surface_smoke", "full", 1)
+    assert cfg1["lr"] == 1e-3 and cfg1["num_epochs"] == 10
+    cfg5 = training_config("surface_smoke", "full", 1, train_horizon=5)
+    assert cfg5["lr"] == MS_DEFAULTS["lr"] == 1e-4
+    assert cfg5["num_epochs"] == MS_DEFAULTS["num_epochs"] == 5
+    cfg5smoke = training_config("surface_smoke", "smoke", 1, train_horizon=5)
+    assert cfg5smoke["lr"] == 1e-4 and cfg5smoke["num_epochs"] == 1
+    # tags: _MS{K} only for K > 1; never shares a dir with single-step/_MSK runs
+    base = dict(config=cfg1, objective="persistence_residual")
+    assert run_tag_for("surface_smoke", **base) == \
+        "surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES"
+    assert run_tag_for("surface_smoke", **base, train_horizon=1).endswith("_RES")
+    assert run_tag_for("surface_smoke", **base, train_horizon=5).endswith("_RES_MS5")
+    assert run_tag_for("surface_smoke", **base, train_horizon=10).endswith("_RES_MS10")
+    assert run_tag_for("surface_smoke", **base, static_mask=True).endswith("_MSK")
+    assert not run_tag_for("surface_smoke", **base).endswith("_MS1")
+    t_smoke = training_run_tag("surface_smoke", cfg5, "smoke", 1,
+                               objective="persistence_residual", train_horizon=5)
+    assert t_smoke.endswith("_RES_MS5_SMOKE")
+    t_ddp = training_run_tag("surface_smoke", cfg5, "full", 2,
+                             objective="persistence_residual", train_horizon=5)
+    assert t_ddp.endswith("_RES_MS5_DDP2")
+
+
+def test_multistep_k1_matches_single_step():
+    # K=1 must be the exact historical single-step path: the lead-1 branch and
+    # a detached_feedback_window(lead=1) (which returns cond unchanged) both
+    # reduce to one forward + masked MSE on target[:, 0]
+    torch.manual_seed(3)
+    model = make_residual_model()
+    cond = torch.rand(B, 14, H, W, Z)
+    target = torch.rand(B, 5, 2, H, W, Z)   # horizon=5 windows
+    mask = torch.ones(1, 2, H, W, Z)
+
+    with torch.no_grad():
+        # historical single-step ops
+        pred_hist = model(cond)
+        loss_hist = masked_mse_loss(pred_hist, target[:, 0], mask)
+        # K=1 trainer path: lead == lead_for_batch(bi, 1) == 1 for every batch
+        for bi in range(4):
+            assert lead_for_batch(bi, 1) == 1
+        pred_k1 = model(cond)
+        loss_k1 = masked_mse_loss(pred_k1, target[:, 0], mask)
+        # a lead-1 multi-step branch via the helper: cond unchanged, same ops
+        cur = detached_feedback_window(model, cond, lead_for_batch(0, 1))
+        assert torch.equal(cur, cond)
+        pred_ms1 = model(cur)
+        loss_ms1 = masked_mse_loss(pred_ms1, target[:, 0], mask)
+    assert torch.equal(pred_hist, pred_k1) and torch.equal(pred_hist, pred_ms1)
+    assert torch.equal(loss_hist, loss_k1) and torch.equal(loss_hist, loss_ms1)
+
+
+def test_detached_feedback_window_gradient_and_calls():
+    # J=3: exactly J-1 no-grad self-feedback forwards + 1 grad-carrying final
+    # forward; early predictions have NO graph, the final one does, and the
+    # sliding window matches the formal rollout's drop-oldest/append update
+    torch.manual_seed(4)
+    model = make_residual_model()
+    # untrained == persistence bitwise; perturb the residual head so the
+    # feedback provably carries the MODEL'S OWN (non-persistence) predictions
+    with torch.no_grad():
+        model.net.head.weight.data += 1e-3
+    calls = {"n": 0, "grad_modes": []}
+
+    def step_fn(cur):
+        calls["n"] += 1
+        calls["grad_modes"].append(torch.is_grad_enabled())
+        return model(cur)
+
+    cond = torch.rand(B, 14, H, W, Z)
+    cur = detached_feedback_window(step_fn, cond, lead=3)
+    assert calls["n"] == 2                                   # J-1 feedback steps
+    assert calls["grad_modes"] == [False, False]             # all detached
+    # sliding window: drop the oldest DAY (2 channels), append own prediction
+    with torch.no_grad():
+        p1 = model(cond).clamp(0., 1.).float()
+        p2 = model(torch.cat([cond[:, 2:], p1], dim=1)).clamp(0., 1.).float()
+    assert cur.shape == cond.shape
+    # two feedback steps drop TWO days (4 channels): cur = [c3..c6, p1, p2]
+    assert torch.equal(cur[:, :10], cond[:, 4:])
+    assert torch.equal(cur[:, 10:12], p1)     # day-5 slot now holds feedback p1
+    assert torch.equal(cur[:, 12:], p2)
+    # feedback uses the MODEL'S OWN predictions, not persistence
+    assert not torch.equal(cur[:, 12:], cond[:, -2:])
+    # final step carries gradients; backward reaches the head
+    target = torch.rand(B, 2, H, W, Z)
+    pred = model(cur)
+    assert pred.grad_fn is not None
+    masked_mse_loss(pred, target, torch.ones(1, 2, H, W, Z)).backward()
+    assert model.net.head.weight.grad is not None
+    assert torch.isfinite(model.net.head.weight.grad).all()
+    # J=1 returns cond unchanged and calls nothing
+    calls["n"] = 0
+    cur1 = detached_feedback_window(step_fn, cond, lead=1)
+    assert calls["n"] == 0 and torch.equal(cur1, cond)
+
+
+def test_untrained_multistep_reduces_to_persistence():
+    # doc §6 WP2 item 3: the zero-init residual model in a multi-step rollout
+    # is EXACTLY "persistence forever": every feedback prediction equals the
+    # current last day, so the window slides trivially and the J-th prediction
+    # is the ORIGINAL last-day persistence — bitwise
+    torch.manual_seed(5)
+    model = make_residual_model()
+    cond = torch.rand(B, 14, H, W, Z)
+    target = torch.rand(B, 5, 2, H, W, Z)
+    mask = torch.ones(1, 2, H, W, Z)
+    J = 5
+    with torch.no_grad():
+        cur = detached_feedback_window(model, cond, lead=J)
+        pred = model.sample(cur, clamp=True)
+        loss_ms = masked_mse_loss(pred, target[:, J - 1], mask)
+        base = cond[:, -2:]
+        loss_pers = masked_mse_loss(base.expand_as(pred), target[:, J - 1], mask)
+    # untrained forward == base == last-day persistence; clamp is a no-op in [0,1]
+    assert torch.equal(cur[:, -2:], cond[:, -2:])
+    assert torch.equal(pred, cond[:, -2:])
+    assert torch.equal(loss_ms, loss_pers)
+    # four feedback steps drop four days: cur = [c4, c5, c6, p1..p4], every
+    # p == c6 (persistence feedback == identity slide)
+    assert torch.equal(cur[:, :6], cond[:, 8:])
+    for d in range(6, 14, 2):
+        assert torch.equal(cur[:, d:d + 2], cond[:, -2:])
+
+
+def test_dataset_horizon5_split_and_alignment():
+    # doc §6 WP2 item 5: horizon=K windows never cross the split boundary and
+    # target[:, J-1] is the absolute day start+context+J-1 (0-based)
+    import pre_dataset as pds
+    rng = np.random.default_rng(1)
+    T, S, HH, WW = 30, 2, 4, 5
+    CONTEXT, K = 7, 5
+    u = rng.uniform(-1, 1, (T, S, HH, WW)).astype(np.float32)
+    v = rng.uniform(-1, 1, (T, S, HH, WW)).astype(np.float32)
+    with tempfile.TemporaryDirectory() as d:
+        aligned = os.path.join(d, "aligned")
+        os.makedirs(aligned)
+        np.save(os.path.join(aligned, "u_rho.npy"), u)
+        np.save(os.path.join(aligned, "v_rho.npy"), v)
+        np.save(os.path.join(aligned, "mask_u_rho.npy"), np.ones((HH, WW), np.uint8))
+        np.save(os.path.join(aligned, "mask_v_rho.npy"), np.ones((HH, WW), np.uint8))
+        np.save(os.path.join(aligned, "ocean_time.npy"),
+                np.arange(np.datetime64("1994-01-01"), T, dtype="datetime64[D]"))
+        saved = (pds.ALIGNED_DIR, pds.NORM_DIR, pds.H, pds.W, pds.T_TOTAL,
+                 dict(pds.SPLITS))
+        pds.ALIGNED_DIR = aligned
+        pds.H, pds.W, pds.T_TOTAL = HH, WW, T
+        try:
+            pds.SPLITS.clear()
+            pds.SPLITS.update(train=(0, 16), val=(16, 29), test=(29, 30))
+            stats = {"lo": np.float32([-1.0, -1.0]), "hi": np.float32([1.0, 1.0])}
+            ds = PREUVDataset("train", stats, context=CONTEXT, horizon=K,
+                              depth_index=0, stride=1, max_windows=None)
+            # last_start = 16 - (7+5) = 4 -> starts 0..4, five windows
+            assert len(ds) == 5, len(ds)
+            cond, target, start = ds[2]
+            assert cond.shape == (14, HH, WW, 1)
+            assert target.shape == (K, 2, HH, WW, 1)
+            s = int(start)
+            assert s == 2
+            # cond == days [s, s+7); target[:, j] == day s+7+j
+            for j in range(CONTEXT):
+                day = s + j
+                assert torch.equal(cond[2 * j], torch.from_numpy(
+                    ((u[day, 0] + 1.0) / 2.0).astype(np.float32))[..., None])
+                assert torch.equal(cond[2 * j + 1], torch.from_numpy(
+                    ((v[day, 0] + 1.0) / 2.0).astype(np.float32))[..., None])
+            for j in range(K):
+                day = s + CONTEXT + j
+                assert torch.equal(target[j, 0], torch.from_numpy(
+                    ((u[day, 0] + 1.0) / 2.0).astype(np.float32))[..., None])
+            # no window crosses the train/val boundary: max absolute day used
+            _, _, last_start = ds[len(ds) - 1]
+            assert int(last_start) + CONTEXT + K <= pds.SPLITS["train"][1]
+            # the same horizon on the val split stays inside val
+            dsv = PREUVDataset("val", stats, context=CONTEXT, horizon=K,
+                               depth_index=0, stride=1, max_windows=None)
+            assert len(dsv) == 2     # last_start = 29-12 = 17 -> starts 16..17
+            _, _, vs = dsv[0]
+            assert int(vs) + CONTEXT + K <= pds.SPLITS["val"][1]
+        finally:
+            pds.ALIGNED_DIR, pds.NORM_DIR, pds.H, pds.W, pds.T_TOTAL = saved[:5]
+            pds.SPLITS.clear()
+            pds.SPLITS.update(saved[5])
+
+
+def test_multistep_checkpoint_config_and_resume_guards():
+    # doc §6 WP2 item 6: train_horizon / lead_schedule / feedback_detach /
+    # init_checkpoint survive a save/load roundtrip and the resume guards
+    # refuse any semantic change; legacy checkpoints are K=1-only
+    ms_cfg = {"preset": "surface_smoke", "train_mode": "full", "world_size": 1,
+              "objective": "persistence_residual",
+              "train_horizon": 5, "lead_schedule": "1,2,1,3,1,4,1,5",
+              "feedback_detach": True, "init_checkpoint": "/tmp/Ep10.pth",
+              "init_weights_only": True}
+    model = make_residual_model()
+    state = {"epoch": 0, "model_state_dict": model.state_dict(),
+             "config": ms_cfg}
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "Ep1.pth")
+        torch.save(state, path)
+        ckpt = torch.load(path, map_location="cpu", weights_only=True)
+    cfg = ckpt["config"]
+    assert cfg["train_horizon"] == 5 and cfg["feedback_detach"] is True
+    assert cfg["lead_schedule"] == lead_schedule_str(5)
+    assert cfg["init_weights_only"] is True
+    # matching semantics pass
+    check_multistep_config(cfg, 5, "1,2,1,3,1,4,1,5")
+    # horizon change -> refuse
+    for bad_h in (1, 10):
+        try:
+            check_multistep_config(cfg, bad_h, lead_schedule_str(bad_h))
+        except RuntimeError as e:
+            assert "train_horizon" in str(e), str(e)
+        else:
+            raise AssertionError("expected horizon-change refusal")
+    # schedule change -> refuse
+    try:
+        check_multistep_config(cfg, 5, "5,4,3,2,1")
+    except RuntimeError as e:
+        assert "lead_schedule" in str(e), str(e)
+    else:
+        raise AssertionError("expected schedule-change refusal")
+    # legacy checkpoint (no train_horizon): K=1 fine, K>1 must use weights-only
+    # init instead of resume
+    check_multistep_config({}, 1, "1")
+    try:
+        check_multistep_config({}, 5, "1,2,1,3,1,4,1,5")
+    except RuntimeError as e:
+        assert "DIAFNO_INIT_CHECKPOINT" in str(e), str(e)
+    else:
+        raise AssertionError("expected legacy multi-step resume refusal")
+    # weights-only init: model weights restored EXACTLY, optimizer stays fresh
+    torch.manual_seed(6)
+    target_model = make_residual_model()
+    init_state = {"epoch": 9, "model_state_dict": model.state_dict()}
+    target_model.load_state_dict(init_state["model_state_dict"])
+    for (k1, p1), (k2, p2) in zip(model.state_dict().items(),
+                                  target_model.state_dict().items()):
+        assert k1 == k2 and torch.equal(p1, p2), k1
+    opt = torch.optim.Adam(target_model.parameters(), lr=1e-4)
+    assert len(opt.state) == 0        # fresh optimizer: no moments carried over
+
+
+def test_diag_leadtime_npz_payload_keys_distinct():
+    # regression: the historical f"{field}_{var}" keys let the persistence
+    # array silently overwrite the model array; the payload must keep the
+    # m/p source prefix so every key is unique and maps to its own source
+    L = 4
+    res = {f"{n}{v}": dict(rmse=np.arange(L) + (0 if n == "m" else 100.0),
+                           bias=np.zeros(L) + (0 if n == "m" else -1.0),
+                           var_ratio=np.ones(L), corr_mean=np.ones(L),
+                           corr_med=np.ones(L), n=np.full(L, 7.0))
+           for n in ("m", "p") for v in ("u", "v")}
+    payload = build_npz_payload(res, L, dict(split=np.str_("val"),
+                                             n_windows=np.int64(3)))
+    stat_keys = [k for k in payload if k not in ("lead", "split", "n_windows")]
+    assert len(stat_keys) == len(set(stat_keys)), "NPZ key collision"
+    for var in ("u", "v"):
+        for field in ("rmse", "bias", "n"):
+            assert payload[f"m_{field}_{var}"] is res[f"m{var}"][field]
+            assert payload[f"p_{field}_{var}"] is res[f"p{var}"][field]
+    assert not np.array_equal(payload["m_rmse_u"], payload["p_rmse_u"])
+    assert np.array_equal(payload["lead"], np.arange(1, L + 1))
+
+
+def test_representative_layer_presets():
+    # work package 5 (experiment 11): middle/bottom presets differ from
+    # surface_smoke ONLY in depth_index; architecture/budget stay identical
+    for name, depth in (("middle_smoke", 14), ("bottom_smoke", 0)):
+        assert name in PRESETS
+        cfg = PRESETS[name]
+        assert cfg["depth_index"] == depth
+        for key, v in PRESETS["surface_smoke"].items():
+            if key == "depth_index":
+                continue
+            assert cfg[key] == v, (name, key, cfg[key], v)
+        tag = run_tag_for(name, config=cfg, objective="persistence_residual")
+        assert tag.startswith(f"{name}_BS4_EMD180_I4_E4_S32_C7") \
+            and tag.endswith("_RES"), tag
+        # smoke-mode reductions apply to the new presets like any other
+        s = training_config(name, "smoke", 1)
+        assert s["num_epochs"] == 1 and s["batch_size"] == 4
+    # the MS defaults machinery also covers the new presets
+    ms = training_config("bottom_smoke", "full", 1, train_horizon=5)
+    assert ms["lr"] == MS_DEFAULTS["lr"] and ms["num_epochs"] == 5
 
 
 if __name__ == "__main__":

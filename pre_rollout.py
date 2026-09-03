@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Side-effect-free autoregressive ensemble rollout for PRE evaluation.
+"""Side-effect-free autoregressive ensemble rollout for PRE evaluation, plus
+the training-side detached feedback window (detached multi-step).
 
 The conditional EDM maps a 14-channel (2*CONTEXT) normalized [0,1] condition
 window to the next-day u/v in [0,1]. A multi-day forecast is an autoregressive
@@ -79,6 +80,47 @@ def _rollout_one(model, cond, horizon, num_sample_steps, clamp,
         preds.append(p)
         cur = torch.cat([cur[:, 2:], p], dim=1)     # drop oldest day, append own prediction
     return torch.stack(preds, dim=1)                # (B, L, 2, H, W, Z)
+
+
+def detached_feedback_window(step_fn, cond, lead, clamp=True):
+    """Training-side detached autoregressive feedback (doc §5 detached MS).
+
+    Runs the model's OWN predictions forward for `lead - 1` steps under
+    torch.no_grad() and returns the final condition window; the caller then
+    makes the grad-carrying final prediction from that window. Semantics are
+    pinned to the formal deterministic rollout (_rollout_one):
+      - sliding window update: drop the oldest DAY (2 channels), append the
+        prediction (identical slice `cur[:, target_ch:]`);
+      - clamp=[0, 1] matches model.sample(clamp=True);
+      - rf0: predictions are NOT remasked before feedback (experiment 09).
+    `step_fn(cur)` must return the next-day prediction for a condition window
+    (e.g. the DDP-wrapped PersistenceResidualIAFNO forward); autocast context
+    is the caller's decision (the trainer wraps the whole multi-step block).
+
+    The early forward passes keep no gradient graph (detached), so peak
+    training memory stays close to the single-step path regardless of `lead`.
+    `lead == 1` returns `cond` unchanged (no feedback step, schedule inert).
+
+    AUTOCAST CAVEAT (DDP): the caller MUST run the feedback forwards outside
+    the autocast weight cache when the final forward runs under autocast —
+    e.g. wrap the call in `with torch.amp.autocast(..., enabled=False):`.
+    A forward under autocast+no_grad caches fp16 copies of the Linear-family
+    weights as DETACHED tensors; the subsequent grad forward inside the same
+    autocast context reuses them, which disconnects those parameters from the
+    loss graph (their DDP gradient hooks never fire and the next iteration
+    fails with "Expected to have finished reduction in the prior iteration").
+    The feedback inference is fp32-exact by default (no cast), which is also
+    strictly closer to the deterministic rollout's underlying math than an
+    fp16 approximation.
+    """
+    cur = cond
+    for _ in range(int(lead) - 1):
+        with torch.no_grad():
+            pred = step_fn(cur).float()   # same cast as _rollout_one's samples
+            if clamp:
+                pred = pred.clamp(0., 1.)
+        cur = torch.cat([cur[:, pred.shape[1]:], pred], dim=1)
+    return cur
 
 
 def expand_ensemble(cond, ensemble_size):

@@ -1,6 +1,6 @@
 # 实验 06：full3d 30 层训练与评估
 
-> 状态：**未执行**；正式长训尚未准入，允许先做全层数据/资源 probe
+> 状态：**部分执行**（画像/资源 probe/K1 smoke/single-step pilot 完成；K3 按预注册条件阻塞，正式长训未准入）
 > 科学问题：surface 上的确定性预测能力能否扩展到全部 30 个 sigma 层？
 
 ## 目标与假设
@@ -13,11 +13,11 @@
 
 | 任务 | 状态 | 结果入口 |
 |---|---|---|
-| 全 30 层尺度、增量和 persistence 画像 | 未执行 | [RESULTS](./RESULTS.md) |
-| stats cache、单样本 I/O 和峰值显存 probe | 未执行 | [RESULTS](./RESULTS.md) |
-| deterministic K1 real-data smoke | 未执行 | [RESULTS](./RESULTS.md) |
-| deterministic single-step 1 epoch pilot | 未执行 | [RESULTS](./RESULTS.md) |
-| detached K3 pilot | 未执行；依赖前述任务 | [RESULTS](./RESULTS.md) |
+| 全 30 层尺度、增量和 persistence 画像 | 已完成（2026-09-01，门禁 PASS） | [RESULTS](./RESULTS.md) |
+| stats cache、单样本 I/O 和峰值显存 probe | 已完成（2026-09-03） | [RESULTS](./RESULTS.md) |
+| deterministic K1 real-data smoke | 已完成（SMOKE PASS） | [RESULTS](./RESULTS.md) |
+| deterministic single-step 1 epoch pilot | 已完成（训练健康，逐层信号未出现） | [RESULTS](./RESULTS.md) |
+| detached K3 pilot | 阻塞（依赖 pilot 逐层信号，未满足） | [RESULTS](./RESULTS.md) |
 | 正式训练与 15-day test | 未执行；尚未准入 | [RESULTS](./RESULTS.md) |
 
 ## 计划设置

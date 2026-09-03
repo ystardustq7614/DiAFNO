@@ -1,6 +1,7 @@
 # 当前困难与下一步：确定性 multi-step U/V 预测
 
-> 状态：**当前方向已确定，代码与实验尚未实施**
+> 状态：**工作包 1–6 均已启动：1–4 完成；5（代表层）完成且全门槛 Go；
+> 6（full3d）完成 probe/K1/pilot，K3 按预注册条件阻塞，待预算决策**
 > 制定日期：2026-09-01
 > 首要科学目标：提高未来 1–15 天区域海流 `u/v` 的确定性点预测能力
 > 当前起点：实验 07 surface `PersistenceResidualIAFNO` Ep10
@@ -321,14 +322,18 @@ docs/experiments/10_multistep_deterministic/
 
 - [x] 科学目标与当前主线讨论完成；
 - [x] 修改与执行计划成文；
-- [ ] 工作包 1：全层画像实现与运行；
-- [ ] 工作包 2：multi-step 代码与 CPU 回归；
-- [ ] MS5 单卡/DDP2 smoke；
-- [ ] MS5 短训与逐 epoch validation 选型；
-- [ ] 根据门槛决定 MS10；
-- [ ] 代表层单步/MS5；
-- [ ] full3d 资源 probe/K1 smoke/K3 pilot；
-- [ ] 冻结后 test 报告；
+- [x] 工作包 1：全层画像实现与运行（门禁四项全 PASS，产物见 §12）；
+- [x] 工作包 2：multi-step 代码与 CPU 回归（`pre_smoke_test.py` 55/55）；
+- [x] MS5 单卡 smoke（SMOKE PASS）+ DDP2 smoke（2026-09-03 修复 autocast 缓存
+  问题后 SMOKE PASS，见 Changelog）；
+- [x] MS5 短训与逐 epoch validation 选型（Ep4；全门槛 Go；test 一次 0.871）；
+- [x] 根据门槛决定 MS10（获准并完成；选型 Ep2；test 一次 0.838）；
+- [x] 代表层单步/MS5（实验 11：middle/bottom probe+MS5 全门槛 Go，垂向泛化成立）；
+- [x] full3d 资源 probe/K1 smoke/pilot（实验 06：实测 22.6 GB、0.97 s/步、
+  1 epoch ≈ 2.3 h；pilot 健康但 1-epoch 无逐层信号）；
+- [ ] full3d K3 pilot：按预注册条件阻塞（无逐层 day-1 信号），路径决策待定
+  （加 single-step epochs ≈ 2.3 h/个 / 冻结 full3d 待正式预算 ≈ 5 天/50 epoch / 调参）；
+- [x] 冻结后 test 报告（MS5 Ep4 与 MS10 Ep2 各一次，见实验 10 RESULTS）；
 - [ ] 决定 TBPTT、额外变量、direct multi-horizon、diffusion 是否立项。
 
 ## 12. 事后回顾记录
@@ -338,9 +343,9 @@ docs/experiments/10_multistep_deterministic/
 
 | 工作包 | 实验/结果证据 | 实际结论 | 是否达到门槛 | 与计划偏差 | 后续动作 |
 |---|---|---|---|---|---|
-| 全层画像 | 待执行 | — | — | — | — |
-| multi-step 代码与回归 | Changelog，待实施 | — | — | — | — |
-| surface MS5 | 实验 10，待建立 | — | — | — | — |
-| 条件式 MS10 | 仅在 MS5 准入后建立 | — | — | — | — |
-| 代表层 | 待建立 | — | — | — | — |
-| full3d probe/pilot | 实验 06，待恢复 | — | — | — | — |
+| 全层画像 | `checkpoints/PRE/diag_uv_predictability_20260901/`（npz/csv/SUMMARY.md，2026-09-01） | 门禁四项全 PASS（0 动态缺失、逐层有效计数充足）；val persistence d1：u bottom/middle/upper = 0.068/0.105/0.137 m/s，v = 0.039/0.054/0.087；d15 = 0.130/0.204/0.281 与 0.066/0.087/0.149；surface 最难、底层最易；统一 min-max 无截断，底层归一化 std 约为海面 1/3 | 是（连续性/mask/finite/valid count 全过） | 无（脚本按 §7 计划新建） | MS5 可启动；full3d 画像证据就绪；注意底层在统一归一化下被强压缩，full3d 立项时复核是否需要 per-band 归一化（当前不改动） |
+| multi-step 代码与回归 | Changelog 2026-09-01（工作包 2 条目）；`pre_smoke_test.py` 55/55 | detached MS 路径（`DIAFNO_TRAIN_HORIZON`/`_MS{K}` tag/weights-only init/守卫/元数据）实现完成；K=1 与历史单步逐位一致；schedule 纯函数 DDP 一致；未训练模型 multi-step 恒等于 persistence | 是（新增 9 项测试全过，含错误反馈/索引下的失败用例） | 无（MS 超参以内置默认 `MS_DEFAULTS` 落地，未新增环境变量；val 期 `val_masked_relL2` 仍为单步训练健康信号） | MS5 real-data smoke（单卡→DDP2）→ 短训与逐 epoch validation 15-day 选型 |
+| surface MS5 | 实验 10 `RESULTS.md`（2026-09-02） | 全门槛 Go：val 选型 Ep4（overall ratio 0.822，day-1 0.773），crossover 消除、corr 全 lead 占优；test 一次 overall ratio **0.871**（单步基线 1.018），day-1 0.843 | 是（§6 WP3 全部门槛） | 单卡执行；DDP2 smoke 因无双卡空闲未做 | 冻结 Ep4；晚段 u bias -0.071 与方差塌缩记为观察项 |
+| 条件式 MS10 | 实验 10 `RESULTS.md`（2026-09-02） | 从 MS5 Ep4 weights-only 续训 K=10 × 3 epochs；val 选型 Ep2（overall ratio 0.796）；结构诊断晚段 bias 稳定（+0.017）；test 一次 overall ratio **0.838**，day-1 0.833，最差 lead 0.894 | 准入证据满足（MS5 全门槛 Go）；MS10 无预注册数值门槛，val/test 全面优于 MS5 | `EPOCH_OVERRIDES` 临时设 3，已还原 | MS10 Ep2 为当前最优冻结 checkpoint；d15 ratio 回升与方差塌缩 → §10 分支准入证据 |
+| 代表层 | 实验 11 `RESULTS.md`（2026-09-03） | 两层 probe 过 day-1 门槛（middle 0.770 / bottom 0.568）；层 MS5 全门槛 Go：middle Ep2 test overall **0.830**（单步 1.183，crossover 消除）、bottom Ep5 **0.813**（v d15 1.15→0.880 修复）；难度排序与 WP1 画像一致 | 是（镜像 surface 预注册） | MS5 epoch 实测 ~46 min（预估 30）；bottom day-1 门槛余量小（Ep1–3 未过） | 垂向泛化成立；代表层证据支持 full3d 投资 |
+| full3d probe/pilot | 实验 06 `RESULTS.md`（2026-09-03） | probe/K1 smoke/pilot 完成：实测 22.6 GB、0.97 s/步、1 epoch ≈ 2.3 h（50 epoch ≈ 5 天）；pilot 健康但 1-epoch 无逐层 day-1 信号（60 ratio ≈1.000） | 第 1–4 步达成；K3 门槛（逐层信号）未满足 → 阻塞 | 评估耗时 2h05m（batch 1）；OOM 预案未触发 | K3 路径决策：加 epochs / 冻结待正式预算 / 调参（需单变量论证） |

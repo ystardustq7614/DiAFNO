@@ -1,6 +1,6 @@
 # PRE 实验索引与记录规范
 
-> 更新日期：2026-09-01
+> 更新日期：2026-09-02
 
 ## 实验索引
 
@@ -11,10 +11,12 @@
 | 03 | checkpoint/sampler 参数是否是 day-1 失败主因 | 已完成，否 | [EXPERIMENT](./03_sampler_ablation/EXPERIMENT.md) | [RESULTS](./03_sampler_ablation/RESULTS.md) |
 | 04 | surface SD2 diffusion 的 15-day rollout 表现 | 已完成，失败 | [EXPERIMENT](./04_surface_sd2_rollout/EXPERIMENT.md) | [RESULTS](./04_surface_sd2_rollout/RESULTS.md) |
 | 05 | condition 是否有效、任务是否有可预测信号 | 部分完成，已有明确结论 | [EXPERIMENT](./05_condition_diagnostics/EXPERIMENT.md) | [RESULTS](./05_condition_diagnostics/RESULTS.md) |
-| 06 | full3d 30 层训练与评估 | 未执行；等待数据/资源准入证据 | [EXPERIMENT](./06_full3d/EXPERIMENT.md) | [RESULTS](./06_full3d/RESULTS.md) |
+| 06 | full3d 30 层训练与评估 | 部分执行；probe/K1/pilot 完成，K3 按门槛阻塞 | [EXPERIMENT](./06_full3d/EXPERIMENT.md) | [RESULTS](./06_full3d/RESULTS.md) |
 | 07 | persistence-residual 是否能建立确定性基线 | 已完成；day-1 通过，15-day 未通过 | [EXPERIMENT](./07_residual_baseline/EXPERIMENT.md) | [RESULTS](./07_residual_baseline/RESULTS.md) |
 | 08 | 静态 mask 输入是否改善 day-1/近岸预测 | 已完成；不保留 | [EXPERIMENT](./08_static_mask_ablation/EXPERIMENT.md) | [RESULTS](./08_static_mask_ablation/RESULTS.md) |
 | 09 | 每步 remask feedback 是否改善 15-day rollout | 已完成；保持 rf0 | [EXPERIMENT](./09_remask_feedback_ablation/EXPERIMENT.md) | [RESULTS](./09_remask_feedback_ablation/RESULTS.md) |
+| 10 | detached multi-step 能否消除 day 4–5 crossover | 已完成；MS5/MS10 全门槛 Go，MS10 Ep2 为当前最优 | [EXPERIMENT](./10_multistep_deterministic/EXPERIMENT.md) | [RESULTS](./10_multistep_deterministic/RESULTS.md) |
+| 11 | surface 的修复能否泛化到垂向（middle/bottom 代表层） | 已完成；两层 probe+MS5 全门槛 Go，垂向泛化成立 | [EXPERIMENT](./11_representative_layers/EXPERIMENT.md) | [RESULTS](./11_representative_layers/RESULTS.md) |
 
 ## 证据链
 
@@ -29,8 +31,12 @@ diffusion 基线失败
             ├─ 长时效问题：方差塌缩 + 相关衰减 + 偏差漂移
             ├─ 静态 mask 输入无稳定增益
             └─ 每步 remask 只有中段增益，长段转差
-                 └─ 当前方向：detached autoregressive multi-step
-                      └─ 通过门槛后再做 MS10、代表层和 full3d probe/pilot
+                 └─ detached autoregressive multi-step（实验 10）
+                      ├─ MS5：crossover 消除，全门槛 Go
+                      └─ MS10：val/test 全面再改善，MS10 Ep2 为当前最优
+                           ├─ 代表层 middle/bottom（实验 11）：probe+MS5 全门槛 Go，垂向泛化成立
+                           └─ full3d（实验 06）：probe/K1/pilot 完成；1-epoch 无逐层信号，
+                              K3 按预注册条件阻塞，待正式预算决策
 ```
 
 当前困难、下一步顺序与验收门槛见

@@ -17,6 +17,18 @@ Training objective (DIAFNO_OBJECTIVE):
                              (last-day persistence + zero-init residual head,
                              masked-MSE objective, run tag suffix _RES)
 
+Detached multi-step (DIAFNO_TRAIN_HORIZON=K, doc
+docs/project/CURRENT_CHALLENGES_AND_NEXT_STEPS.md §5; run tag suffix _MS{K}):
+    persistence_residual only, no static mask. For batch i the training lead
+    J = lead_for_batch(i, K) (fixed schedule 1,2,1,3,1,4,1,5,... for K=5; 50%
+    day-1 anchor); the model's OWN predictions are rolled forward J-1 steps
+    under torch.no_grad() (clamp [0,1], rf0, same sliding window as the formal
+    rollout) and only the J-th step is backpropagated. K=1 is the exact
+    historical single-step path. MS runs default to lr 1e-4 / 5 epochs
+    (pre_config.MS_DEFAULTS) and support weights-only initialization from a
+    finished run via DIAFNO_INIT_CHECKPOINT (fresh optimizer/scheduler/
+    history; mutually exclusive with DIAFNO_CHECKPOINT).
+
 Run from repo root (safe default is a short smoke run):
     python pre_trainer.py
     DIAFNO_TRAIN_MODE=full python pre_trainer.py
@@ -44,6 +56,9 @@ from pre_config import (OUT_ROOT, CONTEXT, TARGET_CH, training_config,
                         sigma_data_from_checkpoint, resume_sigma_decision,
                         DEFAULT_OBJECTIVE, MASK_SCHEME, RESIDUAL_TIME_SIGMA,
                         STATIC_MASK_CHANNELS,
+                        train_horizon, init_checkpoint,
+                        lead_for_batch, lead_schedule_str,
+                        check_multistep_config,
                         validate_objective, ensure_objective_compatible,
                         check_norm_fingerprint, check_residual_time_sigma,
                         ProgressReporter, format_progress,
@@ -51,6 +66,7 @@ from pre_config import (OUT_ROOT, CONTEXT, TARGET_CH, training_config,
 from pre_dataset import (PREUVDataset, build_mask_tensor, compute_or_load_stats,
                          mask_version)
 from pre_metrics import masked_rel_l2
+from pre_rollout import detached_feedback_window
 
 WORLD_SIZE = int(os.environ.get("WORLD_SIZE", "1"))
 RANK = int(os.environ.get("RANK", "0"))
@@ -103,7 +119,20 @@ if STATIC_MASK and OBJECTIVE != "persistence_residual":
         "DIAFNO_STATIC_MASK=1 is only supported with "
         "DIAFNO_OBJECTIVE=persistence_residual (the diffusion path keeps its "
         "historical 14-channel layout)")
-cfg = training_config(PRESET, TRAIN_MODE, WORLD_SIZE)
+
+# Detached multi-step (work package 2): K=1 is the exact historical single-step
+# teacher-forcing path; K>1 mirrors the formal deterministic rollout with the
+# model's own detached feedback (doc §5). Only the deterministic objective,
+# without the (rejected in experiments 08/09) mask arms, is allowed.
+TRAIN_HORIZON = train_horizon()
+LEAD_SCHEDULE = lead_schedule_str(TRAIN_HORIZON)
+if TRAIN_HORIZON > 1 and (OBJECTIVE != "persistence_residual" or STATIC_MASK):
+    raise RuntimeError(
+        f"DIAFNO_TRAIN_HORIZON={TRAIN_HORIZON} (detached multi-step) is only "
+        "supported with DIAFNO_OBJECTIVE=persistence_residual and "
+        "DIAFNO_STATIC_MASK unset: the feedback must mirror the formal "
+        "deterministic rollout (rf0, no static mask channels)")
+cfg = training_config(PRESET, TRAIN_MODE, WORLD_SIZE, train_horizon=TRAIN_HORIZON)
 
 # Optional per-preset overrides for one-off runs.  Normal defaults live only in
 # pre_config.py so the scheduler horizon and documented preset cannot drift.
@@ -142,8 +171,22 @@ checkpoint_path = os.environ.get("DIAFNO_CHECKPOINT") or None
 if checkpoint_path is not None:
     checkpoint_path = os.path.expanduser(checkpoint_path)
 
+# weights-only init (fresh optimizer/scheduler/history) is mutually exclusive
+# with a full resume, and scoped to the deterministic objective it was planned
+# for (doc §6 WP3: initialize MS5 from the finished experiment-07 Ep10 weights)
+INIT_CHECKPOINT = init_checkpoint()
+if INIT_CHECKPOINT is not None:
+    if checkpoint_path is not None:
+        raise RuntimeError(
+            "DIAFNO_INIT_CHECKPOINT (weights-only init) and DIAFNO_CHECKPOINT "
+            "(full resume) are mutually exclusive; remove one of them")
+    if OBJECTIVE != "persistence_residual":
+        raise RuntimeError(
+            "DIAFNO_INIT_CHECKPOINT is only supported with "
+            "DIAFNO_OBJECTIVE=persistence_residual")
+
 run_tag = training_run_tag(PRESET, cfg, TRAIN_MODE, WORLD_SIZE, OBJECTIVE,
-                           static_mask=STATIC_MASK)
+                           static_mask=STATIC_MASK, train_horizon=TRAIN_HORIZON)
 run_dir = os.path.join(OUT_ROOT, run_tag)   # redirected to the checkpoint's own
                                             # directory under "adopt"
 
@@ -161,7 +204,11 @@ else:
 y_lo = torch.tensor(stats["lo"], device=device).reshape(1, 2, 1, 1, 1)
 y_hi = torch.tensor(stats["hi"], device=device).reshape(1, 2, 1, 1, 1)
 
-train_dataset = PREUVDataset("train", stats, context=CONTEXT, horizon=1,
+# multi-step: TRAIN windows cover leads 1..K (target[:, J-1] selects the
+# training lead); validation windows stay single-step because the per-epoch
+# val_masked_relL2 is only a training-health signal (formal selection =
+# pre_evaluate.py validation 15-day deterministic protocol).
+train_dataset = PREUVDataset("train", stats, context=CONTEXT, horizon=TRAIN_HORIZON,
                              depth_index=cfg["depth_index"], stride=cfg["train_stride"],
                              max_windows=cfg["max_train_windows"])
 val_dataset = PREUVDataset("val", stats, context=CONTEXT, horizon=1,
@@ -270,6 +317,8 @@ if checkpoint_path is not None:
     # structural change (legacy checkpoints without these fields predate the
     # objective split and can only be diffusion runs — guarded below)
     ckpt_objective = ensure_objective_compatible(ckpt, OBJECTIVE)
+    # multi-step semantics must survive resume unchanged (doc §6 WP2 item 6)
+    check_multistep_config(ckpt_cfg, TRAIN_HORIZON, LEAD_SCHEDULE)
     for key, current in (("cond_chans", COND_CH), ("target_ch", TARGET_CH),
                          ("mask_scheme", MASK_SCHEME),
                          ("static_mask_input", STATIC_MASK)):
@@ -356,6 +405,39 @@ if checkpoint_path is not None:
         hist["val_rel"] = list(arr[:n_old, 2])
         log(f"restored {n_old} epochs of history from {hist_src}")
 
+# weights-only init (mutually exclusive with resume above): load ONLY the model
+# weights from a finished run — the source optimizer/scheduler/scaler/epoch/
+# history are deliberately NOT restored (the source cosine schedule is over;
+# doc §6 WP3). Everything here stays fresh: hist/best_val/start_epoch keep
+# their initial values and the run writes into its OWN _MS{K} directory.
+if INIT_CHECKPOINT is not None:
+    init = torch.load(INIT_CHECKPOINT, map_location=device, weights_only=True)
+    init_cfg = init.get("config") or {}
+    ensure_objective_compatible(init, OBJECTIVE)
+    if "preset" in init_cfg and init_cfg["preset"] != PRESET:
+        raise RuntimeError(
+            f"init checkpoint preset={init_cfg['preset']!r} vs current {PRESET!r}; "
+            "weights-only init must stay within the same architecture preset")
+    if "static_mask_input" in init_cfg and init_cfg["static_mask_input"] != STATIC_MASK:
+        raise RuntimeError(
+            f"init checkpoint static_mask_input={init_cfg['static_mask_input']!r} "
+            f"vs current {STATIC_MASK!r}; refusing to init across a structural change")
+    for fp_warning in check_norm_fingerprint(init_cfg, stats["lo"], stats["hi"],
+                                             mask_version()):
+        log(f"WARNING: {INIT_CHECKPOINT}: {fp_warning}")
+    if OBJECTIVE == "persistence_residual":
+        check_residual_time_sigma(init_cfg, model.time_sigma)
+        if "stats_sigma" in init_cfg and \
+                abs(float(init_cfg["stats_sigma"]) - float(stats["sigma"])) > 1e-6:
+            raise RuntimeError(
+                f"init checkpoint stats_sigma={float(init_cfg['stats_sigma']):.6f} "
+                f"vs current {float(stats['sigma']):.6f}; the residual objective "
+                "has no sigma migration policy — refusing to init")
+    model.load_state_dict(init["model_state_dict"])
+    log(f"weights-only init from {INIT_CHECKPOINT} "
+        f"(source epoch {init.get('epoch')}); optimizer/scheduler/scaler/history "
+        "are FRESH", flush=True)
+
 os.makedirs(run_dir, exist_ok=True)
 
 log("Model Total Params:", count_params(model))
@@ -370,6 +452,8 @@ log(f"preset={PRESET} mode={TRAIN_MODE} objective={OBJECTIVE} grid=({H},{W},{Z})
     f"patch={cfg['patch_size']} cond_ch={COND_CH} model_cond_ch={MODEL_COND_CH} "
     f"static_mask_input={STATIC_MASK} target_ch={TARGET_CH} "
     f"mask_scheme={MASK_SCHEME} {scale_info} epochs={n_epochs} "
+    f"train_horizon={TRAIN_HORIZON} lead_schedule={LEAD_SCHEDULE} "
+    f"init_checkpoint={INIT_CHECKPOINT} "
     f"world_size={WORLD_SIZE} per_device_batch={cfg['batch_size']} "
     f"effective_batch={cfg['batch_size'] * WORLD_SIZE} run_dir={run_dir}")
 
@@ -424,6 +508,7 @@ if IS_MAIN:
     log(format_progress("train", "start", objective=OBJECTIVE, preset=PRESET,
                         mode=TRAIN_MODE, world=WORLD_SIZE, epochs=n_epochs,
                         steps_per_epoch=len(train_loader),
+                        train_horizon=TRAIN_HORIZON, lead_schedule=LEAD_SCHEDULE,
                         run_dir=run_dir), flush=True)
 
 worse_epochs = 0   # consecutive epochs with val_masked_relL2 strictly above best
@@ -440,6 +525,7 @@ try:
         n_batch = 0
         succ_updates = 0
         skipped_updates = 0
+        max_lead_seen = 0   # highest training lead J actually executed (smoke gate)
         # rank-0 interactive bar + periodic agent-readable status lines; other
         # ranks stay silent (never duplicate DDP progress). scope labels the
         # per-rank shard honestly; sample_per_s is the GLOBAL throughput.
@@ -457,9 +543,39 @@ try:
             with autocast(device_type=device.type):
                 if OBJECTIVE == "diffusion":
                     loss = train_model(yy, xx, mask=mask)
-                else:
+                elif TRAIN_HORIZON == 1:
+                    # historical single-step path, kept bitwise identical
                     pred = train_model(xx, static_cond=mask if STATIC_MASK else None)
                     loss = masked_mse_loss(pred, yy, mask)
+                else:
+                    # detached multi-step (doc §5): the lead J follows the fixed
+                    # batch schedule; J-1 detached self-feedback steps align the
+                    # training input distribution with the 15-day rollout, then
+                    # ONLY the J-th prediction carries gradients. J is a pure
+                    # function of the batch index, so every DDP rank executes
+                    # the same number of forwards per step (collective-safe).
+                    lead = lead_for_batch(bi, TRAIN_HORIZON)
+                    max_lead_seen = max(max_lead_seen, lead)
+                    if lead > 1:
+                        # feedback inference MUST run OUTSIDE the autocast
+                        # weight cache: a forward under autocast+no_grad caches
+                        # fp16 copies of the Linear-family weights as detached
+                        # tensors, and the final grad forward inside the SAME
+                        # autocast context would then reuse them, DISCONNECTING
+                        # those params from the loss graph (their DDP hooks
+                        # never fire -> "Expected to have finished reduction"
+                        # on the next iteration). A nested disabled-autocast
+                        # frame runs the feedback in fp32 without touching the
+                        # cache; the final forward re-casts under grad and
+                        # stays connected.
+                        with autocast(device_type=device.type, enabled=False):
+                            cur = detached_feedback_window(train_model, xx, lead)
+                        pred = train_model(cur, static_cond=mask if STATIC_MASK else None)
+                        loss = masked_mse_loss(
+                            pred, target[:, lead - 1].to(device, non_blocking=True), mask)
+                    else:
+                        pred = train_model(xx, static_cond=mask if STATIC_MASK else None)
+                        loss = masked_mse_loss(pred, yy, mask)
             finite = torch.tensor(int(torch.isfinite(loss).item()), device=device)
             if DISTRIBUTED:
                 dist.all_reduce(finite, op=dist.ReduceOp.MIN)
@@ -556,6 +672,7 @@ try:
         log(f"epoch {ep + 1}/{n_epochs}  {dt:.1f}s  "
             f"train_loss {train_loss:.5f}  val_masked_relL2 {val_rel:.5f}  "
             f"updates/rank {succ_updates} (skipped across ranks {skipped_updates})  "
+            f"max_lead {max_lead_seen if TRAIN_HORIZON > 1 else 1}  "
             f"grad_scale {scaler.get_scale():.4e}  "
             f"lr {scheduler.get_last_lr()[0]:.2e}", flush=True)
 
@@ -588,6 +705,11 @@ try:
                     "static_mask_input": STATIC_MASK,
                     "target_ch": TARGET_CH,
                     "mask_scheme": MASK_SCHEME,
+                    "train_horizon": TRAIN_HORIZON,
+                    "lead_schedule": LEAD_SCHEDULE,
+                    "feedback_detach": True,
+                    "init_checkpoint": INIT_CHECKPOINT,
+                    "init_weights_only": INIT_CHECKPOINT is not None,
                     "stats_sigma": float(stats["sigma"]),
                     "norm_lo": [float(x) for x in stats["lo"]],
                     "norm_hi": [float(x) for x in stats["hi"]],
@@ -635,6 +757,15 @@ try:
             raise RuntimeError(
                 f"SMOKE FAIL: train_loss={last_train_loss}, val_rel={last_val_rel}, "
                 f"updates/rank={last_updates}, skipped={last_skipped}")
+        if TRAIN_HORIZON > 1 and max_lead_seen <= 1:
+            # the smoke batches MUST actually exercise the detached feedback
+            # path: a schedule/windowing regression that silently collapses to
+            # J=1 would otherwise pass the gate while testing nothing (doc §6 WP3)
+            raise RuntimeError(
+                f"SMOKE FAIL: DIAFNO_TRAIN_HORIZON={TRAIN_HORIZON} but no J>1 "
+                f"batch was executed in {n_batch} smoke batches "
+                f"(max_lead_seen={max_lead_seen}); the lead schedule or the "
+                "window alignment is broken")
         if IS_MAIN:
             required = (os.path.join(run_dir, "Ep1.pth"),
                         os.path.join(run_dir, "best.pth"), loss_file)

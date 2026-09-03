@@ -11,16 +11,136 @@
 
 ### Proposed
 
-- 按当前
-  [困难与下一步](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)
-  实施：全层画像 → surface detached-autoregressive MS5 → 条件 MS10 → 代表层 →
-  full3d 资源/K1/K3 probe；residual diffusion 降为条件分支。
-- 计划中的代码改动包括 multi-step 配置/数据窗口/训练路径、smoke 回归、全层画像脚本，
-  以及修复 `diag_leadtime_residual.py` 的 NPZ key 覆盖；目前均尚未实施。
-- 可选后续：分段 remask 变体与近岸误差靶点（coastal 0.867 vs offshore
-  0.777）是否立项待讨论。
+- full3d K3 pilot 与正式预算决策（工作包 6，实验 06）：1-epoch single-step pilot
+  训练健康但无逐层信号，K3 按预注册条件阻塞；候选路径（追加 single-step epochs /
+  冻结待正式预算 ≈5 天/50 epoch / 调参）需拍板。
+- 后续分支准入评估（方向文档 §10）：物理单位 loss weighting、direct multi-horizon
+  head（MS10 后 d15 ratio 回升 0.894 与方差塌缩仍是指向证据）。
 
-以上条目均**尚未实施**。
+## 2026-09-03 — 已完成（工作包 5：代表层 + 工作包 6 第 1–4 步）
+
+实验 11（`docs/experiments/11_representative_layers/`）与实验 06 恢复，详细数字见
+各自 RESULTS.md。
+
+- **代码**：`pre_config.py` 新增 `middle_smoke`（depth_index=14）/`bottom_smoke`
+  （depth_index=0）preset（架构/预算与 surface_smoke 全同，单变量 = depth）；
+  `pre_smoke_test.py` 新增 `test_representative_layer_presets` → 56/56。
+  trainer/evaluate/dataset 的 depth_index 链路零改动。
+- **代表层单步 probe**（并行 2 卡，10 epochs）：middle day-1 ratio **0.770** ✅、
+  bottom **0.568** ✅（均过"day-1 < 层 persistence"门槛）；但两层单步均有长时效
+  失效（middle test overall 1.183、crossover d5；bottom 0.930、v d15 1.15）。
+- **代表层 MS5**（各层 probe Ep10 weights-only 初始化，5 epochs）：**全门槛 Go**——
+  middle Ep2（test overall **0.830**，单步 1.183→修复 crossover）、bottom Ep5
+  （test overall **0.813**，v d15 1.15→0.880 修复）。垂向泛化成立，难度排序与
+  WP1 画像一致。
+- **full3d（实验 06）**：资源 probe 实测（单步 0.97 s/步、峰值 22.6 GB、
+  1 epoch ≈ 2.3 h → 50 epoch ≈ 5 天）；K1 smoke PASS；1-epoch single-step pilot
+  训练健康（2h08m、22.2 GB、无 OOM/skip）但**逐层 day-1 信号未出现**（60 个
+  ratio 全部 ≈1.000）→ **K3 按预注册条件阻塞**，候选路径（加 epochs/冻结/调参）
+  留待决策；`EPOCH_OVERRIDES` 临时设 1 已还原 `{}`。
+- 执行方式：tmux 值守 + 监控 subagent；`pre_evaluate.py`/诊断脚本零修改（scratch
+  驱动器补 PRESET/BATCH_SIZE patch）。
+
+## 2026-09-03 — 已完成（DDP2 smoke：根因定位与修复后通过）
+
+- **根因（首次尝试 3 连败的 "Expected to have finished reduction in the prior
+  iteration"）**：detached 反馈 forward 原本在 autocast 上下文内执行。autocast 会把
+  Linear 族权重缓存为 fp16 副本；no_grad 下的 forward 使缓存中的 fp16 权重
+  **detached**（与 fp32 参数断开），同批次的最终带梯度 forward 复用缓存后，损失图
+  与这些参数断连、DDP hook 永不触发——恰好解释缺失梯度的 27 个参数
+  （patch_embed/mlp/time_mlp/head/up/downproj）而 AFNO 频域层（einsum/FFT 走 fp32、
+  不进缓存）完好。
+- **修复**：`pre_trainer.py` 的 `lead>1` 分支用嵌套
+  `autocast(device_type, enabled=False)` 包裹 `detached_feedback_window`——反馈
+  推理以 fp32 执行（数值上严格更接近确定性 rollout 的底层数学），不污染 autocast
+  权重缓存；`pre_rollout.detached_feedback_window` docstring 记录该 AUTOCAST
+  CAVEAT。`pre_smoke_test.py` 55/55 保持通过（CPU 路径不触发该问题）。
+- **验证**：tmux 值守脚本（卡况轮询 + 自动执行）在 GPU 0/3 上
+  **SMOKE PASS**（4 updates/rank、无 AMP skip、`max_lead=3` 证明 J>1 批次在 DDP
+  下真实执行、checkpoint 齐全）；有效 batch=8。日志
+  `checkpoints/PRE/train_ms5_smoke_ddp2_20260903_003529.log`。
+- 注：per-rank 峰值显存 ~17.5-20 GB，DDP smoke 需要两块各 ≥19.5 GB 空闲的卡
+  （值守脚本按此门槛自动选卡）。
+
+## 2026-09-02 — 已完成（工作包 3+4：MS5/MS10 训练、选型与 test）
+
+实验 10（`docs/experiments/10_multistep_deterministic/`）两条臂全部完成，单变量 =
+训练 horizon；详细数字见该实验 `RESULTS.md`，此处只记代码/流程事实。
+
+- MS5 smoke：`DIAFNO_TRAIN_HORIZON=5` + `DIAFNO_INIT_CHECKPOINT`（实验 07 Ep10）
+  单卡 real-data smoke → **SMOKE PASS**（4 updates、无 AMP skip、`max_lead=3`
+  证明 J>1 批次真实执行、weights-only init 生效）。
+- MS5 短训：5 epochs（MS 默认 lr 1e-4），~30 min/epoch，峰值显存 20.1 GB 平稳；
+  逐 epoch val 15-day 选型（day-1 守门 + overall 排名）→ **Ep4**；结构诊断
+  crossover 无、corr 全 lead 占优；**test 一次**：overall ratio **0.871**
+  （单步基线 1.018），day-1 0.843，最差 lead 0.963。**Go**。
+- MS10 短训：`EPOCH_OVERRIDES` 临时设 3（已还原 `{}`），K=10、从 MS5 Ep4
+  weights-only 初始化，~38 min/epoch；选型 → **Ep2**（与 Ep3 overall 差 0.06%，
+  按规则取更低者）；结构诊断晚段 bias 稳定（+0.017 vs MS5 的 -0.071）；**test
+  一次**：overall ratio **0.838**，day-1 0.833，最差 lead 0.894。
+- 评估执行方式：`pre_evaluate.py` 零修改（scratch 驱动器内存补丁常量，评估 tag
+  带 `OUTPUT_TAG` 隔离 val/test 的 figures 目录）；`scripts/diag_leadtime_residual.py`
+  通过 import + 属性覆写调用（该脚本 WP2 已重构为 `main()` 守卫结构）。
+- 遗留：DDP2 smoke 未做（无双卡同时空闲）；方差塌缩与 d15 ratio 回升保留为
+  §10 分支的指向证据。
+
+## 2026-09-01 — 已完成（工作包 2：detached multi-step 代码与 CPU 回归）
+
+实现 `docs/project/CURRENT_CHALLENGES_AND_NEXT_STEPS.md` §5 的 detached
+autoregressive multi-step；`python pre_smoke_test.py` 55/55 全过（47 项存量 +
+9 项新增，其中 1 项为 NPZ 修复回归）。
+
+- `pre_config.py`：新增 `DIAFNO_TRAIN_HORIZON`（`train_horizon()`，默认 1 = 历史单步）、
+  `DIAFNO_INIT_CHECKPOINT`（`init_checkpoint()`，weights-only 初始化源）、纯函数
+  lead schedule `lead_for_batch`/`lead_schedule_str`（MS5 = `1,2,1,3,1,4,1,5`，
+  50% day-1 anchor，无 RNG，DDP 各 rank 一致）、multi-step 冻结默认
+  `MS_DEFAULTS`（lr 1e-4 / 5 epochs，仅 K>1 生效，smoke 仍 1 epoch）、resume 守卫
+  `check_multistep_config`（拒绝跨 horizon/schedule 恢复；legacy checkpoint 仅可
+  K=1）；`run_tag_for`/`training_run_tag` 支持 `_MS{K}` 后缀（K=1 不变）。
+- `pre_rollout.py`：新增训练侧 `detached_feedback_window(step_fn, cond, lead)`——
+  J-1 步 `no_grad` 自回归回灌（clamp [0,1]、rf0、滑窗丢最旧一天与正式 rollout
+  逐位一致），返回最终 condition 窗口；J=1 原样返回。
+- `pre_trainer.py`：K>1 仅允许 `persistence_residual` 且无静态 mask（显式拒绝）；
+  `DIAFNO_CHECKPOINT` 与 `DIAFNO_INIT_CHECKPOINT` 互斥；train dataset
+  `horizon=K`（val 保持单步）；训练循环按 batch schedule 选 lead J，前 J-1 步
+  detached 反馈、只对第 J 步反传（K=1 路径逐位保持历史代码）；smoke 门禁新增
+  "实际执行过 J>1 batch" 检查；checkpoint config 记录 `train_horizon`/
+  `lead_schedule`/`feedback_detach`/`init_checkpoint`/`init_weights_only`；
+  weights-only init 只载模型权重并校验 objective/preset/mask/time_sigma/
+  归一化指纹，optimizer/scheduler/scaler/历史全部全新。
+- `pre_dataset.py`：`PREUVDataset.__init__` docstring 补 multi-step 用法与
+  `target[:, J-1]` 索引约定（horizon 能力与不跨 split 保证本已存在，无功能改动）。
+- `pre_smoke_test.py` 新增测试：schedule 模式/分布/DDP 一致性与环境变量解析、
+  MS 默认超参与 `_MS{K}` tag 隔离、K=1 与历史单步逐位一致、detached 反馈的
+  调用计数/无梯度图/滑窗对齐、未训练模型 multi-step 恒等于 persistence、
+  dataset horizon=5 不跨 split 且 target 对齐、checkpoint 元数据 roundtrip 与
+  resume 守卫、`build_npz_payload` key 无碰撞。
+- 验证：`python pre_smoke_test.py` → `pre_smoke_test passed`（55 项）。
+  real-data smoke 属工作包 3，尚未运行。
+
+## 2026-09-01 — 已完成（工作包 1：全层零训练画像 + NPZ 修复）
+
+- 新增只读诊断脚本 `scripts/diag_uv_predictability.py`（无模型/无 GPU，mmap 分块
+  流式）：train 逐层×逐变量精确 mean/std/min/max/有效计数/越界计数 + stride 子采样
+  分位数（p0.1/p1/p50/p99/p99.9）、train 一日增量统计、validation day 1–15
+  persistence RMSE/MAE（协议一致的窗口集 s∈[val_lo, val_hi−22]，rho 网格物理
+  单位，注明非正式 native 协议）、coastal/offshore（陆地 5 格内，与
+  `diag_region_breakdown.py` 同口径）与 bottom/middle/upper band 聚合、统一
+  min-max 归一化的逐层压缩度量。门禁四项：时间连续性（复用
+  `verify_daily_time`）、mask 形状/版本、掩码内 finite、逐层有效计数。
+- 运行结果（产物：`/data2/user/zyq/checkpoints/PRE/diag_uv_predictability_20260901/`，
+  耗时 6285 s）：**门禁四项全 PASS（OVERALL PASS）**——0 动态缺失格、逐层有效
+  计数 u≥134,921,520 / v≥134,964,225。关键数字：val persistence d1 RMSE
+  u bottom/middle/upper = 0.068/0.105/0.137 m/s（d15 = 0.130/0.204/0.281），
+  v = 0.039/0.054/0.087（d15 = 0.066/0.087/0.149）——surface（k=29）仍是各
+  lead 最难层，底层最易；统一 min-max 无截断（clip_frac=0），底层归一化 std
+  仅为海面的约 1/3（u L0 0.022 vs L29 0.067）。
+- 修复 `scripts/diag_leadtime_residual.py` NPZ key 覆盖缺陷（历史
+  `f"{field}_{var}"` key 使 persistence 数组覆盖 model）：key 改为
+  `f"{m|p}_{field}_{var}"`，抽出可单测的 `build_npz_payload`，脚本改为
+  `main()` 守卫结构（逻辑不变）；修复前的归档 PNG/终端统计仍有效，NPZ 不可复用。
+
+以上条目均**已实施并验证**。
 
 ## 2026-09-01 — 已完成（文档职责重构）
 

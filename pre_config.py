@@ -52,6 +52,41 @@ PRESETS = {
         val_windows=16,
         lr=1e-3,
     ),
+    # Work package 5 representative layers (experiment 11): MIDDLE (sigma
+    # index 14) and BOTTOM (sigma index 0). Architecture, patch, budget and
+    # protocol are IDENTICAL to surface_smoke — the ONLY difference is the
+    # probed depth index (never translate a sigma index into a fixed meter
+    # depth). Run tags: middle_smoke_*/bottom_smoke_*.
+    "middle_smoke": dict(
+        depth_index=14,            # middle representative sigma layer
+        patch_size=(4, 3, 1),
+        embed_dim=180,
+        implicit_layer=4,
+        explicit_layer=4,
+        batch_size=4,
+        num_workers=4,
+        num_epochs=10,
+        train_stride=1,
+        max_train_windows=None,
+        sampling_steps=32,
+        val_windows=24,
+        lr=1e-3,
+    ),
+    "bottom_smoke": dict(
+        depth_index=0,             # bottom representative sigma layer (seabed)
+        patch_size=(4, 3, 1),
+        embed_dim=180,
+        implicit_layer=4,
+        explicit_layer=4,
+        batch_size=4,
+        num_workers=4,
+        num_epochs=10,
+        train_stride=1,
+        max_train_windows=None,
+        sampling_steps=32,
+        val_windows=24,
+        lr=1e-3,
+    ),
 }
 
 # Pipeline smoke runs keep the production architecture/grid but execute only a
@@ -96,6 +131,114 @@ def static_mask_input(env=None):
     import os
     value = (env if env is not None else os.environ.get(STATIC_MASK_ENV, ""))
     return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+########## detached multi-step training (work package 2; doc §5) ##########
+
+# detached autoregressive multi-step horizon K ("MS{K}"): the trainer rolls the
+# model's OWN (no_grad, clamped) predictions forward for J-1 steps and
+# backpropagates only the J-th step (doc §5 pseudocode). K=1 is the exact
+# historical single-step teacher-forcing path. Only the deterministic
+# persistence_residual objective with static_mask_input=False is allowed.
+TRAIN_HORIZON_ENV = "DIAFNO_TRAIN_HORIZON"
+
+# weights-only initialization source (e.g. experiment-07 Ep10): model weights
+# are loaded, optimizer/scheduler/scaler/epoch/history are NOT (the source
+# cosine schedule is finished; MS runs start a fresh optimizer at a lower LR).
+# Mutually exclusive with DIAFNO_CHECKPOINT (full resume).
+INIT_CHECKPOINT_ENV = "DIAFNO_INIT_CHECKPOINT"
+
+# defaults applied ONLY when train_horizon > 1 (doc §6 WP3 frozen config:
+# fresh optimizer, LR 1e-4, at most 5 epochs; smoke mode still overrides the
+# epoch count). Recorded in checkpoint config like every other hyperparameter.
+MS_DEFAULTS = dict(lr=1e-4, num_epochs=5)
+
+
+def train_horizon(env=None):
+    """Read DIAFNO_TRAIN_HORIZON ("MS{K}", int >= 1; default 1 = single-step)."""
+    import os
+    value = (env if env is not None else os.environ.get(TRAIN_HORIZON_ENV, ""))
+    value = str(value).strip()
+    if not value:
+        return 1
+    try:
+        horizon = int(value)
+    except ValueError:
+        raise ValueError(f"{TRAIN_HORIZON_ENV}={value!r} is not an integer")
+    if horizon < 1:
+        raise ValueError(f"{TRAIN_HORIZON_ENV}={horizon} must be >= 1")
+    return horizon
+
+
+def init_checkpoint(env=None):
+    """Read DIAFNO_INIT_CHECKPOINT (weights-only init source; None by default)."""
+    import os
+    value = (env if env is not None else os.environ.get(INIT_CHECKPOINT_ENV, ""))
+    value = str(value).strip()
+    return os.path.expanduser(value) if value else None
+
+
+def lead_for_batch(batch_index, train_horizon):
+    """Training lead J for a batch index (doc §5.1 fixed schedule).
+
+    K=1  -> always 1 (the historical single-step path, schedule inert).
+    K>1  -> even batch indices keep the day-1 anchor (50% of batches); odd
+            indices cycle 2..K, i.e. MS5 produces 1,2,1,3,1,4,1,5,1,2,...
+
+    Pure function of (batch_index, K): no RNG, no global state, so every DDP
+    rank derives the SAME J for the same step (all ranks have equal batch
+    counts because both the sampler and the loader use drop_last=True).
+    """
+    k = int(train_horizon)
+    if k <= 1:
+        return 1
+    bi = int(batch_index)
+    if bi % 2 == 0:
+        return 1
+    return 2 + ((bi // 2) % (k - 1))
+
+
+def lead_schedule_str(train_horizon):
+    """Canonical one-period schedule string for logs/checkpoint metadata
+    (e.g. MS5 -> "1,2,1,3,1,4,1,5"; K=1 -> "1")."""
+    k = int(train_horizon)
+    if k <= 1:
+        return "1"
+    return ",".join(str(lead_for_batch(i, k)) for i in range(2 * (k - 1)))
+
+
+def check_multistep_config(ckpt_cfg, train_horizon_now, schedule_now):
+    """Resume guard for the multi-step semantics recorded in a checkpoint.
+
+    A checkpoint that was trained with (or without) detached multi-step
+    feedback must never be resumed under different semantics:
+      - train_horizon must match exactly; legacy checkpoints without the field
+        are only compatible with K=1 (they predate multi-step entirely);
+      - when BOTH sides record a lead schedule, the canonical strings must
+        match (a schedule change would silently alter the training
+        distribution of a resumed run).
+    """
+    ckpt_cfg = ckpt_cfg or {}
+    recorded = ckpt_cfg.get("train_horizon")
+    if recorded is None:
+        if int(train_horizon_now) != 1:
+            raise RuntimeError(
+                "checkpoint has no config.train_horizon (pre-multi-step) but "
+                f"DIAFNO_TRAIN_HORIZON={train_horizon_now}; multi-step training "
+                "cannot resume a single-step run — use DIAFNO_INIT_CHECKPOINT "
+                "(weights-only init) instead")
+        return
+    if int(recorded) != int(train_horizon_now):
+        raise RuntimeError(
+            f"checkpoint train_horizon={int(recorded)} vs current "
+            f"{int(train_horizon_now)}; refusing to resume across a "
+            "multi-step horizon change")
+    recorded_schedule = ckpt_cfg.get("lead_schedule")
+    if recorded_schedule is not None and \
+            str(recorded_schedule) != str(schedule_now):
+        raise RuntimeError(
+            f"checkpoint lead_schedule={recorded_schedule!r} vs current "
+            f"{schedule_now!r}; refusing to resume across a schedule change")
 
 
 def validate_objective(objective):
@@ -246,13 +389,17 @@ def resume_sigma_decision(sd_ckpt, sd_current, policy):
                      f"(expected 'error', 'migrate' or 'adopt')")
 
 
-def training_config(preset, mode="full", world_size=1):
+def training_config(preset, mode="full", world_size=1, train_horizon=1):
     """Return an isolated mutable config for a smoke or full training run.
 
     ``batch_size`` remains the per-device batch size.  A smoke run contains
     exactly ``SMOKE_BATCHES_PER_RANK`` full batches on every DDP rank, uses one
     epoch and short sampling, while preserving the selected preset's model
     architecture and physical grid.
+
+    A detached multi-step run (train_horizon > 1) uses the frozen MS_DEFAULTS
+    (lr/num_epochs) instead of the preset's single-step values; smoke mode
+    still reduces the epoch count afterwards.
     """
     if preset not in PRESETS:
         raise ValueError(f"unknown preset {preset!r}; expected one of {tuple(PRESETS)}")
@@ -261,8 +408,13 @@ def training_config(preset, mode="full", world_size=1):
     world_size = int(world_size)
     if world_size < 1:
         raise ValueError(f"world_size must be >= 1, got {world_size}")
+    train_horizon = int(train_horizon)
+    if train_horizon < 1:
+        raise ValueError(f"train_horizon must be >= 1, got {train_horizon}")
 
     cfg = dict(PRESETS[preset])
+    if train_horizon > 1:
+        cfg.update(MS_DEFAULTS)
     if mode == "smoke":
         cfg.update(
             num_epochs=1,
@@ -275,13 +427,15 @@ def training_config(preset, mode="full", world_size=1):
 
 
 def run_tag_for(preset, sd2=True, config=None, objective=DEFAULT_OBJECTIVE,
-                static_mask=False):
+                static_mask=False, train_horizon=1):
     """Checkpoint/output dir tag. sd2=True appends the fixed-scale suffix so a
     re-trained run NEVER shares a directory with the legacy (sd1) runs.
     objective="persistence_residual" additionally appends "_RES" so the
     deterministic baseline never shares a directory with a diffusion run.
     static_mask=True appends "_MSK" so the Phase-5 mask-input arm never shares
-    a directory with the 14-channel baseline."""
+    a directory with the 14-channel baseline. train_horizon > 1 appends
+    "_MS{K}" so a detached multi-step run never shares a directory with a
+    single-step run (K=1 keeps the historical tag unchanged)."""
     cfg = PRESETS[preset] if config is None else config
     tag = (f"{preset}_BS{cfg['batch_size']}_EMD{cfg['embed_dim']}"
            f"_I{cfg['implicit_layer']}_E{cfg['explicit_layer']}"
@@ -292,14 +446,17 @@ def run_tag_for(preset, sd2=True, config=None, objective=DEFAULT_OBJECTIVE,
         tag += "_RES"
     if static_mask:
         tag += "_MSK"
+    if int(train_horizon) > 1:
+        tag += f"_MS{int(train_horizon)}"
     return tag
 
 
 def training_run_tag(preset, config, mode="full", world_size=1,
-                     objective=DEFAULT_OBJECTIVE, static_mask=False):
+                     objective=DEFAULT_OBJECTIVE, static_mask=False,
+                     train_horizon=1):
     """Run tag with smoke/DDP isolation; single-GPU full tags stay legacy-compatible."""
     tag = run_tag_for(preset, config=config, objective=objective,
-                      static_mask=static_mask)
+                      static_mask=static_mask, train_horizon=train_horizon)
     if mode == "smoke":
         tag += "_SMOKE"
     if int(world_size) > 1:
