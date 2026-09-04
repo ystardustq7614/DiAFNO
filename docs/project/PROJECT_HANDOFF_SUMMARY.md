@@ -1,6 +1,6 @@
 # DiAFNO / PRE 项目交接概要
 
-> 更新日期：2026-09-03
+> 更新日期：2026-09-04
 > 用途：让新成员或 agent 在几分钟内了解项目目标、当前证据、主要困难和接手入口。
 > 当前困难与执行顺序以
 > [《当前困难与下一步》](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)为唯一方向文档；
@@ -16,10 +16,15 @@ persistence 之下：
 - 当前最优模型为 surface **MS10 Ep2**（实验 10）：test day-1 RMSE `0.0972 m/s`
   vs persistence `0.1167`（ratio `0.833`，不退化）；test 15-day overall
   `0.1759` vs `0.2098`（**ratio `0.838`**），day 4–5 crossover 消除；
+  ⚠️ 正式 checkpoint 一律用 `..._RES_MS10/Ep2.pth`：run 目录的 `best.pth` 按训练期
+  `val_masked_relL2` 对应 **Ep3**，不是选型产物（MS5 正式对应 `Ep4.pth`，同理）；
 - 演进链：单步基线（实验 07）overall ratio `1.018`（day 4–5 后失去优势）→
   MS5 Ep4 `0.871` → MS10 Ep2 `0.838`；
-- 修复可垂向泛化（实验 11）：middle/bottom 单层 MS5 过全部预注册门槛，test
-  overall `0.830` / `0.813`（单步为 `1.183` / `0.930`）；
+- 修复可垂向泛化（实验 11）：bottom 单层 MS5 过全部预注册门槛，test overall
+  `0.813`（单步 `0.930`）；middle 的 MS5 长时效修复成立（test `0.830`，单步
+  `1.183`），但其 day-1 选型门槛存在勘误（原 probe 数值无法从归档 NPZ 复现，
+  按当前仓库可用归档数据和预注册规则正式选中 Ep4 而非已执行的 Ep2）；Ep4 test
+  待补，Ep2 test 仅保留为探索性结果——见实验 11 `RESULTS.md` 勘误节；
 - 遗留缺陷：方差塌缩（var_ratio ~0.3@d15）、d15 附近 ratio 回升（test 0.894）
   与轻微 bias 漂移仍在，是后续分支（loss weighting / direct multi-horizon）的
   指向证据；
@@ -29,8 +34,8 @@ persistence 之下：
   50 epoch ≈ 5 天；单步峰值 22.6 GB），pilot 无逐层信号，K3 与正式预算按预注册
   条件阻塞待决策（实验 06）。
 
-下一步不是加入扩散或完整 BPTT，而是对 full3d K3/正式预算做出路径决策，并评估
-§10 分支（loss weighting、direct multi-horizon head）的准入。
+下一步不是加入扩散或完整 BPTT，而是先补 middle Ep4 正式 test，再对 full3d K3/
+正式预算做出路径决策，并评估 §6 分支（loss weighting、direct multi-horizon head）的准入。
 
 ## 任务与数据
 
@@ -54,7 +59,7 @@ mask、异常值和归一化说明见 [PRE 数据说明](../data/PRE_ocean_data.
 - 已完成原始数据审计，以及 staggered C-grid `u/v` 到 rho-grid 的共定位；
 - 已建立连续时间 split、train-only 归一化、双变量 mask 和 surface/full3d preset；
 - 已建立单步训练、15 天自回归评估、persistence/zero/rho-oracle 基线和逐 lead 指标；
-- 已有 CPU 合成回归测试（pre_smoke_test 56 项）、真实数据 smoke、checkpoint 恢复
+- 已有 CPU 合成回归测试（pre_smoke_test 59 项）、真实数据 smoke、checkpoint 恢复
   和单卡/DDP 保护；
 - 已实现 detached multi-step（MS5/MS10）训练与单卡/DDP2 smoke；
 - 训练与评估都能输出适合服务器长任务监控的进度行。
@@ -73,7 +78,7 @@ mask、异常值和归一化说明见 [PRE 数据说明](../data/PRE_ocean_data.
 | [08 静态 mask 输入 A/B](../experiments/08_static_mask_ablation/RESULTS.md) | 不保留静态 mask；原 14 通道模型更好 |
 | [09 remask feedback A/B](../experiments/09_remask_feedback_ablation/RESULTS.md) | 保持 `rf0`；中段改善但长段转差，overall 无增益 |
 | [10 multi-step MS5/MS10](../experiments/10_multistep_deterministic/RESULTS.md) | detached multi-step 成立：test overall 1.018→0.871→0.838，crossover 消除 |
-| [11 代表层 middle/bottom](../experiments/11_representative_layers/RESULTS.md) | 垂向泛化成立：两层 MS5 全门槛 Go（test 0.830/0.813） |
+| [11 代表层 middle/bottom](../experiments/11_representative_layers/RESULTS.md) | bottom 全门槛 Go（0.813）；middle 长时效修复成立，正式改选 Ep4 后 test 待补；Ep2 的 0.830 为探索性结果 |
 
 每个实验的目标、任务与执行状态在 `EXPERIMENT.md`，实际数字、分析和科学结论在
 `RESULTS.md`。入口见 [实验索引](../experiments/README.md)。
@@ -96,10 +101,12 @@ mask、异常值和归一化说明见 [PRE 数据说明](../data/PRE_ocean_data.
 详细门槛、文件改动和执行后回顾表见
 [《当前困难与下一步》](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)。当前顺序是：
 
-1. full3d K3/正式预算决策（实验 06 候选路径 A/B/C，需拍板）；
-2. §10 分支准入评估：物理单位 loss weighting、direct multi-horizon head
+1. 按预注册规则冻结实验 11 middle MS5 Ep4 并补一次正式 test；Ep2 test 仅保留为
+   探索性结果；
+2. full3d K3/正式预算决策（实验 06 候选路径 A/B/C，需拍板）；
+3. §6 分支准入评估：物理单位 loss weighting、direct multi-horizon head
    （方差塌缩与 d15 回升为指向证据）；
-3. TBPTT、新输入、residual diffusion 仍是证据触发的后续分支，不与上述同时修改。
+4. TBPTT、新输入、residual diffusion 仍是证据触发的后续分支，不与上述同时修改。
 
 ## 接手入口
 

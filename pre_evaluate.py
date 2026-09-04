@@ -36,8 +36,8 @@ and existing outputs are REFUSED, never overwritten. sigma_data is read from
 the checkpoint's config when present; legacy checkpoints fall back to the old
 stats-only scale with an explicit warning.
 
-Output: <ckpt_dir>/eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_rf{0|1}_ckpt{stem}[_sm{sigma_max}][_{tag}].npz
-        <ckpt_dir>/figures_h{rd}_ch{churn}_e{es}_s{seed}_rf{0|1}_ckpt{stem}[_sm{sigma_max}][_{tag}]/d{...}_*.png
+Output: <ckpt_dir>/eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_rf{0|1}[_msk1]_ckpt{stem}[_sm{sigma_max}][_{tag}].npz
+        <ckpt_dir>/figures_h{rd}_ch{churn}_e{es}_s{seed}_rf{0|1}[_msk1]_ckpt{stem}[_sm{sigma_max}][_{tag}]/d{...}_*.png
 
 Run (from repo root):  python pre_evaluate.py
 
@@ -48,6 +48,13 @@ The checkpoint's `config.objective` decides which model is rebuilt:
                               parameters are NOT applicable and are recorded as
                               such in the output metadata; ENSEMBLE_SIZE is
                               forced to 1 (members would be identical).
+The checkpoint's `config.static_mask_input`/`model_cond_chans` (experiment 08
+arm B) decide the backbone's condition-channel count; for a static-mask
+checkpoint the two bivariate rho mask channels are built once and forwarded to
+EVERY rollout step via `ensemble_rollout(static_cond=...)` — the dynamic
+14-channel window and its sliding stay pure. Impossible or contradictory
+metadata is refused (pre_config.static_mask_from_checkpoint), and the setting
+is recorded in the output tag (`msk1`) and NPZ metadata.
 `REMASK_FEEDBACK` optionally re-applies the ocean mask (land -> 0) to every
 prediction before it re-enters the next condition window; the setting is part
 of the output tag (rf0/rf1) and metadata, and its final value is decided by the
@@ -70,7 +77,7 @@ from pre_config import (PRESETS, OUT_ROOT, CONTEXT, run_tag_for, sigma_data_from
                         sigma_data_from_checkpoint, RESIDUAL_TIME_SIGMA,
                         objective_from_checkpoint, ProgressReporter, format_progress,
                         install_progress_failure_hook, mark_progress_failed,
-                        check_norm_fingerprint)
+                        check_norm_fingerprint, static_mask_from_checkpoint)
 from pre_dataset import (PREUVDataset, NativeUVReader, native_masks,
                          compute_or_load_stats, build_mask_tensor, mask_version)
 from pre_metrics import (rho_to_native, masked_error_sums, pooled_rmse,
@@ -137,6 +144,12 @@ if OBJECTIVE == "persistence_residual" and ENSEMBLE_SIZE != 1:
           "members would be identical -> using 1")
     ENSEMBLE_SIZE = 1
 
+# rebuild the EXACT trained input layout: the static-mask arm (experiment 08)
+# appends the two bivariate rho mask channels to the backbone condition via
+# static_cond; the dynamic 14-channel window and the rollout sliding window
+# are unchanged. Contradictory metadata is refused here, before anything runs.
+CKPT_STATIC_MASK, MODEL_COND_CH = static_mask_from_checkpoint(ckpt_cfg, OBJECTIVE)
+
 # outputs always live next to the checkpoint and are tagged by the sampling
 # config AND the checkpoint file stem, so no existing eval file or figure dir
 # is ever overwritten; an already-existing output path is refused. rf{0,1}
@@ -145,6 +158,10 @@ out_dir = os.path.dirname(os.path.abspath(ckpt_path))
 ckpt_stem = os.path.splitext(os.path.basename(ckpt_path))[0]
 tag_parts = [f"h{ROLLOUT_DAYS}", f"ch{SAMPLER_S_CHURN}", f"e{ENSEMBLE_SIZE}",
              f"s{EVAL_SEED}", f"rf{int(bool(REMASK_FEEDBACK))}", f"ckpt{ckpt_stem}"]
+if CKPT_STATIC_MASK:
+    # static-mask checkpoints must not collide with the plain 14-channel
+    # outputs of the same checkpoint stem (they are different models)
+    tag_parts.insert(5, "msk1")
 if SAMPLER_SIGMA_MAX is not None:
     tag_parts.append(f"sm{SAMPLER_SIGMA_MAX:g}")
 if OUTPUT_TAG:
@@ -174,7 +191,7 @@ EVAL_STAGE[0] = "data_model"
 
 dm_backbone = IAFNODiff(
     dim=(H, W, Z), patch_size=cfg["patch_size"], embed_dim=cfg["embed_dim"],
-    num_blocks=1, in_chans=2, out_chans=2, cond_chans=2 * CONTEXT,
+    num_blocks=1, in_chans=2, out_chans=2, cond_chans=MODEL_COND_CH,
     ex_layer=cfg["explicit_layer"], nlayer=cfg["implicit_layer"],
     hidden_size_factor=4, dim_f=(H, W, Z), self_condition=True,
 ).to(device)
@@ -212,6 +229,7 @@ else:
     print(f"loaded {ckpt_path} (epoch={ckpt_epoch}) objective={OBJECTIVE}  "
           f"residual_base={model.residual_base}  "
           f"time_sigma={model.time_sigma:g}  "
+          f"static_mask_input={CKPT_STATIC_MASK}  "
           f"(sampler parameters not applicable; remask_feedback={REMASK_FEEDBACK})")
 
 ########## data ##########
@@ -235,6 +253,15 @@ ocean_mask = (build_mask_tensor(device, cfg["depth_index"])
 if REMASK_FEEDBACK:
     print("remask_feedback=ON: every rollout prediction is re-masked "
           "(land -> 0) before re-entering the next condition window")
+
+# static-mask checkpoints receive the SAME two bivariate rho mask channels the
+# trainer fed via static_cond; built once and broadcast over every batch
+static_cond = (build_mask_tensor(device, cfg["depth_index"])
+               if CKPT_STATIC_MASK else None)
+if static_cond is not None:
+    print(f"static_mask_input=ON (checkpoint metadata): model_cond_chans="
+          f"{MODEL_COND_CH}; the two rho mask channels are forwarded via "
+          "static_cond at every rollout step")
 
 ########## rollout + metrics ##########
 
@@ -283,7 +310,8 @@ try:
                                      seeds=[EVAL_SEED + int(s) for s in starts_np],
                                      clamp=True,
                                      remask_feedback=REMASK_FEEDBACK,
-                                     ocean_mask=ocean_mask)
+                                     ocean_mask=ocean_mask,
+                                     static_cond=static_cond)
             rho_pred = unnormalize(ensemble_mean(preds)).cpu().numpy()  # (B,L,2,H,W,Z)
 
             # --- fixed rho -> native resampling (no rotation)
@@ -425,6 +453,8 @@ np.savez(out_path,
          ensemble_size=np.array([ENSEMBLE_SIZE]),
          objective=np.str_(OBJECTIVE),
          residual_base=np.str_(RESIDUAL_BASE),
+         static_mask_input=np.array([bool(CKPT_STATIC_MASK)]),
+         model_cond_chans=np.array([MODEL_COND_CH]),
          remask_feedback=np.array([bool(REMASK_FEEDBACK)]),
          sampler=np.str_(sampler_name), sampler_note=np.str_(sampler_note),
          time_sigma=time_sigma_out,
@@ -488,6 +518,7 @@ print(f"\noverall native RMSE (sqrt(sum_se/sum_n)): model {overall_m:.4f} m/s "
 ########## representative figures ##########
 
 layers = [Z - 1] if Z == 1 else [0, Z // 2, Z - 1]
+expected_figs = []
 for day in (d for d in FIG_DAYS if d <= ROLLOUT_DAYS):
     for layer in layers:
         for var, (truth, pred, mask) in (("u", fig_capture["u"]), ("v", fig_capture["v"])):
@@ -503,11 +534,24 @@ for day in (d for d in FIG_DAYS if d <= ROLLOUT_DAYS):
                 im = ax.imshow(data, origin="lower", aspect="auto", cmap=cmap)
                 fig.colorbar(im, ax=ax, shrink=0.85)
                 ax.set_title(title)
-        fig.tight_layout()
-        fp = os.path.join(fig_dir, f"d{day:02d}_s{layer:02d}_{var}.png")
-        fig.savefig(fp)
-        plt.close(fig)
-print(f"figures saved to {fig_dir}")
+            fig.tight_layout()
+            fp = os.path.join(fig_dir, f"d{day:02d}_s{layer:02d}_{var}.png")
+            fig.savefig(fp)
+            plt.close(fig)
+            expected_figs.append(fp)
+
+# every selected lead/layer must have BOTH variables on disk — a regression
+# here would silently drop the u panel and leak open figures on long runs
+missing_figs = [os.path.basename(fp) for fp in expected_figs
+                if not os.path.isfile(fp)]
+n_u = sum(1 for fp in expected_figs if fp.endswith("_u.png"))
+n_v = sum(1 for fp in expected_figs if fp.endswith("_v.png"))
+if missing_figs or n_u != n_v:
+    raise RuntimeError(
+        f"figure save check failed: {len(missing_figs)}/{len(expected_figs)} "
+        f"missing {missing_figs[:5]}, u={n_u} v={n_v} (must be paired)")
+print(f"figures saved to {fig_dir} ({n_u} u + {n_v} v = {len(expected_figs)} "
+      f"png files, u/v paired per lead/layer)")
 
 # script-level end: only NOW is the run completed — the NPZ, the summary and
 # all figures are on disk (the rollout loop itself merely reported phase_done)

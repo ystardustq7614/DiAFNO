@@ -2,14 +2,15 @@
 
 ## 目标
 
-检验首要假设（`docs/project/CURRENT_CHALLENGES_AND_NEXT_STEPS.md` §3）：
+检验[历史实施计划 §3](../../project/archive/MULTISTEP_PLAN_20260901.md)中的首要假设：
 detached autoregressive multi-step 能在接近单步显存的条件下缓解 exposure bias，
 并延后或消除 day 4–5 crossover。
 
 - **MS5 臂**：`K=5`，schedule `1,2,1,3,1,4,1,5`，从实验 07 Ep10 weights-only 初始化，
   lr 1e-4（fresh optimizer/scheduler），最多 5 epochs。
 - **MS10 臂**：`K=10`，schedule `1,2,1,3,…,1,10`，仅在 MS5 通过全部门槛后执行
-  （§6 WP4），从 MS5 选型 checkpoint weights-only 初始化，最多 3 epochs。
+  （[历史实施计划 §6 工作包 4](../../project/archive/MULTISTEP_PLAN_20260901.md)），
+  从 MS5 选型 checkpoint weights-only 初始化，最多 3 epochs。
 - 其余一切与实验 07 冻结协议一致（backbone/数据/归一化/mask/loss/rf0/无静态 mask）；
   单变量 = 训练 horizon。
 

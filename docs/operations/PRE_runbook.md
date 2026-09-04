@@ -2,8 +2,9 @@
 
 > 本文只记录可执行流程和固定约定；实验目的、对照、预期和实际结果分别存放在
 > [实验索引](../experiments/README.md)下各实验的 `EXPERIMENT.md` 与 `RESULTS.md`。
-> 当前 surface 确定性基线已通过 day-1 门槛，但 15-day overall 尚未优于 persistence；
-> full3d 正式长训未准入。本手册中的 full3d 命令表示当前 K1 管线能力，不表示实验已完成。
+> 当前主线为确定性 persistence-residual + detached multi-step：surface 最优模型是
+> 实验 10 的 **MS10 `Ep2.pth`**（test 15-day overall ratio 0.838，优于 persistence）；
+> full3d 完成 probe/K1 smoke/1-epoch pilot，K3 按预注册条件阻塞（见第 5 节）。
 
 > 任务：用连续 7 天的日平均三维 u/v（方案 A：原始交错网格自对齐到 rho 网格，保留网格方向分量，**不旋转**），
 > 通过 DiAFNO 单步条件模型（扩散或确定性 persistence-residual）预测第 8 天，再自回归
@@ -95,12 +96,12 @@ surface (depth_index=29):    u_sel (days, 400, 440, 1),  v_sel (days, 399, 441, 
 |---|---|
 | `scripts/profile_preprocess_align_uv.py` | 不触碰生产输出的性能探针：抽取真实 mmap chunk 到私有临时目录，分别统计 CPU、I/O；可用 `--gpu-compare` 调正式 CUDA 实现并与 NumPy 参考逐项核对，默认结束后删除 scratch |
 | `scripts/preprocess_align_uv.py` | 方案 A 预处理：**单卡 CUDA 必需**；原始 u/v → rho 网格、双变量 mask、极值定位、ocean_time 精确校验（`verify_daily_time`，24h 间隔）；输出 `u_rho.npy`/`v_rho.npy`/`mask_u_rho.npy`/`mask_v_rho.npy`/`mask_uv.npy`/`ocean_time.npy`/`ocean_time_seconds.npy` |
-| `pre_config.py` | 两套预设 `surface_smoke` / `full3d`（patch、embed_dim、batch、`val_windows` 等）+ 共享 sigma_data 换算（`SIGMA_DATA_SCALE`、`sigma_data_from_stats`、`sigma_data_from_checkpoint`、`run_tag_for(sd2=True, objective=...)`）+ objective 配置（`OBJECTIVES`、`validate_objective`、`objective_from_checkpoint`、`ensure_objective_compatible`、`RESIDUAL_TIME_SIGMA`、`MASK_SCHEME`）+ rank-0 终端进度辅助（`ProgressReporter`、`format_progress`、30s 间隔 `PROGRESS` 状态行），无副作用，可安全 import |
+| `pre_config.py` | 四套预设 `surface_smoke` / `middle_smoke` / `bottom_smoke` / `full3d`（patch、embed_dim、batch、`val_windows` 等）+ 共享 sigma_data 换算（`SIGMA_DATA_SCALE`、`sigma_data_from_stats`、`sigma_data_from_checkpoint`、`run_tag_for(sd2=True, objective=...)`）+ objective 配置（`OBJECTIVES`、`validate_objective`、`objective_from_checkpoint`、`ensure_objective_compatible`、`RESIDUAL_TIME_SIGMA`、`MASK_SCHEME`）+ 静态 mask 元数据重建（`static_mask_from_checkpoint`）+ detached multi-step 配置（`train_horizon`、`lead_for_batch`、`lead_schedule_str`、`MS_DEFAULTS`、`check_multistep_config`、`restore_worse_epochs`）+ rank-0 终端进度辅助（`ProgressReporter`、`format_progress`、30s 间隔 `PROGRESS` 状态行），无副作用，可安全 import |
 | `pre_models.py` | 确定性 persistence-residual 基线：`PersistenceResidualIAFNO`（包装与 EDM 相同的 `IAFNODiff`，`prediction = 条件最后一天 + 零初始化残差`，未训练时严格等于 persistence；`sample()` 忽略采样步数、与 rollout duck-type 兼容）+ `masked_mse_loss`（逐样本有效格点均值，与 diffusion.forward 的 mask 语义一致）；无副作用，可安全 import |
 | `pre_dataset.py` | Dataset（滑窗/连续切分/逐变量 min-max/陆地填 0）、统计量计算与缓存（裁剪+clip 后 pooled sigma、split/mask 哈希过期检测）、`NativeUVReader`（统一布局原生真值）、双变量 mask 构造 |
 | `pre_metrics.py` | 训练/评估/冒烟共享的纯指标函数：`rho_to_native`、`masked_error_sums`、`pooled_rmse`、`masked_rel_l2`、`oracle_native_error_sums`（rho-oracle 诊断基线）（无副作用，可安全 import） |
 | `pre_rollout.py` | 无副作用自回归 rollout：`ensemble_rollout`（ensemble 成员完全独立、autocast 包裹、标量 seed 或**逐窗口 seeds**、`remask_feedback`+`ocean_mask` 可选陆地回灌重 mask；模型 duck-type：EDM 与确定性 residual 模型均可直接使用）、`expand_ensemble`、`ensemble_mean`（不依赖数据/模型模块，可安全 import） |
-| `pre_trainer.py` | 单步训练入口（objective 可选：扩散 EDM masked 去噪损失 或 persistence-residual `masked_mse_loss`；双变量 masked loss、新 AMP API `torch.amp.GradScaler/autocast`、仅在实际 update 后 `scheduler.step()`、skipped-update/scale/lr 统计、cosine scheduler、`fork_rng` 隔离的均匀验证窗口、best/last checkpoint 共享同一 state、断点续训校验 objective/结构参数并严格采用 checkpoint 的 sigma_data（仅扩散）、residual 启动时零初始化 == persistence 自检、rank-0 tqdm/PROGRESS 进度、可选的一次性 `EPOCH_OVERRIDES`、连续 2 epoch 恶化提前停止） |
+| `pre_trainer.py` | 训练入口（objective 可选：扩散 EDM masked 去噪损失 或 persistence-residual `masked_mse_loss`；detached multi-step `DIAFNO_TRAIN_HORIZON=K` 与固定 lead schedule、反馈 forward 外层 `autocast(enabled=False)`（DDP 必需）；双变量 masked loss、新 AMP API `torch.amp.GradScaler/autocast`、仅在实际 update 后 `scheduler.step()`、skipped-update/scale/lr 统计、cosine scheduler、`fork_rng` 隔离的均匀验证窗口、best/last checkpoint 共享同一 state、断点续训校验 objective/结构参数并严格采用 checkpoint 的 sigma_data（仅扩散）、residual 启动时零初始化 == persistence 自检、weights-only `DIAFNO_INIT_CHECKPOINT` 初始化、early-stop 计数 `worse_epochs` 随 checkpoint 保存/恢复、rank-0 tqdm/PROGRESS 进度、可选的一次性 `EPOCH_OVERRIDES`、连续 2 epoch 恶化提前停止） |
 | `pre_evaluate.py` | 自回归 rollout（`ROLLOUT_DAYS`/`ENSEMBLE_SIZE`/`SAMPLER_S_CHURN`/`SAMPLER_SIGMA_MAX`/`EVAL_SEED`/`REMASK_FEEDBACK`）+ 按 checkpoint `config.objective` 重建扩散或确定性模型 + persistence/zero/rho-oracle 基线 + 原生网格正式指标 + 复现元数据（objective/residual_base/remask_feedback/sampler 等；确定性模型把采样参数显式记为不适用）+ 代表性图（逐窗口 seed、输出带 tag 且拒绝覆盖、单 reader、`masked_error_sums` 累加、rank-0 tqdm/PROGRESS 进度） |
 | `pre_smoke_test.py` | 无额外依赖的 assert 回归测试（纯合成数据，直接调用正式实现） |
 | `scripts/diag_leadtime_residual.py` | 长时效诊断：重放官方 rollout 协议，逐 lead day 统计 bias/方差比/逐窗口空间相关（评估 NPZ 不含的量） |
@@ -199,7 +200,8 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_trainer.py
   --nproc_per_node=4 pre_trainer.py`。实现为一进程一卡 DDP；stats 只由 rank 0 首次生成，训练和验证均分片，
   checkpoint 只由 rank 0 写。`batch_size` 是**每卡** batch，多卡不自动缩放 lr；checkpoint 记录
   `world_size/per_device_batch_size/effective_batch_size`，输出目录带 `_DDP4`。
-- 切换 preset 用 `DIAFNO_PRESET=surface_smoke|full3d`。切换 objective 用
+- 切换 preset 用 `DIAFNO_PRESET=surface_smoke|middle_smoke|bottom_smoke|full3d`
+  （middle/bottom 与 surface_smoke 仅 depth_index 不同，用于实验 11 代表层协议）。切换 objective 用
   `DIAFNO_OBJECTIVE=diffusion|persistence_residual`（默认 `diffusion`，行为与历史完全一致）；
   `persistence_residual` 走确定性 `masked_mse_loss`（无采样、无 sigma 调度），run 目录带 `_RES`。
   **实验 08 静态 mask 输入（arm B）**：`DIAFNO_STATIC_MASK=1` 把双变量 rho mask 的
@@ -212,8 +214,31 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_trainer.py
   与当前不一致会直接拒绝（绝不把一类 checkpoint 装进另一类模型）。扩散尺度策略见第 6 节
   `RESUME_SIGMA_POLICY`（默认 `"error"`：尺度不一致直接报错；`"adopt"` 可继续旧尺度（输出写入独立的
   `legacy_resume/` 子目录），`"migrate"` 可显式迁移到 SD2）；residual objective 无 sigma 调度，该策略不适用。
-  旧 checkpoint 没有 `world_size` 元数据，只允许单卡续训。多卡产物评估时应在 `pre_evaluate.py`
-  显式设置 `CHECKPOINT`，因为自动 run tag 不猜测训练时的 DDP world size。
+   旧 checkpoint 没有 `world_size` 元数据，只允许单卡续训。多卡产物评估时应在 `pre_evaluate.py`
+   显式设置 `CHECKPOINT`，因为自动 run tag 不猜测训练时的 DDP world size。
+- **Detached multi-step（实验 10/11 主线，`DIAFNO_TRAIN_HORIZON=K`）**：
+  - 语义：K=1 与历史单步路径**逐位一致**；K>1 时按固定 lead schedule（纯函数
+    `pre_config.lead_for_batch`，MS5 = `1,2,1,3,1,4,1,5,...`，50% batch 保持 day-1 anchor）
+    让模型先在 `no_grad` 下自回灌 J−1 步（clamp [0,1]、rf0），只对第 J 步反传。
+    仅支持 `DIAFNO_OBJECTIVE=persistence_residual` 且 `DIAFNO_STATIC_MASK` 未设，其他组合显式拒绝。
+  - 初始化：`DIAFNO_INIT_CHECKPOINT=/abs/path/EpN.pth` 做 **weights-only 初始化**（只加载
+    `model_state_dict`，optimizer/scheduler/scaler/epoch/history 全新），与 `DIAFNO_CHECKPOINT`
+    互斥。K>1 时超参取 `pre_config.MS_DEFAULTS`（lr 1e-4、最多 5 epochs），无需另设。
+  - run 目录追加 `_MS{K}`（如 `surface_smoke_..._SD2_RES_MS5`），与 `_RES`/`_RES_MSK` 互不重叠；
+    checkpoint config 记录 `train_horizon`/`lead_schedule`/`feedback_detach`/`init_checkpoint`，
+    resume 时任何一项变化都会被拒绝。
+  - smoke 额外门槛：K>1 的 smoke 必须实际执行过 J>1 的反馈 batch（`max_lead_seen > 1`），
+    否则 `SMOKE FAIL`。
+  - DDP 约束：反馈 forward 外层的嵌套 `autocast(enabled=False)` 是 DDP 存活关键
+    （autocast 权重缓存会使同批次带梯度 forward 与 Linear 族参数断连，报
+    "Expected to have finished reduction"；2026-09-03 修复），改动训练循环时不得移除。
+  - 示例（MS10 短训，从已完成的 MS5 选型 checkpoint 初始化）：
+    ```bash
+    DIAFNO_PRESET=surface_smoke DIAFNO_OBJECTIVE=persistence_residual \
+    DIAFNO_TRAIN_MODE=full DIAFNO_TRAIN_HORIZON=10 \
+    DIAFNO_INIT_CHECKPOINT=/data2/user/zyq/checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5/Ep4.pth \
+    CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_trainer.py
+    ```
 
 ## 4. 步骤 2：冒烟评估（rollout + persistence，原生网格）
 
@@ -235,7 +260,7 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_evaluate.py   # PRESET 与训练一致
   用 `mask_u`/`mask_v` 与 `masked_error_sums` 累加；persistence = 第 7 天**原生物理** u/v 重复 `ROLLOUT_DAYS` 次。
 - **诊断基线**：`zero`（原生网格全零预测）与 `rho-oracle`（数据集真实 rho target 反归一化 → `rho_to_native`，
   度量 native→rho→native 转换本身的不可逆误差）。
-- 输出 `<ckpt_dir>/eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_ckpt{stem}[_tag].npz`（输出已存在则**拒绝覆盖**）：
+- 输出 `<ckpt_dir>/eval_<split>_h{rd}_ch{churn}_e{es}_s{seed}_rf{0|1}[_msk1]_ckpt{stem}[_tag].npz`（输出已存在则**拒绝覆盖**）：
   - 正式原生网格指标：`rmse_model` / `mae_model` / `rmse_persistence` / `mae_persistence` / `rmse_zero` /
     `rmse_oracle` / `mae_*` / `valid_count`，shape `(ROLLOUT_DAYS, 2, Z)` —— surface（`surface_smoke`）`Z=1`，full3d `Z=30`；
   - 复现元数据：`rollout_days`、`ensemble_size`、`S_churn`、`sigma_max`、`seed`、`seed_scheme`、`batch_size`、`sigma_data`、
@@ -246,40 +271,63 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_evaluate.py   # PRESET 与训练一致
 - **通过标准**：模型在各 lead day 的原生 masked RMSE 稳定低于 persistence（model/pers 比值 < 1）。
 - **objective 感知重建**：评估先读 checkpoint 的 `config.objective` 再决定重建哪类模型——`diffusion` 走
   EDM 采样；`persistence_residual` 走确定性前向（忽略采样步数、不消耗 RNG，seed 无关）。确定性 checkpoint
-  的评估必须显式设置 `CHECKPOINT` 指向 `*_RES` 目录里的 `best.pth`/`Ep{n}.pth`（自动 run tag 不猜测 objective）；
+  的评估必须显式设置 `CHECKPOINT` 指向 `*_RES` 目录里的 `Ep{n}.pth`（自动 run tag 不猜测 objective）；
   `ENSEMBLE_SIZE > 1` 会被强制回 1 并打印 NOTE（确定性成员完全相同，平均无意义）。输出 metadata 新增
   `objective`/`residual_base`/`remask_feedback`/`sampler`/`sampler_note`/`time_sigma`；确定性模型的采样相关
   参数（`S_churn`/`sigma_max`/`sampling_steps`/`seed`）在 `sampler_note` 中**显式记为不适用**
   （数值字段写 `sigma_data=nan`、`sampling_steps=-1`）。
+  静态 mask（`_MSK`）checkpoint 按 `config.static_mask_input`/`model_cond_chans` 自动重建 16 通道
+  backbone 并在每个 rollout step 传入 `static_cond`（输出 tag 带 `msk1`、NPZ 记录
+  `static_mask_input`/`model_cond_chans`）；矛盾元数据（如扩散 + 静态 mask）直接拒绝。
 - **remask A/B**：`REMASK_FEEDBACK = True` 时每步预测先重应用双变量 rho mask（陆地置 0）再回灌下一窗口；
   默认 `False` 保持历史行为。输出 tag 携带 `rf{0|1}`，A/B 两组产物互不覆盖；实验 09 的结论是维持该默认值。
-- **validation 选型（checkpoint 选择协议）**：正式选择指标是 **validation day-1 native RMSE**：对候选
-  `Ep{n}.pth` 逐个用 `SPLIT = "val"`、`ROLLOUT_DAYS = 1` 跑 `pre_evaluate.py`（确定性模型每窗口仅一次前向，
-  开销很小），比较 day-1 pooled RMSE 与 persistence 比值后选型；test 只在配置冻结后报告一次。
-  **`best.pth` 是按训练日志的 `val_masked_relL2`（rho 网格相对 L2）产生的，不是 day-1 native RMSE
-  最优的 checkpoint**——选型时禁止直接取用 `best.pth`，必须逐个评估 `Ep{n}.pth` 后按 native RMSE 挑选；
-  训练日志里的 `val_masked_relL2` 只用于 early stop 与粗粒度监控，**不是**选型指标。
+- **validation 选型（checkpoint 选择协议）**：`best.pth` 是按**训练期** `val_masked_relL2`
+  （rho 网格相对 L2，day-1）产生的，**从来不是正式选型产物**，禁止直接取用；训练日志里的
+  `val_masked_relL2` 只用于 early stop 与粗粒度监控。正式选型一律逐个评估 `Ep{n}.pth`：
+  - **单步（K=1）**：`SPLIT = "val"`、`ROLLOUT_DAYS = 1` 跑 `pre_evaluate.py`（确定性模型每
+    窗口仅一次前向，开销很小），取 **day-1 native RMSE** 与 persistence 比值最优者；
+  - **multi-step（K>1，当前协议）**：先过 **day-1 守门**（day-1 native RMSE ≤ 该层单步基线
+    选型 × 1.02 的预注册容差），再在过门槛的 epoch 中取 **validation 15-day overall ratio**
+    最低者（`SPLIT = "val"`、`ROLLOUT_DAYS = 15`）；同时核对 u/v 各自 overall < 1.0、
+    day 10–15 每日 < 1.0 与结构诊断（crossover/corr），防止 RMSE 小幅改善掩盖结构退化；
+  - test 在配置与 checkpoint 冻结后**只运行一次**。
+  - **当前正式模型 = 实验 10 的 `MS10/Ep2.pth`**（`surface_smoke_..._SD2_RES_MS10/Ep2.pth`，
+    test overall ratio 0.838）；该 run 目录的 `best.pth` 按训练期指标对应 **Ep3**，二者不可混用
+    （MS5 的正式 checkpoint 是 `MS5/Ep4.pth`，`best.pth` 同理仅作训练健康记录）。
 - **历史采样消融**：`ROLLOUT_DAYS=1` 下实际比较了 `churn=0/E=1`、`churn=80/E=1` 和
   `churn=0/E=4`，再以选出的 `churn=0/E=1` 跑完整 15 天。`sigma_data` 不在消融中手工指定：新 checkpoint 使用其
   `config.sigma_data`（surface SD2 通常为 0.17120）；无该字段的旧 checkpoint 才按兼容策略回退到旧尺度并告警。
 - 历史 `sigma_max=3` 诊断产物来自提交 `fd3fc4c`；当前 HEAD 已正式提供 `SAMPLER_SIGMA_MAX`。
   设为 `3` 即可重跑，输出会自动带 `sm3` tag；仍须遵守拒绝覆盖规则。
 
-## 5. 步骤 3：全 30 层全量
+## 5. 步骤 3：全 30 层全量（当前状态：probe/K1/pilot 完成，K3 阻塞待决策）
 
-1. 当前先运行 `DIAFNO_PRESET=full3d DIAFNO_OBJECTIVE=persistence_residual python pre_trainer.py`
-   做 K1 同结构真实数据烟测；正式长训必须再满足实验 06 的数据/资源/pilot 门槛，不因 smoke
-   通过自动启动。评估端需把 `pre_evaluate.py` 的 `PRESET` 设为 `"full3d"`；
+> 实验 06 已实测：单 `__getitem__` ≈1.6 s；condition 为 7 天 × 2 变量 =
+> **14 通道**（≈296 MB），K1 完整样本另含 target 1 天 × 2 变量，合计约 340 MB；
+> batch-1 单步 0.97 s、
+> 峰值 20.7 GB（reserved 22.6 GB，24 GB 卡无同卡推理余量）；1 epoch（8394 步）
+> ≈2.3 h，val h15 评估 ≈2 h05m（batch 1）。1-epoch pilot 训练健康但 60 个
+> layer×变量 day-1 ratio 全部 ≈1.000（无逐层信号）→ K3 按预注册条件阻塞，
+> 路径决策（加 epochs / 冻结待正式预算 / 调参）见方向文档 §5。
+
+1. **K1 smoke 已完成**（实验 06，SMOKE PASS，run `full3d_..._S4_..._SMOKE`）：
+   需要重新验证管线时再运行 `DIAFNO_PRESET=full3d DIAFNO_OBJECTIVE=persistence_residual
+   python pre_trainer.py`（smoke 模式）；正式长训必须等方向文档 §5 的 K3/预算决策，
+   不因 smoke 通过自动启动。评估端需把 `pre_evaluate.py` 的 `PRESET` 设为 `"full3d"`；
 2. 首次运行会重算全 30 层归一化统计（3 遍流式扫描 ~530GB，约 15~30 分钟，一次性）；
 3. 预设：patch (4,3,2) → 100×147×15 = 220.5k token、embed_dim 128、implicit 2、B=1、验证窗口 16 个。
    **若 OOM，按此顺序调**：`embed_dim` 128→96 → `implicit_layer` 2→1 → `batch_size` 已为 1；不要轻易改 patch（441 只能被 1/3/7/9 整除）；
-4. 训练窗口逐样本读取 ~340MB（两个变量 8 天）；数据总量 418GB < 内存 943GB，首轮后主要靠页缓存；
+4. 训练窗口逐样本读取：condition = 7 天 × 2 变量（14 通道）≈296 MB，K1 完整样本
+   （加 target 1 天 × 2 变量）约 340 MB；数据总量 418GB < 内存 943GB，首轮后主要靠页缓存；
 5. 评估时 `BATCH_SIZE` 建议 1~2；`EVAL_STRIDE` 可加大到 14 先出粗结果。
+6. 代表层参照：middle/bottom 单层 preset（`middle_smoke`/`bottom_smoke`，与 surface_smoke
+   仅 depth_index 不同）已完成实验 11（bottom 全门槛 Go；middle 见实验 11 勘误节）。
 
 ## 6. 复现与注意事项
 
 - `pre_trainer.py` / `pre_evaluate.py` 都是**脚本**（模块顶层执行），不要 import 它们；共享配置一律从 `pre_config.py` 取。
-- 断点续训：设置 `DIAFNO_CHECKPOINT`；保存含 model/optimizer/scheduler/scaler/epoch/`best_val`，
+- 断点续训：设置 `DIAFNO_CHECKPOINT`；保存含 model/optimizer/scheduler/scaler/epoch/`best_val`/
+  `worse_epochs`（early-stop 连续恶化计数；旧 checkpoint 缺该字段时按 0 恢复），
   续训时恢复或从 `loss.dat` 重算 `best_val`，`loss.dat` 始终写完整历史（不静默覆盖）。
   **尺度策略 `RESUME_SIGMA_POLICY`**：`"error"`（默认——checkpoint 的 `sigma_data` 与当前 SD2 尺度不同
   时**直接报错**，绝不静默混合尺度）；`"migrate"`（显式尺度迁移——保留当前 SD2 尺度，继续写在 SD2 目录）；

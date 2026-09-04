@@ -133,6 +133,35 @@ def static_mask_input(env=None):
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
+def static_mask_from_checkpoint(ckpt_cfg, objective=None):
+    """Resolve the static-mask-input arm (experiment 08) from checkpoint config.
+
+    Returns (static_mask_input, model_cond_chans): the flag and the backbone
+    condition channel count the checkpoint was TRAINED with, so evaluation can
+    rebuild the exact architecture. Legacy checkpoints without the fields are
+    the plain 14-channel path (False, 2*CONTEXT). Impossible or contradictory
+    metadata is refused instead of silently rebuilding a different model:
+      - a diffusion checkpoint with static_mask_input=True (the diffusion path
+        keeps its historical layout; the trainer never allows this arm);
+      - a recorded model_cond_chans that disagrees with the resolved flag.
+    """
+    ckpt_cfg = ckpt_cfg or {}
+    flag = bool(ckpt_cfg.get("static_mask_input", False))
+    cond_ch = 2 * CONTEXT + (STATIC_MASK_CHANNELS if flag else 0)
+    if objective == "diffusion" and flag:
+        raise RuntimeError(
+            "checkpoint records static_mask_input=True with the diffusion "
+            "objective; the diffusion path has no static-mask arm and this "
+            "combination must never be rebuilt")
+    recorded = ckpt_cfg.get("model_cond_chans")
+    if recorded is not None and int(recorded) != cond_ch:
+        raise RuntimeError(
+            f"checkpoint model_cond_chans={int(recorded)} contradicts "
+            f"static_mask_input={flag} (resolved {cond_ch}); refusing to "
+            "rebuild a mismatched model")
+    return flag, cond_ch
+
+
 ########## detached multi-step training (work package 2; doc §5) ##########
 
 # detached autoregressive multi-step horizon K ("MS{K}"): the trainer rolls the
@@ -239,6 +268,18 @@ def check_multistep_config(ckpt_cfg, train_horizon_now, schedule_now):
         raise RuntimeError(
             f"checkpoint lead_schedule={recorded_schedule!r} vs current "
             f"{schedule_now!r}; refusing to resume across a schedule change")
+
+
+def restore_worse_epochs(checkpoint):
+    """Early-stop counter from a checkpoint (resume semantics).
+
+    `worse_epochs` counts consecutive epochs whose val_masked_relL2 was
+    strictly above the running best; the trainer stops early at 2. It must
+    survive a resume: a pre-existing worsening streak still counts.
+    Legacy checkpoints without the field keep the historical default 0.
+    """
+    ckpt = checkpoint or {}
+    return max(0, int(ckpt.get("worse_epochs", 0)))
 
 
 def validate_objective(objective):

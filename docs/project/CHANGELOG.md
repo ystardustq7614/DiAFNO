@@ -14,8 +14,68 @@
 - full3d K3 pilot 与正式预算决策（工作包 6，实验 06）：1-epoch single-step pilot
   训练健康但无逐层信号，K3 按预注册条件阻塞；候选路径（追加 single-step epochs /
   冻结待正式预算 ≈5 天/50 epoch / 调参）需拍板。
-- 后续分支准入评估（方向文档 §10）：物理单位 loss weighting、direct multi-horizon
+- 后续分支准入评估（方向文档 §6）：物理单位 loss weighting、direct multi-horizon
   head（MS10 后 d15 ratio 回升 0.894 与方差塌缩仍是指向证据）。
+- 实验 11 middle 勘误修正执行：按当前仓库可用归档数据和预注册规则冻结 MS5 Ep4
+  并补一次 test；已执行的 Ep2 test 仅保留为探索性结果。
+
+## 2026-09-04 — 已完成（S1–S3 修复包：静态 mask 评估、绘图、文档同步、Windows 回归、early-stop 计数）
+
+- **`pre_evaluate.py` 支持静态 mask checkpoint（修复：原实现固定 14 条件通道，
+  无法加载 `_MSK` checkpoint）**：按 checkpoint `config.static_mask_input`/
+  `model_cond_chans` 经新 `pre_config.static_mask_from_checkpoint` 重建（legacy 缺
+  字段 → 14 通道；扩散+静态 mask、通道数矛盾 → 拒绝）；静态 checkpoint 构造
+  `static_cond`（双变量 rho mask）并传入每个 rollout step；输出 tag 增加 `msk1`、
+  NPZ 记录 `static_mask_input`/`model_cond_chans`。验收：归档实验 08
+  `..._RES_MSK/Ep10.pth` 重建成功并完成最小 CPU rollout（新增
+  `test_archived_msk_checkpoint_minimal_cpu_rollout`）。
+- **`pre_evaluate.py` 绘图修复**：`tight_layout/savefig/close` 原在 u/v 循环外
+  （u 图从未写出、figure 泄漏），移回循环内；新增成对校验——每个选定
+  lead/layer 必须同时产出 `_u.png` 与 `_v.png`，缺失或不成对直接 RuntimeError。
+- **`pre_smoke_test.py` Windows 修复**：`test_dataset_horizon5_split_and_alignment`
+  持有 `PREUVDataset` 的 `numpy.memmap` 句柄导致临时目录清理报 WinError 32；
+  新增测试内 `_close_mmaps` 辅助（不改生产数据集生命周期）。本机直跑 59 项
+  全 PASS、exit 0（56 项存量 + 3 项新增）。
+- **early-stop 计数随 checkpoint 保存/恢复**：`pre_trainer.py` checkpoint 新增
+  `worse_epochs`，resume 经 `pre_config.restore_worse_epochs` 恢复（legacy 缺字段
+  默认 0）；新增 `test_worse_epochs_checkpoint_roundtrip`。一次 worsening 后保存
+  再恢复，下一次 worsening 按原语义在 2 次时停止。
+- **实验 11 口径勘误（S2-6，不改写已执行决定）**：middle probe day-1 原记录
+  0.754/0.803/0.770 在当前仓库可用的归档 NPZ/日志中均不可复现（真值
+  0.569/0.645/**0.582**，
+  RMSE 0.0517）；据此 middle MS5 的 day-1 门槛应为 RMSE ≤0.05269（原记录误用
+  ratio 0.785）——复核后仅 Ep4/Ep5 过门槛，预注册规则会选 Ep4（val h15 overall
+  0.8202）而非已执行的 Ep2（0.0551 未过门槛）；bottom 行复算无误（0.550/0.624/
+  0.568）。RESULTS.md 表格全部改为可从 NPZ 独立复算的 overall (u/v) 值，
+  `d10–15 max` 拆为独立列；新增"勘误与影响"节；EXPERIMENT.md/交接概要/实验索引/
+  AGENTS.md 同步标注。**影响**：按原预注册规则正式改选 Ep4 并补 test；已执行的
+  Ep2 test 仅保留为探索性结果；MS5 长时效修复效果本身不受影响。
+- **checkpoint 指向警示（S2-7）**：MS10 run 目录的 `best.pth` 按训练期
+  `val_masked_relL2` 对应 **Ep3**，正式选型是 **Ep2**——在实验 10 RESULTS、
+  Runbook §4、交接概要、实验索引统一醒目标注；正式评估一律显式用
+  `MS10/Ep2.pth`（`best.pth` 保留，不重写历史 checkpoint）。
+- **方向文档重写（S1-3）**：`CURRENT_CHALLENGES_AND_NEXT_STEPS.md` 只保留任务语义、
+  当前证据（链接各 RESULTS.md，不复制结果表）、未解决问题、middle Ep4 正式补测及
+  两条待决策（full3d K3/预算 A/B/C、§6 分支准入）与执行约定；实施前算法/文件计划/旧运行入口
+  原文归档至 `archive/MULTISTEP_PLAN_20260901.md`（带历史状态说明横幅）；
+  全文不再含"multi-step 尚不可执行 / DDP2 未做 / full3d 尚未运行"等过期表述。
+- **Runbook 更新（S1-4）**：补 detached multi-step 操作协议（`DIAFNO_TRAIN_HORIZON`、
+  `DIAFNO_INIT_CHECKPOINT`、`MS_DEFAULTS`、`_MS{K}` run tag、resume guard、smoke
+  的 `max_lead_seen` 门槛、DDP autocast 约束与示例命令）；§4 选型协议改写为
+  "单步 = day-1 RMSE；multi-step = day-1 守门 + validation 15-day overall"，并固定
+  当前正式模型 = `MS10/Ep2.pth`；§1 文件清单预设数改四套、pre_trainer/pre_config
+  描述补 MS 能力；§5 full3d 补实测资源与 K3 阻塞状态及 middle/bottom preset 状态；
+  §4 输出 tag 补 `[_msk1]` 与静态 mask 自动重建说明。
+- **元数据漂移（S3-9）**：`docs/README.md`、`docs/experiments/README.md`、
+  交接概要索引日期更新至 2026-09-04；交接概要测试计数改 59 项；full3d 单样本
+  ≈296 MB 明确为 condition-only（完整 K1 样本约 340 MB）；runbook "两个 preset"
+  改四套；归档计划中 `55/55` 等表述保留原文（历史记录），现状以本条目为准。
+- **文档残项复核**：h1 窗口数改为 NPZ 元数据对应的 156（h15 仍为 154）；实验 06
+  修正 condition 标签与 middle Ep10 ratio；失效的工作包引用改指向历史实施计划，
+  现行分支引用统一为 §6；涉及未传输服务器产物的断言限定为当前仓库可用归档范围。
+- **验证**：`python -m py_compile`（pre_config/pre_trainer/pre_evaluate/pre_smoke_test）
+  通过；`python smoke_test.py` exit 0；`python pre_smoke_test.py` 59 项全 PASS、
+  exit 0（Windows 本机，CPU 环境）。
 
 ## 2026-09-04 — 已完成（full3d 大权重分卷归档）
 

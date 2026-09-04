@@ -16,7 +16,7 @@ upper 0.137 m/s；统一 min-max 无截断，底层归一化 std 约为海面 1/
 | 项 | 实测值 |
 |---|---|
 | stats cache | `stats_all_clipnone.npz`（WP1 顺带生成） |
-| 单 `__getitem__`（14 天 × 30 层） | ~1.6 s（≈296 MB/样本，冷热一致） |
+| 单 `__getitem__` condition（7 天 × 2 变量 = 14 通道 × 30 层） | ~1.6 s（≈296 MB/样本，冷热一致） |
 | batch 1 单步 train step（fwd+bwd+step） | 0.97 s |
 | **单步训练峰值显存** | **20.7 GB allocated / 22.6 GB reserved**（24 GB 卡，无余量做同卡推理） |
 | 单步 1 epoch（8394 步） | ≈ 2.3 h → **正式 50 epoch ≈ 5 天**（预算决策的关键数字） |
@@ -40,13 +40,14 @@ I/O 与 GPU 大致平衡（2 workers 有效喂入 ~0.8 s/步 < 0.97 s/步），�
   [0.9984, 0.9999]，无 band 结构；residual 输出 ≈6e-4 m/s，仅为 day-1 persistence
   误差（0.0655 m/s）的 ~1%；15-day overall ratio ≈ 0.999。
 - 解读：与 surface/middle/bottom 轨迹的"Ep1 尚无技能"状态一致（middle probe
-  Ep1 day-1 ratio 1.036 → Ep10 0.770），**1 epoch（batch 1）不足以出现信号**，
+  Ep1 day-1 ratio 1.036 → Ep10 0.582），**1 epoch（batch 1）不足以出现信号**，
   属证据不足而非否定。
 - val h15 评估耗时 2h05m（batch 1 × 154 窗；前段受 CPU 争用拖慢）。
 
 ### 5. K3 pilot：按预注册条件阻塞
 
-doc §6 WP6 item 5 的准入门（"训练健康且逐层 day-1 有可预测信号后，才做 K3"）
+[历史实施计划 §6 工作包 6 第 5 项](../../project/archive/MULTISTEP_PLAN_20260901.md)的
+准入门（"训练健康且逐层 day-1 有可预测信号后，才做 K3"）
 **未满足**（无逐层信号）→ K3 未启动。候选路径（需决策，均未执行）：
 
 - A：追加 single-step epochs（每 epoch ≈ 2.3 h）直至逐层 day-1 信号出现，再进 K3；

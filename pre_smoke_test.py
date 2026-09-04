@@ -24,7 +24,9 @@ independence, identical ensemble members), training objectives/run tags, and
 the shared ProgressReporter PROGRESS line format (update-driven + daemon
 time-driven heartbeat, phase_done vs script-level completed, multi-line error
 sanitization, failure-hook dedup/stage, checkpoint norm/mask/time_sigma
-fingerprint checks).
+fingerprint checks). The static-mask checkpoint rebuild helper (legacy /
+static / contradictory metadata), an archived _MSK checkpoint's minimal CPU
+rollout, and the early-stop counter roundtrip are covered as well.
 """
 import io
 import os
@@ -53,6 +55,8 @@ from pre_config import (PRESETS, SIGMA_DATA_SCALE, SMOKE_BATCHES_PER_RANK,
                         train_horizon, init_checkpoint,
                         TRAIN_HORIZON_ENV, INIT_CHECKPOINT_ENV, MS_DEFAULTS,
                         lead_for_batch, lead_schedule_str, check_multistep_config,
+                        restore_worse_epochs, static_mask_from_checkpoint,
+                        STATIC_MASK_CHANNELS,
                         format_progress, ProgressReporter,
                         install_progress_failure_hook, mark_progress_failed,
                         reset_progress_failure_state)
@@ -85,6 +89,20 @@ def make_residual_model(embed=8, time_sigma=RESIDUAL_TIME_SIGMA, cond_chans=14):
         hidden_size_factor=1, dim_f=(H, W, Z), self_condition=True,
     )
     return PersistenceResidualIAFNO(net, time_sigma=time_sigma)
+
+
+def _close_mmaps(*datasets):
+    """Close dataset memmap handles (Windows): an open numpy.memmap keeps the
+    backing .npy locked and TemporaryDirectory cleanup fails with WinError 32.
+    Test-only cleanup; the production dataset lifecycle is unchanged."""
+    for ds in datasets:
+        if ds is None:
+            continue
+        for attr in ("u", "v"):
+            arr = getattr(ds, attr, None)
+            mm = getattr(arr, "_mmap", None)
+            if mm is not None:
+                mm.close()
 
 
 def test_colocate_and_bivariate_masks():
@@ -1776,6 +1794,7 @@ def test_dataset_horizon5_split_and_alignment():
                  dict(pds.SPLITS))
         pds.ALIGNED_DIR = aligned
         pds.H, pds.W, pds.T_TOTAL = HH, WW, T
+        ds = dsv = None
         try:
             pds.SPLITS.clear()
             pds.SPLITS.update(train=(0, 16), val=(16, 29), test=(29, 30))
@@ -1810,6 +1829,7 @@ def test_dataset_horizon5_split_and_alignment():
             _, _, vs = dsv[0]
             assert int(vs) + CONTEXT + K <= pds.SPLITS["val"][1]
         finally:
+            _close_mmaps(ds, dsv)          # release handles before dir cleanup
             pds.ALIGNED_DIR, pds.NORM_DIR, pds.H, pds.W, pds.T_TOTAL = saved[:5]
             pds.SPLITS.clear()
             pds.SPLITS.update(saved[5])
@@ -1915,6 +1935,139 @@ def test_representative_layer_presets():
     # the MS defaults machinery also covers the new presets
     ms = training_config("bottom_smoke", "full", 1, train_horizon=5)
     assert ms["lr"] == MS_DEFAULTS["lr"] and ms["num_epochs"] == 5
+
+
+def test_static_mask_checkpoint_rebuild_and_rollout():
+    # pre_evaluate.py rebuild path: the checkpoint's static_mask_input /
+    # model_cond_chans decide the backbone's condition channels, and a
+    # static-mask checkpoint must roll out WITH static_cond while the plain
+    # 14-channel path is untouched (no static_cond threaded through)
+    # helper semantics: legacy checkpoints are the plain 14-channel arm
+    assert static_mask_from_checkpoint(None) == (False, 2 * 7)
+    assert static_mask_from_checkpoint({}) == (False, 14)
+    assert static_mask_from_checkpoint({"static_mask_input": False}) == (False, 14)
+    assert static_mask_from_checkpoint({"static_mask_input": True}) == (True, 16)
+    assert static_mask_from_checkpoint(
+        {"static_mask_input": True, "model_cond_chans": 16}) == (True, 16)
+    assert static_mask_from_checkpoint(
+        {"static_mask_input": False, "model_cond_chans": 14}) == (False, 14)
+    # diffusion + static mask is an impossible combination -> refuse
+    for bad in ({"static_mask_input": True},
+                {"static_mask_input": True, "model_cond_chans": 16},
+                {"static_mask_input": False, "model_cond_chans": 16},
+                {"static_mask_input": True, "model_cond_chans": 14}):
+        try:
+            static_mask_from_checkpoint(bad, "diffusion" if bad["static_mask_input"]
+                                        else None)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError(f"static_mask_from_checkpoint({bad}) should fail")
+    torch.manual_seed(4)
+    cond = torch.rand(2, 14, H, W, Z)
+    static = (torch.rand(1, 2, H, W, Z) > 0.5).float()
+    for flag, chans in ((False, 14), (True, 16)):
+        model = make_residual_model(cond_chans=chans)
+        state = {"epoch": 0, "model_state_dict": model.state_dict(),
+                 "config": {"objective": "persistence_residual",
+                            "static_mask_input": flag,
+                            "model_cond_chans": chans}}
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "Ep1.pth")
+            torch.save(state, p)
+            ckpt = torch.load(p, map_location="cpu", weights_only=True)
+        got_flag, got_ch = static_mask_from_checkpoint(
+            ckpt["config"], "persistence_residual")
+        assert (got_flag, got_ch) == (flag, chans)
+        # rebuild EXACTLY like pre_evaluate.py: fresh backbone with the
+        # helper-derived channel count, wrapper, then load the state dict
+        fresh = make_residual_model(cond_chans=got_ch)
+        fresh.load_state_dict(ckpt["model_state_dict"])
+        fresh.eval()
+        static_arg = static if got_flag else None
+        preds = ensemble_rollout(fresh, cond, 3, 1, seed=0, static_cond=static_arg)
+        assert preds.shape == (2, 1, 3, 2, H, W, Z), preds.shape
+        assert torch.isfinite(preds).all()
+        # untrained model: every rollout step is the last-day persistence,
+        # with or without the static channels (zero-init identity holds)
+        assert torch.equal(preds[:, 0], cond[:, -2:].unsqueeze(1).expand(-1, 3, -1, -1, -1, -1))
+    # the plain 14-channel rebuild must be BITWISE unchanged by the new
+    # static_cond kwarg (None is threaded as the historical absent argument)
+    plain = make_residual_model(cond_chans=14)
+    plain.eval()
+    with torch.no_grad():
+        a = plain.sample(cond, num_sample_steps=1, clamp=True)
+        b = plain.sample(cond, num_sample_steps=1, clamp=True, static_cond=None)
+    assert torch.equal(a, b)
+
+
+def test_archived_msk_checkpoint_minimal_cpu_rollout():
+    # acceptance for the static-mask eval fix: the ARCHIVED experiment-08
+    # _MSK checkpoint rebuilds (16-channel backbone) and completes a minimal
+    # CPU rollout with static_cond; skipped when the repo snapshot is absent
+    here = os.path.dirname(os.path.abspath(__file__))
+    ckpt_path = os.path.join(here, "checkpoints", "PRE",
+                             "surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MSK",
+                             "Ep10.pth")
+    if not os.path.isfile(ckpt_path):
+        print("SKIP (archived _MSK checkpoint not present)")
+        return
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    cfg = ckpt["config"]
+    assert cfg["objective"] == "persistence_residual"
+    assert cfg["preset"] == "surface_smoke"
+    flag, cond_ch = static_mask_from_checkpoint(cfg, "persistence_residual")
+    assert flag is True and cond_ch == 16
+    hh, ww, zz = 400, 441, 1
+    net = IAFNODiff(dim=(hh, ww, zz), patch_size=PRESETS["surface_smoke"]["patch_size"],
+                    embed_dim=PRESETS["surface_smoke"]["embed_dim"], num_blocks=1,
+                    in_chans=2, out_chans=2, cond_chans=cond_ch,
+                    ex_layer=PRESETS["surface_smoke"]["explicit_layer"],
+                    nlayer=PRESETS["surface_smoke"]["implicit_layer"],
+                    hidden_size_factor=4, dim_f=(hh, ww, zz), self_condition=True)
+    model = PersistenceResidualIAFNO(net, time_sigma=float(cfg.get("time_sigma",
+                                                                   RESIDUAL_TIME_SIGMA)))
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.eval()
+    torch.manual_seed(7)
+    cond = torch.rand(1, 14, hh, ww, zz)
+    static = (torch.rand(1, 2, hh, ww, zz) > 0.5).float()
+    preds = ensemble_rollout(model, cond, 2, 1, seed=0, static_cond=static)
+    assert preds.shape == (1, 1, 2, 2, hh, ww, zz), preds.shape
+    assert torch.isfinite(preds).all()
+    # a 14-channel condition must be REJECTED by the 16-channel model
+    try:
+        model.sample(cond, num_sample_steps=1, clamp=True)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("16-channel model accepted a 14-channel condition")
+
+
+def test_worse_epochs_checkpoint_roundtrip():
+    # early-stop streak survives a resume: one worsening before the save, so a
+    # single further worsening after the restore reaches the stop threshold
+    model = make_residual_model()
+    state = {"epoch": 4, "best_val": 0.5, "worse_epochs": 1,
+             "model_state_dict": model.state_dict()}
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "Ep5.pth")
+        torch.save(state, p)
+        ckpt = torch.load(p, map_location="cpu", weights_only=True)
+    assert restore_worse_epochs(ckpt) == 1
+    # legacy checkpoints without the field keep the historical default 0
+    assert restore_worse_epochs({}) == 0
+    assert restore_worse_epochs(None) == 0
+    assert restore_worse_epochs({"worse_epochs": -3}) == 0
+    # stop semantics: restored streak + one more worsening -> stop fires
+    worse_epochs = restore_worse_epochs(ckpt)
+    worse_epochs += 1                     # one further worsening epoch
+    assert worse_epochs >= 2
+    # a fresh-best epoch still resets the counter to 0 after the restore
+    worse_epochs = restore_worse_epochs(ckpt)
+    worse_epochs = 0                      # is_best branch
+    worse_epochs += 1
+    assert worse_epochs < 2
 
 
 if __name__ == "__main__":

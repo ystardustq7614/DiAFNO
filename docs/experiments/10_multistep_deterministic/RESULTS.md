@@ -43,6 +43,11 @@
 Ep2 与 Ep3 overall 仅差 0.06%（0.184301 vs 0.184418），按预注册规则取 overall 更低的
 Ep2；Ep3 在 day-1、v、晚段 ratio 上略优，留作复核备份。
 
+> ⚠️ **checkpoint 指向警示（best.pth ≠ 选型结果）**：run 目录里的 `best.pth` 按**训练期**
+> `val_masked_relL2` 产生，MS10 的 `best.pth` 实际对应 **Ep3**，而正式 15-day validation
+> 选型是 **Ep2**。正式模型/评估必须显式使用 `MS10/Ep2.pth`（MS5 同理用 `Ep4.pth`）；
+> `best.pth` 保留仅为训练健康记录，禁止当作选型产物使用（详见 Runbook 第 4 节）。
+
 ## 结构诊断（val，stride 14，77 窗口）
 
 单步基线补测（2026-09-02，同协议跑 `diag_leadtime_residual.py` SPLIT=val，
@@ -100,4 +105,4 @@ v d15 ratio 1.097、corr 0.387 vs 0.522。
 3. **评估驱动器**：`pre_evaluate.py` 全程未被修改（scratch 驱动器内存补丁常量）；
    `EPOCH_OVERRIDES` 为 MS10 临时设 3，已还原 `{}`。
 4. 方差塌缩与 d15 附近 ratio 回升（test 0.894）仍存在——后续分支（物理单位 loss
-   weighting、direct multi-horizon head）的准入证据见方向文档 §10。
+   weighting、direct multi-horizon head）的准入证据见方向文档 §6。

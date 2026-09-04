@@ -1,6 +1,6 @@
 # PRE 实验索引与记录规范
 
-> 更新日期：2026-09-02
+> 更新日期：2026-09-04
 
 ## 实验索引
 
@@ -16,7 +16,7 @@
 | 08 | 静态 mask 输入是否改善 day-1/近岸预测 | 已完成；不保留 | [EXPERIMENT](./08_static_mask_ablation/EXPERIMENT.md) | [RESULTS](./08_static_mask_ablation/RESULTS.md) |
 | 09 | 每步 remask feedback 是否改善 15-day rollout | 已完成；保持 rf0 | [EXPERIMENT](./09_remask_feedback_ablation/EXPERIMENT.md) | [RESULTS](./09_remask_feedback_ablation/RESULTS.md) |
 | 10 | detached multi-step 能否消除 day 4–5 crossover | 已完成；MS5/MS10 全门槛 Go，MS10 Ep2 为当前最优 | [EXPERIMENT](./10_multistep_deterministic/EXPERIMENT.md) | [RESULTS](./10_multistep_deterministic/RESULTS.md) |
-| 11 | surface 的修复能否泛化到垂向（middle/bottom 代表层） | 已完成；两层 probe+MS5 全门槛 Go，垂向泛化成立 | [EXPERIMENT](./11_representative_layers/EXPERIMENT.md) | [RESULTS](./11_representative_layers/RESULTS.md) |
+| 11 | surface 的修复能否泛化到垂向（middle/bottom 代表层） | bottom 全门槛 Go；middle MS5 长时效修复成立，勘误后正式改选 Ep4，test 待补；Ep2 test 为探索性结果 | [EXPERIMENT](./11_representative_layers/EXPERIMENT.md) | [RESULTS](./11_representative_layers/RESULTS.md) |
 
 ## 证据链
 
@@ -32,11 +32,13 @@ diffusion 基线失败
             ├─ 静态 mask 输入无稳定增益
             └─ 每步 remask 只有中段增益，长段转差
                  └─ detached autoregressive multi-step（实验 10）
-                      ├─ MS5：crossover 消除，全门槛 Go
-                      └─ MS10：val/test 全面再改善，MS10 Ep2 为当前最优
-                           ├─ 代表层 middle/bottom（实验 11）：probe+MS5 全门槛 Go，垂向泛化成立
-                           └─ full3d（实验 06）：probe/K1/pilot 完成；1-epoch 无逐层信号，
-                              K3 按预注册条件阻塞，待正式预算决策
+                       ├─ MS5：crossover 消除，全门槛 Go
+                       └─ MS10：val/test 全面再改善，MS10 Ep2 为当前最优（正式 checkpoint
+                            = Ep2.pth；best.pth 按训练期指标对应 Ep3，不得替代）
+                            ├─ 代表层 middle/bottom（实验 11）：bottom 全门槛 Go；middle
+                            │  长时效修复成立，正式改选 Ep4，test 待补（RESULTS 勘误节）
+                            └─ full3d（实验 06）：probe/K1/pilot 完成；1-epoch 无逐层信号，
+                               K3 按预注册条件阻塞，待正式预算决策
 ```
 
 当前困难、下一步顺序与验收门槛见

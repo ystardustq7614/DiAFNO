@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""PRE_ocean_data trainer: 7-day condition -> next-day u/v, single-step conditional diffusion.
+"""PRE_ocean_data trainer: 7-day condition -> next-day u/v (conditional EDM or
+deterministic persistence-residual; optional detached multi-step training).
 
 Task (see docs/operations/PRE_runbook.md):
     cond   = 7 consecutive days of collocated raw u/v on the rho grid -> 14 channels
     target = day 8 u/v                                                ->  2 channels
     15-day forecasts are produced by autoregressive rollout in pre_evaluate.py.
 
-Two presets (DIAFNO_PRESET):
+Four presets (DIAFNO_PRESET):
     'surface_smoke' : surface layer only (depth_index=29), grid 400x441x1, patch (4,3,1)
+    'middle_smoke'  : middle sigma layer (depth_index=14), otherwise identical to surface_smoke
+    'bottom_smoke'  : bottom sigma layer (depth_index=0),  otherwise identical to surface_smoke
     'full3d'        : all 30 sigma layers, grid 400x441x30, patch (4,3,2)
-Both patch choices divide the grid exactly, so no padding is triggered in IAFNO.
+All patch choices divide the grid exactly, so no padding is triggered in IAFNO.
 
 Training objective (DIAFNO_OBJECTIVE):
     'diffusion'            : conditional EDM (legacy default)
@@ -58,7 +61,7 @@ from pre_config import (OUT_ROOT, CONTEXT, TARGET_CH, training_config,
                         STATIC_MASK_CHANNELS,
                         train_horizon, init_checkpoint,
                         lead_for_batch, lead_schedule_str,
-                        check_multistep_config,
+                        check_multistep_config, restore_worse_epochs,
                         validate_objective, ensure_objective_compatible,
                         check_norm_fingerprint, check_residual_time_sigma,
                         ProgressReporter, format_progress,
@@ -292,6 +295,7 @@ scaler = GradScaler(device.type)   # torch.amp.GradScaler (new AMP API)
 hist = {"train": [], "val_rel": [], "time": []}
 best_val = float("inf")
 start_epoch = 0
+worse_epochs = 0   # consecutive epochs with val_masked_relL2 strictly above best
 sigma_scale = SIGMA_DATA_SCALE      # actual stats_sigma -> sigma_data multiplier
 adopted = False                     # legacy "adopt" continuation (diffusion only)
 if checkpoint_path is not None:
@@ -373,6 +377,13 @@ if checkpoint_path is not None:
         log(f"residual checkpoint objective={ckpt_objective!r}; sigma_data "
             "policy not applicable to the deterministic objective")
     start_epoch = ckpt.get("epoch", -1) + 1
+    # the early-stop streak must survive a resume: a pre-existing worsening
+    # count still leads to the same 2-consecutive-epochs stop (legacy
+    # checkpoints without the field keep the historical default 0)
+    worse_epochs = restore_worse_epochs(ckpt)
+    if worse_epochs:
+        log(f"restored early-stop counter: {worse_epochs} consecutive "
+            f"worsening epoch(s) from {checkpoint_path}")
 
 loss_file = os.path.join(run_dir, "loss.dat")
 # history is READ from the ORIGINAL experiment when adopting (the continuation
@@ -511,7 +522,6 @@ if IS_MAIN:
                         train_horizon=TRAIN_HORIZON, lead_schedule=LEAD_SCHEDULE,
                         run_dir=run_dir), flush=True)
 
-worse_epochs = 0   # consecutive epochs with val_masked_relL2 strictly above best
 last_updates = last_skipped = 0
 last_train_loss = last_val_rel = float("nan")
 try:
@@ -693,6 +703,7 @@ try:
                 "scheduler_state_dict": scheduler.state_dict(),
                 "scaler_state_dict": scaler.state_dict(),
                 "best_val": best_val,
+                "worse_epochs": worse_epochs,
                 "config": {
                     "preset": PRESET, **cfg, "context": CONTEXT,
                     "train_mode": TRAIN_MODE,
