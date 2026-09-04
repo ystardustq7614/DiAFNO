@@ -1,6 +1,7 @@
 # 实验 11：代表层（middle=14 / bottom=0）确定性基线
 
-> 状态：**原实验已完成（2026-09-03）；勘误后正式 Ep4 test 待补**
+> 状态：**原实验已完成（2026-09-03）；勘误修正已执行（2026-09-04）——正式 Ep4 test
+> 门槛全部通过（0.851），gate 5 corr 在 d15 边缘未过，已裁定接受边缘缺陷，见 `RESULTS.md`**
 > 制定日期：2026-09-03
 > 科学问题：surface 的确定性预测能力能否代表垂向？
 > （[历史实施计划 §6 工作包 5](../../project/archive/MULTISTEP_PLAN_20260901.md)）
@@ -56,6 +57,8 @@ persistence RMSE，rho 网格物理单位）：
 - [x] bottom 单步 probe（day-1 ratio 0.568 ✅）
 - [x] 单步门槛判断 → 两层 MS5（均从 probe Ep10 weights-only 初始化）
 - [x] 原选型 + test + 结构诊断（bottom Ep5 全门槛 Go；middle 原选型 Ep2 不合规——
-  day-1 门槛基于无法复现的 probe 数值误算，按预注册规则正式改选 Ep4，test 待补，
-  见 `RESULTS.md` 勘误节）
+  day-1 门槛基于无法复现的 probe 数值误算，见 `RESULTS.md` 勘误节）
+- [x] 勘误修正执行（2026-09-04）：正式 Ep4 test 0.851（test 门槛全过）+ val 结构
+  诊断（gate 5 corr 在 d15 边缘未过：u 0.428 vs 0.430、v 0.417 vs 0.423；
+  已裁定接受边缘缺陷，见 `RESULTS.md` 勘误修正执行节与方向文档 §4）
 - 结果见 `RESULTS.md`。

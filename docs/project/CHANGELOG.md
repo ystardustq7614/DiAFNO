@@ -11,13 +11,59 @@
 
 ### Proposed
 
-- full3d K3 pilot 与正式预算决策（工作包 6，实验 06）：1-epoch single-step pilot
-  训练健康但无逐层信号，K3 按预注册条件阻塞；候选路径（追加 single-step epochs /
-  冻结待正式预算 ≈5 天/50 epoch / 调参）需拍板。
-- 后续分支准入评估（方向文档 §6）：物理单位 loss weighting、direct multi-horizon
-  head（MS10 后 d15 ratio 回升 0.894 与方差塌缩仍是指向证据）。
-- 实验 11 middle 勘误修正执行：按当前仓库可用归档数据和预注册规则冻结 MS5 Ep4
-  并补一次 test；已执行的 Ep2 test 仅保留为探索性结果。
+- full3d 重启前置项（Path B，待独立预算落实后执行）：单步峰值显存（22.6 GB）与
+  逐 epoch 评估成本（val h15 ≈2 h05m）压缩方案；per-band 归一化复核（底层归一化
+  std ≈ 海面 1/3，见实验 06 RESULTS）。
+- 分支再评估触发项：若未来工作专攻 u 分量 d15 rebound（surface u 0.906）并产生
+  新的 u/v 不对称证据，loss weighting 可按新预注册重开（方向文档 §6）。
+
+## 2026-09-04 — 已完成（分支准入评估：六分支全部不满足 + full3d Path B 定案）
+
+- **评估方法（零 GPU/零训练/零新评估）**：只读归档 NPZ（surface MS10 Ep2、单步
+  Ep10、middle MS5 Ep4、bottom MS5 Ep5 的 test eval NPZ 与 val `leadtime_diag`
+  NPZ），scratch heredoc 复算判据；单步 Ep10 旧格式 diag NPZ 按 2026-09-02
+  勘误纪律不复用，引实验 07 RESULTS 归档数字。
+- **关键证据**：u/v 不对称已被 MS 大幅消解——单步 Ep10 test overall u/v
+  1.014/1.031（长 lead v 更差：d14 1.188 vs 1.145）→ MS 后 surface 0.842/0.824、
+  middle 0.851/0.850、bottom 0.811/0.820（gap ≤0.018，逐 lead |v−u| ≤0.058 且
+  三层方向不一致）；detached 已稳定越过长 lead persistence（三层 test 全 15 天
+  ratio <1，最差 0.906/0.979/0.880 均在 d15；val 无 crossover，corr 除 middle
+  d15 边缘 −0.002/−0.006 外全 lead 占优）；残余缺陷两变量共有（val var_ratio@d15
+  surface u 0.337/v 0.425、middle 0.262/0.372、bottom 0.305/0.371；bias 最大为
+  middle u −0.050@d15，相对 persistence 误差 0.218 仍小）。
+- **判定**：§6 六分支（loss weighting / direct multi-horizon head / TBPTT / 额外
+  输入 / residual diffusion / full BPTT）全部**不满足准入条件**，无新立项；
+  loss weighting 留"u d15 rebound 新证据"再评估触发条件。详见方向文档 §6。
+- **full3d Path B 定案（用户决策）**：冻结 full3d 待独立正式预算（≈5 天/50 epoch、
+  峰值 22.6 GB）；重启前置项 = 显存/评估成本压缩方案 + per-band 归一化复核
+  （方向文档 §5）。当前无待执行实验。
+- 文档同步：方向文档头部（三项待办闭环）/§5（已决策）/§6（已评估判定表）重写；
+  本文件 Unreleased Proposed 改为 full3d 重启前置项与分支再评估触发项。
+
+## 2026-09-04 — 已完成（实验 11 middle 勘误修正执行：正式 Ep4 test + 结构诊断）
+
+- **正式 Ep4 test（h15、stride 7、154 窗、seed 123、churn 0、rf0、batch 4，
+  单卡 RTX 4090 GPU 5，rollout 247 s，`status=completed`，无异常/NaN/OOM）**：
+  `pre_evaluate.py` 零修改（scratch driver 内存补丁常量）。结果：day-1 ratio
+  0.665（0.0483 vs 0.0727 m/s）、15-day overall **0.851**（0.1149 vs 0.1351；
+  u 0.851 / v 0.850 各自 < 1.0）、d10–15 每日 0.862/0.881/0.883/0.916/0.956/0.978
+  全部 < 1.0、全程无 crossover（最差 lead 0.978 @ d15）——test 门槛全部通过。
+  正式选型 Ep4 的 test（0.851）略差于探索性 Ep2（0.830），与 val overall 方向一致
+  （0.820 vs 0.814），属合规选型下的真实结果。产物：
+  `eval_test_h15_ch0_e1_s123_rf0_ckptEp4_test15.npz`、`eval_midms5_test15_ep4.log`、
+  `figures_h15_ch0_e1_s123_rf0_ckptEp4_test15/`。
+- **正式 Ep4 val 结构诊断**（`diag_mid_ms5_ep4_val.log`、
+  `leadtime_diag_ckptEp4.{npz,png}`，与 Ep2 同协议 stride 14 / 77 窗 / seed 123）：
+  无 crossover、pooled ratio 单调 0.62→0.93；corr 在 lead 1–14 对 u/v 均占优，但
+  **d15 边缘低于 persistence（u 0.428 vs 0.430、v 0.417 vs 0.423）**——gate 5
+  按预注册字面未过，middle 不记"全门槛 Go"，裁定转入方向文档决策项。
+  另：u bias −0.050@d15（Ep2 为 +0.043，符号相反）；var_ratio u 0.262@d15。
+- 文档同步：实验 11 `RESULTS.md`（勘误修正执行节 + 选型/门槛/对比/诊断表 + 结论）、
+  `EXPERIMENT.md` 状态、方向文档头部/§2/§3.5/§4。
+- **gate-5 裁定（同日）**：接受边缘结构缺陷——middle 记"gate 1–4 + test 全过、
+  gate 5 边缘未过"，不通过事后放宽容差改写预注册门槛；不改选 Ep5（预注册选型
+  规则未定义 fallback）、不回退 Ep2（day-1 未过门槛）；既存事实转入 full3d/
+  分支决策（方向文档 §4）。
 
 ## 2026-09-04 — 已完成（S1–S3 修复包：静态 mask 评估、绘图、文档同步、Windows 回归、early-stop 计数）
 

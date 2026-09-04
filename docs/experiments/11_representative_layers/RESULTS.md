@@ -19,7 +19,8 @@ per-layer stats 缓存：`stats_d14_clipnone.npz` / `stats_d0_clipnone.npz`（�
 test `eval_{mid,bottom}_test15_ep10.log`；MS5 逐 epoch 选型
 `eval_{mid,bottom}ms5_val15_ep{1..5}.log`、test `eval_midms5_test15_ep2.log` /
 `eval_bottomms5_test15_ep5.log`；结构诊断 `diag_{mid,bottom}_val.log`、
-`diag_{mid,bottom}_ms5_val.log`。
+`diag_{mid,bottom}_ms5_val.log`；勘误修正执行（2026-09-04）：正式 Ep4 test
+`eval_midms5_test15_ep4.log`、正式 Ep4 结构诊断 `diag_mid_ms5_ep4_val.log`。
 
 ## 单步 probe（10 epochs，day-1 选型 = val h1 stride 7）
 
@@ -45,20 +46,25 @@ test `eval_{mid,bottom}_test15_ep10.log`；MS5 逐 epoch 选型
 归档 NPZ 独立复算（`overall (u / v)` 为全 15 天 pooling，`d10–15 max` 为逐 lead
 pooled ratio 在 lead 10–15 上的最大值，两列口径独立）：
 
+> 2026-09-04 勘误后：middle 的 day-1 门槛为 ratio ≤ 0.594（RMSE ≤ 0.05269 m/s），
+> 仅 Ep4/Ep5 通过，正式选型 = **Ep4**；下表 middle 行为正式 Ep4 数字。
+> 原（不合规）选型 Ep2 的数字保留为探索性记录：val 0.814（0.813 / 0.826）、
+> test 0.830（0.825 / 0.864）。
+
 | 层 | 逐 epoch day-1 ratio（门槛） | 选型 | val h15 overall (u / v) | val d10–15 max | test h15 overall (u / v) | test d10–15 max |
 |---|---|---|---|---|---|---|
-| middle | 0.619/0.621/0.605/0.590/0.590 | **Ep2** | 0.814（0.813 / 0.826）✅ | 0.904 (d15) | **0.830**（0.825 / 0.864）✅ | 0.957 (d15) |
+| middle | 0.619/0.621/0.605/0.590/0.590（勘误后门槛 0.594，仅 Ep4/Ep5 过） | **Ep4**（勘误后正式） | 0.820（0.822 / 0.806）✅ | 0.915 (d15) | **0.851**（0.851 / 0.850）✅ | 0.978 (d15) |
 | bottom | 0.601/0.588/0.596/0.576/0.575（Ep4/5 过） | **Ep5** | 0.790（0.792 / 0.780）✅ | 0.840 | **0.813**（0.811 / 0.820）✅ | 0.868 |
 
 ### 门槛核对（val；全部预注册）
 
-| 门槛 | middle MS5 Ep2 | bottom MS5 Ep5 |
+| 门槛 | middle MS5 Ep4（勘误后正式） | bottom MS5 Ep5 |
 |---|---|---|
-| day-1 ≤ probe最优 × 1.02 | ⚠️ 见下方勘误：Ep2 RMSE 0.0551 > 复算门槛 0.0527 | 0.0253 ≤ 0.0255 ✅（余量小） |
-| 15-day overall ratio < 0.941 | 0.814 ✅ | 0.790 ✅ |
-| u / v 各自 < 1.0 | 0.813 / 0.826 ✅ | 0.792 / 0.780 ✅ |
-| day 10–15 每日 < 1.0 | max 0.904 (d15) ✅ | max 0.840 ✅ |
-| 结构：crossover / corr | 无 crossover；corr 全 lead 占优 | 无 crossover；corr 全 lead 占优 |
+| day-1 ≤ probe最优 × 1.02 | 0.05240 ≤ 0.05269 ✅（勘误后复算；原 Ep2 0.0551 未过） | 0.0253 ≤ 0.0255 ✅（余量小） |
+| 15-day overall ratio < 0.941 | 0.820 ✅ | 0.790 ✅ |
+| u / v 各自 < 1.0 | 0.822 / 0.806 ✅ | 0.792 / 0.780 ✅ |
+| day 10–15 每日 < 1.0 | max 0.915 (d15) ✅ | max 0.840 ✅ |
+| 结构：crossover / corr | 无 crossover；corr 除 d15 外全 lead 占优——d15 边缘未过（u 0.428 vs 0.430、v 0.417 vs 0.423）⚠️ | 无 crossover；corr 全 lead 占优 |
 
 ### 勘误与影响（2026-09-04，S2-6 复核发现，待决策）
 
@@ -74,30 +80,59 @@ pooled ratio 在 lead 10–15 上的最大值，两列口径独立）：
 - **正式修正**：按原预注册规则重新冻结 Ep4 并补跑一次 test；已执行的 Ep2 test
   仅作为方案偏离后的探索性结果保留，不能通过事后放宽容差追溯性变成预注册选型。
   bottom 层不受影响（其 probe 行复算无误）。
+  **执行结果见下节（2026-09-04 已完成）。**
+
+### 勘误修正执行（2026-09-04）：正式 Ep4 test 与结构诊断
+
+协议与 Ep2 探索性 test 完全一致（test h15、stride 7、154 窗、seed 123、churn 0、
+rf0、batch 4；单卡 RTX 4090 GPU 5，rollout 247 s，`status=completed`，无异常）；
+唯一差异是 checkpoint（Ep4）。产物：`eval_test_h15_ch0_e1_s123_rf0_ckptEp4_test15.npz`、
+`figures_h15_ch0_e1_s123_rf0_ckptEp4_test15/`、`eval_midms5_test15_ep4.log`；
+结构诊断 `leadtime_diag_ckptEp4.{npz,png}`、`diag_mid_ms5_ep4_val.log`
+（val、stride 14、77 窗、seed 123，与 `diag_mid_ms5_val.log` 同协议）。
+
+- **test 门槛全部通过**：day-1 ratio 0.665（0.0483 vs 0.0727 m/s）；15-day overall
+  **0.851**（0.1149 vs 0.1351；u 0.851 / v 0.850 各自 < 1.0）；d10–15 每日
+  0.862/0.881/0.883/0.916/0.956/0.978 全部 < 1.0；全程无 crossover（最差 lead
+  0.978 @ d15）。
+- **与探索性 Ep2 test 对比**：overall 0.851 vs 0.830——正式选型 Ep4 的 test 略差于
+  Ep2（val overall 同方向：0.820 vs 0.814），属合规选型下的真实结果，不改变结论方向。
+- **⚠️ gate 5（corr 全 lead 占优）在 val 结构诊断中边缘未过**：Ep4 无 crossover、
+  pooled ratio 0.62→0.93 单调；corr 在 lead 1–14 对 u/v 均占优，但 d15 以极小差距
+  低于 persistence：u 0.428 vs 0.430、v 0.417 vs 0.423（原选型 Ep2 的 d15 corr
+  0.469 > 0.430，全 lead 占优）。按预注册字面，middle 层不记"全门槛 Go"；与
+  Ep2 的 day-1 处理一致，不通过事后放宽容差追认。
+  **裁定（2026-09-04）：接受边缘结构缺陷**——middle 记"gate 1–4 + test 全过、
+  gate 5 边缘未过"，不改选 Ep5（预注册选型规则未定义 fallback）、不回退 Ep2
+  （day-1 未过门槛），作为既存事实转入 full3d/分支决策（见方向文档 §4）。
 
 ### test h15 与单步 probe 对比（关键修复证据）
 
-| | 单步 probe | MS5 | 变化 |
+| | 单步 probe | MS5（正式选型） | 变化 |
 |---|---|---|---|
-| middle test overall ratio | 1.183 | **0.830** | crossover 消除（d15 1.52→0.96） |
-| bottom test overall ratio | 0.930 | **0.813** | v d15 1.15 → 0.880 |
+| middle test overall ratio | 1.183 | **0.851**（Ep4；探索性 Ep2 0.830） | crossover 消除（d15 1.52→0.978） |
+| bottom test overall ratio | 0.930 | **0.813**（Ep5） | v d15 1.15 → 0.880 |
 | bottom test v d15 ratio | 1.150 | **0.880** | probe 的唯一短板被修复 |
 
 ## 结构诊断（val，77 窗口，选型 checkpoint）
 
-- middle MS5 Ep2：pooled ratio 0.62→0.90 单调（无 crossover）；u corr 0.928→0.469（全 lead > persistence）；u bias +0.043@d15；var_ratio u 0.286@d15（平滑化）。
+- middle MS5 Ep4（勘误后正式，2026-09-04）：pooled ratio 0.62→0.93 单调（无 crossover）；u corr 0.929→0.428、v corr 0.899→0.417——lead 1–14 全部 > persistence，d15 边缘低于 persistence（u 0.428 vs 0.430、v 0.417 vs 0.423）；u bias −0.050@d15（Ep2 为 +0.043，符号相反）；var_ratio u 0.262@d15（平滑化）。
+- middle MS5 Ep2（探索性，保留对照）：pooled ratio 0.62→0.90 单调（无 crossover）；u corr 0.928→0.469（全 lead > persistence）；u bias +0.043@d15；var_ratio u 0.286@d15（平滑化）。
 - bottom MS5 Ep5：pooled ratio 0.60→0.84（无 crossover）；u corr 0.940→0.538、v 0.918→0.557（全 lead 占优）；v bias 全程 |·|≤0.005；var_ratio 0.31–0.37@d15。
 
 ## 结论
 
-1. **垂向泛化成立**：detached MS5 的修复效果跨深度成立——middle test overall 1.183→0.830、bottom 0.930→0.813，与 surface（1.018→0.871）同模式。
+1. **垂向泛化成立**：detached MS5 的修复效果跨深度成立——middle test overall 1.183→0.851（勘误后正式 Ep4；探索性 Ep2 为 0.830）、bottom 0.930→0.813，与 surface（1.018→0.871）同模式。
 2. **垂向难度排序与 WP1 画像一致**：bottom 最易（MS5 后 test d1 ratio 0.676）、middle 居中、surface 最难；层 MS5 的 day-1 门槛余量也按此排序（bottom 余量最小——其 persistence 本身已很强）。
 3. bottom 单步的 v 分量长时效短板被 MS5 完全修复（1.15→0.880）。
 4. 遗留（与 surface 一致）：方差塌缩（var_ratio ~0.3@d15）、d15 ratio 回升（0.87–0.96）；bias 轻微正向漂移。
 5. 代表层证据支持 full3d 投资（垂向各层均有可利用信号 + MS 路径可迁移），但 full3d 的 1-epoch pilot 尚无信号（见实验 06 RESULTS），K3 按预注册条件阻塞。
 6. **middle 层的"全门槛 Go"表述受勘误影响**（day-1 门槛误用错误的 probe 数值，见"勘误与影响"）：
-   MS5 的长时效修复效果本身不受影响（val/test overall、结构诊断均以归档产物为准），
-   但 Ep2 不属于预注册合规选型；正式 checkpoint 改为 Ep4，test 待补。
+   勘误修正已于 2026-09-04 执行——正式选型 Ep4 的 test 门槛全部通过（overall 0.851），
+   长时效修复在合规选型下成立；但 Ep4 的 val 结构诊断 gate 5（corr 全 lead 占优）
+   在 d15 以极小差距未过（u 0.428 vs 0.430、v 0.417 vs 0.423；Ep2 在该 gate 全 lead
+   占优）。按预注册字面，middle 层不记"全门槛 Go"；已裁定接受边缘结构缺陷
+   （2026-09-04，见方向文档 §4），作为既存事实转入 full3d/分支决策。
 
 ## 备注
 
