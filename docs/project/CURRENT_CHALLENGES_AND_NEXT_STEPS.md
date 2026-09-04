@@ -1,6 +1,6 @@
 # 当前困难与下一步：确定性 1–15 天 U/V 预测
 
-> 更新日期：2026-09-04
+> 更新日期：2026-09-05
 > 状态：**detached multi-step 主线基本执行完毕**——工作包 1–5 完成；工作包 6（full3d）
 > 仅完成步骤 1–4（画像/资源 probe/K1 smoke/1-epoch pilot），K3 被预注册门槛阻塞。
 > 三项待办已全部闭环（2026-09-04）：
@@ -55,7 +55,8 @@ test 15-day overall ratio 0.838、day-1 0.833）。
    **已执行**：正式 Ep4 test 0.851（test 门槛全部通过），Ep2 test 仅保留为探索性
    结果；但 Ep4 的 val 结构诊断 gate 5 corr 在 d15 边缘未过（u 0.428 vs 0.430、
    v 0.417 vs 0.423），按预注册字面不记"全门槛 Go"→ 转入 §4 裁定。
-   bottom 层不受影响。详见[实验 11 勘误节](../experiments/11_representative_layers/RESULTS.md)。
+   正式 test/诊断的小型产物已于 2026-09-05 入库；bottom 层不受影响。详见
+   [实验 11 勘误节](../experiments/11_representative_layers/RESULTS.md)。
 6. **工程注意（不改变算法）**：detached 反馈 forward 必须包在
    `autocast(enabled=False)` 内（autocast 权重缓存会使 fp16 副本 detached、DDP 梯度
    规约失败；2026-09-03 已修复，DDP2 smoke 通过）。新增多步相关代码时保持该约束。

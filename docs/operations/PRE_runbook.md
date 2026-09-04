@@ -300,19 +300,19 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_evaluate.py   # PRESET 与训练一致
 - 历史 `sigma_max=3` 诊断产物来自提交 `fd3fc4c`；当前 HEAD 已正式提供 `SAMPLER_SIGMA_MAX`。
   设为 `3` 即可重跑，输出会自动带 `sm3` tag；仍须遵守拒绝覆盖规则。
 
-## 5. 步骤 3：全 30 层全量（当前状态：probe/K1/pilot 完成，K3 阻塞待决策）
+## 5. 步骤 3：全 30 层全量（Path B：冻结待独立预算，K3 继续阻塞）
 
 > 实验 06 已实测：单 `__getitem__` ≈1.6 s；condition 为 7 天 × 2 变量 =
 > **14 通道**（≈296 MB），K1 完整样本另含 target 1 天 × 2 变量，合计约 340 MB；
 > batch-1 单步 0.97 s、
 > 峰值 20.7 GB（reserved 22.6 GB，24 GB 卡无同卡推理余量）；1 epoch（8394 步）
 > ≈2.3 h，val h15 评估 ≈2 h05m（batch 1）。1-epoch pilot 训练健康但 60 个
-> layer×变量 day-1 ratio 全部 ≈1.000（无逐层信号）→ K3 按预注册条件阻塞，
-> 路径决策（加 epochs / 冻结待正式预算 / 调参）见方向文档 §5。
+> layer×变量 day-1 ratio 全部 ≈1.000（无逐层信号）→ K3 按预注册条件阻塞。
+> 2026-09-04 已选 Path B：不排训练，冻结等待独立正式预算，见方向文档 §5。
 
 1. **K1 smoke 已完成**（实验 06，SMOKE PASS，run `full3d_..._S4_..._SMOKE`）：
    需要重新验证管线时再运行 `DIAFNO_PRESET=full3d DIAFNO_OBJECTIVE=persistence_residual
-   python pre_trainer.py`（smoke 模式）；正式长训必须等方向文档 §5 的 K3/预算决策，
+   python pre_trainer.py`（smoke 模式）；正式长训必须等独立预算落实并重新立项，
    不因 smoke 通过自动启动。评估端需把 `pre_evaluate.py` 的 `PRESET` 设为 `"full3d"`；
 2. 首次运行会重算全 30 层归一化统计（3 遍流式扫描 ~530GB，约 15~30 分钟，一次性）；
 3. 预设：patch (4,3,2) → 100×147×15 = 220.5k token、embed_dim 128、implicit 2、B=1、验证窗口 16 个。
@@ -321,7 +321,8 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" python pre_evaluate.py   # PRESET 与训练一致
    （加 target 1 天 × 2 变量）约 340 MB；数据总量 418GB < 内存 943GB，首轮后主要靠页缓存；
 5. 评估时 `BATCH_SIZE` 建议 1~2；`EVAL_STRIDE` 可加大到 14 先出粗结果。
 6. 代表层参照：middle/bottom 单层 preset（`middle_smoke`/`bottom_smoke`，与 surface_smoke
-   仅 depth_index 不同）已完成实验 11（bottom 全门槛 Go；middle 见实验 11 勘误节）。
+   仅 depth_index 不同）已完成实验 11（bottom 全门槛 Go；middle 正式 Ep4 test 0.851，
+   gate 5 d15 边缘缺陷已裁定接受）。
 
 ## 6. 复现与注意事项
 

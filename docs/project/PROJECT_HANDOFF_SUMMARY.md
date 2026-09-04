@@ -21,21 +21,19 @@ persistence 之下：
 - 演进链：单步基线（实验 07）overall ratio `1.018`（day 4–5 后失去优势）→
   MS5 Ep4 `0.871` → MS10 Ep2 `0.838`；
 - 修复可垂向泛化（实验 11）：bottom 单层 MS5 过全部预注册门槛，test overall
-  `0.813`（单步 `0.930`）；middle 的 MS5 长时效修复成立（test `0.830`，单步
-  `1.183`），但其 day-1 选型门槛存在勘误（原 probe 数值无法从归档 NPZ 复现，
-  按当前仓库可用归档数据和预注册规则正式选中 Ep4 而非已执行的 Ep2）；Ep4 test
-  待补，Ep2 test 仅保留为探索性结果——见实验 11 `RESULTS.md` 勘误节；
+  `0.813`（单步 `0.930`）；middle 按勘误后的预注册规则正式选中 Ep4，test overall
+  `0.851`（单步 `1.183`），test 门槛全过；validation gate 5 corr 仅在 d15 边缘
+  未过，已裁定接受并如实保留，原 Ep2 test `0.830` 仅作探索性记录；
 - 遗留缺陷：方差塌缩（var_ratio ~0.3@d15）、d15 附近 ratio 回升（test 0.894）
-  与轻微 bias 漂移仍在，是后续分支（loss weighting / direct multi-horizon）的
-  指向证据；
+  与轻微 bias 漂移仍在；现有证据不足以准入任何后续分支，surface u d15 ratio
+  `0.906` 仅作为未来重新评估 loss weighting 的触发观察项；
 - 静态 mask 输入与逐步 remask 两项消融均没有稳定改善 overall，因此当前保留
   14 个动态 condition 通道、无静态 mask、`remask_feedback=False`；
 - full3d 30 层：画像/资源 probe/K1 smoke/1-epoch pilot 已完成（实测 ≈2.3 h/epoch，
-  50 epoch ≈ 5 天；单步峰值 22.6 GB），pilot 无逐层信号，K3 与正式预算按预注册
-  条件阻塞待决策（实验 06）。
+  50 epoch ≈ 5 天；单步峰值 22.6 GB），pilot 无逐层信号；已选 Path B，冻结等待
+  独立正式预算，K3 继续按预注册条件阻塞（实验 06）。
 
-下一步不是加入扩散或完整 BPTT，而是先补 middle Ep4 正式 test，再对 full3d K3/
-正式预算做出路径决策，并评估 §6 分支（loss weighting、direct multi-horizon head）的准入。
+当前无待执行实验：等待 full3d 独立预算，或由新证据触发后续分支重新预注册。
 
 ## 任务与数据
 
@@ -73,12 +71,12 @@ mask、异常值和归一化说明见 [PRE 数据说明](../data/PRE_ocean_data.
 | [03 sampler/checkpoint 消融](../experiments/03_sampler_ablation/RESULTS.md) | 采样参数只能小幅改善，不能救回模型 |
 | [04 SD2 15-day rollout](../experiments/04_surface_sd2_rollout/RESULTS.md) | 所有 lead 均败于 persistence |
 | [05 条件与可预测性诊断](../experiments/05_condition_diagnostics/RESULTS.md) | condition 中有可利用信号，模型也确实读取 condition |
-| [06 full3d](../experiments/06_full3d/RESULTS.md) | 画像/资源 probe/K1/pilot 完成；pilot 无逐层信号，K3 与正式训练阻塞待决策 |
+| [06 full3d](../experiments/06_full3d/RESULTS.md) | 画像/资源 probe/K1/pilot 完成；pilot 无逐层信号，已选 Path B 冻结待独立正式预算，K3 继续阻塞 |
 | [07 persistence-residual](../experiments/07_residual_baseline/RESULTS.md) | day-1 明确优于 persistence；15-day overall 仍持平略差 |
 | [08 静态 mask 输入 A/B](../experiments/08_static_mask_ablation/RESULTS.md) | 不保留静态 mask；原 14 通道模型更好 |
 | [09 remask feedback A/B](../experiments/09_remask_feedback_ablation/RESULTS.md) | 保持 `rf0`；中段改善但长段转差，overall 无增益 |
 | [10 multi-step MS5/MS10](../experiments/10_multistep_deterministic/RESULTS.md) | detached multi-step 成立：test overall 1.018→0.871→0.838，crossover 消除 |
-| [11 代表层 middle/bottom](../experiments/11_representative_layers/RESULTS.md) | bottom 全门槛 Go（0.813）；middle 长时效修复成立，正式改选 Ep4 后 test 待补；Ep2 的 0.830 为探索性结果 |
+| [11 代表层 middle/bottom](../experiments/11_representative_layers/RESULTS.md) | bottom 全门槛 Go（0.813）；middle 正式 Ep4 test 0.851，test 门槛全过，gate 5 d15 边缘缺陷已裁定接受；Ep2 的 0.830 为探索性结果 |
 
 每个实验的目标、任务与执行状态在 `EXPERIMENT.md`，实际数字、分析和科学结论在
 `RESULTS.md`。入口见 [实验索引](../experiments/README.md)。
@@ -88,25 +86,23 @@ mask、异常值和归一化说明见 [PRE 数据说明](../data/PRE_ocean_data.
 1. **长时效残差缺陷**：crossover 已由 multi-step 消除，但方差塌缩
    （var_ratio ~0.3@d15）、d15 附近 ratio 回升（test 0.894）与轻微 bias 漂移仍在。
 2. **full3d pilot 无信号**：1-epoch single-step pilot 训练健康但 60 个逐层 day-1
-   ratio 全部 ≈1.000，K3 按预注册条件阻塞；追加 epochs/冻结预算/调参三条路径待决策。
+   ratio 全部 ≈1.000，K3 按预注册条件阻塞；已选 Path B，冻结等待独立正式预算。
 3. **full3d 资源门槛高**：实测 ≈2.3 h/epoch（50 epoch ≈ 5 天）、单步峰值 22.6 GB
    （24 GB 卡无同卡推理余量），正式投入需另行冻结预算。
-4. **u/v 机制不完全相同**：u 更明显方差不足；v 的长 lead 更受相关损失和正偏差影响。
+4. **残余长时效缺陷**：MS 后 u/v 不对称已大幅消解，但两变量仍共同存在方差塌缩；
+   surface u d15 ratio `0.906` 是未来重新评估 loss weighting 的触发观察项。
 5. **DDP+AMP 陷阱**：detached 反馈 forward 必须包在 `autocast(enabled=False)` 内
    （autocast 权重缓存会使 fp16 副本 detached、DDP 梯度规约失败；2026-09-03 已修复，
    新增多步相关代码时需保持警惕）。
 
 ## 下一步怎么做
 
-详细门槛、文件改动和执行后回顾表见
-[《当前困难与下一步》](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)。当前顺序是：
+详细门槛和裁定见 [《当前困难与下一步》](./CURRENT_CHALLENGES_AND_NEXT_STEPS.md)：
 
-1. 按预注册规则冻结实验 11 middle MS5 Ep4 并补一次正式 test；Ep2 test 仅保留为
-   探索性结果；
-2. full3d K3/正式预算决策（实验 06 候选路径 A/B/C，需拍板）；
-3. §6 分支准入评估：物理单位 loss weighting、direct multi-horizon head
-   （方差塌缩与 d15 回升为指向证据）；
-4. TBPTT、新输入、residual diffusion 仍是证据触发的后续分支，不与上述同时修改。
+1. full3d 保持 Path B 冻结；预算落实后，先设计显存/评估成本压缩方案并复核
+   per-band 归一化，再重新立项；
+2. 六个后续模型分支当前均不立项；只有出现方向文档 §6 定义的新证据时，才按新的
+   预注册重新评估。
 
 ## 接手入口
 

@@ -2,9 +2,9 @@
 
 > 更新日期：2026-09-04
 
-文档按用途分为架构、数据、运行、项目交接和实验五类。活跃项目文档只保留两个入口：
+文档按用途分为架构、数据、运行、项目交接和实验五类。活跃项目状态只保留两个入口：
 交接概要回答“项目是什么、做到哪里”，当前困难与下一步回答“为什么卡住、接下来怎么做”。
-代码实现记录归 Changelog，单次实验事实归各实验目录。
+专项工程计划单独列出，执行完成后归档；代码实现记录归 Changelog，单次实验事实归各实验目录。
 
 ## 目录结构
 
@@ -30,7 +30,8 @@ docs/
 | 数据 | [PRE_ocean_data 数据说明](./data/PRE_ocean_data.md) | 变量、shape、网格、mask、时间和数据质量 |
 | 运行 | [PRE 运行手册](./operations/PRE_runbook.md) | 预处理、训练、评估和复现命令 |
 | 项目 | [项目交接概要](./project/PROJECT_HANDOFF_SUMMARY.md) | 面向新成员/agent 的快速项目全貌、当前进度和接手入口 |
-| 项目 | [当前困难与下一步](./project/CURRENT_CHALLENGES_AND_NEXT_STEPS.md) | 当前证据、middle Ep4 正式补测、full3d 预算与分支准入；实验已推进到工作包 6 |
+| 项目 | [当前困难与下一步](./project/CURRENT_CHALLENGES_AND_NEXT_STEPS.md) | 当前证据、middle Ep4 裁定、full3d Path B 与六分支 No-Go；当前无待执行实验 |
+| 项目 | [代码中文注释规范化计划](./project/CODE_COMMENT_STANDARDIZATION_PLAN_20260905.md) | 24 个 Python 文件的中文注释、数据结构契约与分阶段验收计划；尚未实施 |
 | 项目 | [PRE 模型代码修改计划（已归档）](./project/archive/CODE_MODIFICATION_PLAN_20260830.md) | 2026-08-30 历史实施计划，仅用于追溯 |
 | 项目 | [multi-step 实施计划（已归档）](./project/archive/MULTISTEP_PLAN_20260901.md) | 2026-09-01 历史实施计划（工作包 1–6 已执行），仅用于追溯 |
 | 项目 | [项目 Changelog](./project/CHANGELOG.md) | 已完成变更与尚未实施计划的状态记录 |

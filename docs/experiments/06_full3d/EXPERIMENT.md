@@ -1,6 +1,7 @@
 # 实验 06：full3d 30 层训练与评估
 
-> 状态：**部分执行**（画像/资源 probe/K1 smoke/single-step pilot 完成；K3 按预注册条件阻塞，正式长训未准入）
+> 状态：**部分执行**（画像/资源 probe/K1 smoke/single-step pilot 完成；已选 Path B
+> 冻结待独立正式预算，K3 按预注册条件继续阻塞）
 > 科学问题：surface 上的确定性预测能力能否扩展到全部 30 个 sigma 层？
 
 ## 目标与假设
@@ -18,7 +19,7 @@
 | deterministic K1 real-data smoke | 已完成（SMOKE PASS） | [RESULTS](./RESULTS.md) |
 | deterministic single-step 1 epoch pilot | 已完成（训练健康，逐层信号未出现） | [RESULTS](./RESULTS.md) |
 | detached K3 pilot | 阻塞（依赖 pilot 逐层信号，未满足） | [RESULTS](./RESULTS.md) |
-| 正式训练与 15-day test | 未执行；尚未准入 | [RESULTS](./RESULTS.md) |
+| 正式训练与 15-day test | 冻结；待独立正式预算落实后重新立项 | [RESULTS](./RESULTS.md) |
 
 ## 计划设置
 
@@ -49,5 +50,8 @@
 准入顺序：数据画像通过 → 资源 probe 无异常 → K1 smoke → single-step pilot 有信号 →
 K3 pilot → 另行冻结正式预算。OOM 时可依次尝试 embed 128→96、implicit 2→1；任何容量
 调整都成为新的受控配置。
+
+当前 pilot 未出现逐层信号；2026-09-04 已选 Path B，full3d 不排训练，等待独立正式
+预算后重立项，K3 不因 Path B 自动放行。
 
 实际状态和后续结果见 [RESULTS.md](./RESULTS.md)。

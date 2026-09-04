@@ -11,11 +11,26 @@
 
 ### Proposed
 
+- 代码中文注释规范化（计划已形成，尚未实施）：按
+  [`CODE_COMMENT_STANDARDIZATION_PLAN_20260905.md`](./CODE_COMMENT_STANDARDIZATION_PLAN_20260905.md)
+  分批审查 24 个 Python 文件，将自然语言注释/docstring 统一为中文，并补齐 Tensor、
+  ndarray、memmap、mask、checkpoint 和统计累计器的 shape/type/所有权/梯度契约。
 - full3d 重启前置项（Path B，待独立预算落实后执行）：单步峰值显存（22.6 GB）与
   逐 epoch 评估成本（val h15 ≈2 h05m）压缩方案；per-band 归一化复核（底层归一化
   std ≈ 海面 1/3，见实验 06 RESULTS）。
 - 分支再评估触发项：若未来工作专攻 u 分量 d15 rebound（surface u 0.906）并产生
   新的 u/v 不对称证据，loss weighting 可按新预注册重开（方向文档 §6）。
+
+## 2026-09-05 — 已完成（入口文档同步与实验 11 Ep4 正式产物归档）
+
+- 同步项目交接概要、文档/实验索引、runbook、实验 06 状态和 `AGENTS.md`：middle
+  正式 Ep4 test 0.851、gate 5 边缘缺陷已接受；full3d 已选 Path B；六分支均 No-Go，
+  当前无待执行实验。
+- 从权威运行目录归档 experiment 11 middle Ep4 正式 test NPZ、12 张 figures、val
+  结构诊断 NPZ/PNG 及两份日志到对应 `checkpoints/PRE/` 路径；五个单文件的本地
+  SHA-256 与服务器端一致，两份日志均以 `status=completed` 结束。
+- 将仓库根 `README.md` 全文改写为中文，并把 PRE 当前状态更新到 2026-09-05 的
+  已裁定结论；命令、路径、变量名、数学口径和论文引用保持不变。
 
 ## 2026-09-04 — 已完成（分支准入评估：六分支全部不满足 + full3d Path B 定案）
 

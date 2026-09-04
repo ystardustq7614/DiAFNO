@@ -66,7 +66,7 @@ pooled ratio 在 lead 10–15 上的最大值，两列口径独立）：
 | day 10–15 每日 < 1.0 | max 0.915 (d15) ✅ | max 0.840 ✅ |
 | 结构：crossover / corr | 无 crossover；corr 除 d15 外全 lead 占优——d15 边缘未过（u 0.428 vs 0.430、v 0.417 vs 0.423）⚠️ | 无 crossover；corr 全 lead 占优 |
 
-### 勘误与影响（2026-09-04，S2-6 复核发现，待决策）
+### 勘误与影响（2026-09-04，S2-6 复核发现，已裁定）
 
 - **middle 的 day-1 门槛在原记录下计算有误**：原文把 probe day-1 ratio 誊写为 0.770，
   门槛取 `0.770 × 1.02 = 0.785`（ratio 口径），据此判定 middle MS5 全部 5 个 epoch 过门槛并选中
@@ -90,6 +90,8 @@ rf0、batch 4；单卡 RTX 4090 GPU 5，rollout 247 s，`status=completed`，无
 `figures_h15_ch0_e1_s123_rf0_ckptEp4_test15/`、`eval_midms5_test15_ep4.log`；
 结构诊断 `leadtime_diag_ckptEp4.{npz,png}`、`diag_mid_ms5_ep4_val.log`
 （val、stride 14、77 窗、seed 123，与 `diag_mid_ms5_val.log` 同协议）。
+上述小型产物已于 2026-09-05 从权威运行目录原样同步到仓库的对应
+`checkpoints/PRE/` 路径（figures 共 12 张 PNG）。
 
 - **test 门槛全部通过**：day-1 ratio 0.665（0.0483 vs 0.0727 m/s）；15-day overall
   **0.851**（0.1149 vs 0.1351；u 0.851 / v 0.850 各自 < 1.0）；d10–15 每日
