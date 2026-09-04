@@ -83,7 +83,9 @@ noisy U_{m+1} ─────┘
 
 补充一句：
 
-> 原论文长期 point-wise error 也会上升并稳定到约 0.14 ⚠️需对论文原文核实；它的核心成功是统计分布稳定，不是持续追踪同一条真实轨迹。
+> 原论文 Appendix C.3 明确说明：CF590 的长期 point-wise error 会累积并稳定在约 `0.14`；Appendix C.2 Table 10 的 400-step 不同随机种子结果为 `0.1374–0.1439`（基准 seed 123 为 `0.1400`）。因此它的核心成功是长期统计分布稳定，不是持续追踪同一条真实轨迹。
+
+来源：[论文 v3（Appendix C.2/C.3）](https://arxiv.org/html/2512.12628v3)。
 
 # 三、PRE 任务与仓库适配｜11–19 分钟｜4 页
 
@@ -126,9 +128,11 @@ noisy U_{m+1} ─────┘
 | 固定流态和 forcing | 季节变化及缺失外部强迫 | 条件分布更宽 |
 | 谱滤波低分辨率 | `400×441` 复杂空间结构 | 从噪声重建难度更高 |
 | 长期统计评价 | 逐点 RMSE/MAE | stochastic sample 处于劣势 |
-| 100 epochs ⚠️需对论文核实 | SD2 早停于 5 epochs | 训练预算不完全等价 |
+| Table 7：100 epochs 内最小 train/test loss | SD2 早停于 5 epochs | 训练预算不完全等价 |
 
 这一页是整场报告的重要认知桥梁。
+
+口径说明：`100 epochs` 是论文 Table 7 的模型比较窗口，不是公开代码的固定默认值；上游 `trainer.py` 当前写的是 `num_epochs = 150`。来源：[论文 v3](https://arxiv.org/html/2512.12628v3)、[上游 trainer.py](https://github.com/yuchi-richard-jiang/DiAFNO/blob/main/trainer.py)。
 
 ### 第 9 页：仓库整体管线
 
@@ -433,21 +437,26 @@ U_t+\mu_\theta(c)+\epsilon_\phi(c)
 2. **P17 crossover 口径**：原文"day 4–5 后 crossover"改为 test 全量口径（≈d5），并加脚注说明 exp 10 val 补测 d13 的差异（split/stride 不同）——这是最可能被追问的数字，备份页新增第 9 条。
 3. **P22 口径统一**：表头明确为 test h15 overall ratio（原"Single-step/MS5"列混用 day-1 与 15-day 口径）；middle 行补充 Ep4 的 val 选型数字 0.820。
 4. **P19 单步 day-1**："优于 persistence" 落成具体数字 `0.833`，与 MS10 对齐可比。
-5. **原论文数字打标**：P5 的 "point-wise error ≈0.14"、P8 的 "100 epochs" 为本地仓库无法核实的论文侧数字，加 ⚠️ 标记，制作正式底稿前必须对照论文原文。
+5. **原论文数字核实**：P5 的 `0.14` 限定为 CF590 长期 point-wise error 平台（Appendix C.3；Table 10 的 400-step seed 结果为 0.1374–0.1439）；P8 的 `100 epochs` 限定为 Table 7 的比较窗口，并注明上游训练模板默认 150，避免混淆。
 
 ## 待办素材（本文件夹后续内容）
 
-- [ ] P20 主图：从本地 3 个 test NPZ 新画逐 lead 曲线
-  （`checkpoints/PRE/surface_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES{,_MS5,_MS10}/eval_test_h15_*.npz`）
-- [ ] P5/P8：对照原论文核实 100 epochs、0.14 等数字
-- [ ] P6：区域地图/mask/代表流场图（`plots/01_field_mask_sanity.png` 可作底稿）
-- [ ] P12/P13：消融与条件诊断柱状图（数字见 exp 03/05，图需新画）
-- [ ] middle Ep4 正式 test（可选，汇报前闭环则 P22 更新为正式数字；属预注册纪律下的正式一次，需按 Runbook §4 冻结配置后执行）
+- [x] P20 主图：`figures/fig_p20_lead_ratio.png`（3 确定性曲线 + diffusion 虚线，数值自检通过）
+- [x] P5/P8：已按论文 Appendix C.2/C.3 与 Table 7 核实 `0.14`、`100 epochs` 的适用口径
+- [x] P6：区域地图/mask 素材 → `figures/p06_field_mask_sanity.png`
+- [x] P12/P13 柱状图 → `figures/fig_p12_sampler_ablation.png` / `fig_p13_condition_signal.png`
+- [x] 增值图：P19 柱状（`fig_p19_overall_bars.png`）、P22 分层（`fig_p22_layers.png`）、
+  P24 诊断三联（`fig_p24_diagnostics.png`）、P7 场拼版（`fig_p07_forecast_maps.png`）
+- [ ] middle Ep4 正式 test（可选，汇报前闭环则 P22 更新为正式数字；属预注册纪律下的
+  正式一次，需按 Runbook §4 冻结配置后执行；完成后重跑 `make_figures.py` 更新 P22 柱）
+
+全部图表的对应关系与数据来源见 `figures/MANIFEST.md`。
 
 ## 附录 A：证据来源速查
 
 | 汇报数字 | 来源 | 本地可复算 |
 |---|---|---|
+| CF590 长期 point-wise error ≈0.14；Table 7 的 100-epoch 比较窗口 | [论文 v3](https://arxiv.org/html/2512.12628v3) Appendix C.2/C.3、Table 7；[上游 trainer.py](https://github.com/yuchi-richard-jiang/DiAFNO/blob/main/trainer.py) | 论文侧核对（非本项目 NPZ） |
 | SD1 day-1 2.72/3.11 | `docs/experiments/01_surface_sd1_baseline/RESULTS.md` | — |
 | SD2 早停 5 epochs、scale 修复 | `docs/experiments/02_surface_sd2_retrain/RESULTS.md` | — |
 | churn/sigma_max/E=4 消融 | `docs/experiments/03_sampler_ablation/RESULTS.md` | `checkpoints/PRE/surface_..._SD2/eval_*.npz` |
