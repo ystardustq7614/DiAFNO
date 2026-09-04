@@ -17,6 +17,17 @@
 - 后续分支准入评估（方向文档 §10）：物理单位 loss weighting、direct multi-horizon
   head（MS10 后 d15 ratio 回升 0.894 与方差塌缩仍是指向证据）。
 
+## 2026-09-04 — 已完成（full3d 大权重分卷归档）
+
+- full3d 4 个 ~342 MB 权重（RES best/Ep1、SMOKE best/Ep1）超过 GitHub 100 MB 单文件
+  硬限制、LFS 免费额度也不足，改用 `split -b 90M -d` 切成 16 个 <100 MB 分卷归档至
+  `checkpoints/PRE/full3d_pth_split/`（分两批 commit 推送）；该目录 `README.md`
+  记录原件 md5 与 `cat ... >` 重组命令。
+- 完整性验证：4 组分卷 `cat` 重组后 md5 与磁盘原件逐项一致（管道校验，不落盘）。
+- 权威原件仍在服务器磁盘 `~/checkpoints/PRE/<run_dir>/`，训练/评估直接用原件，
+  不在仓库目录内重组；`torch.load` 前须先重组并过 md5。
+- `AGENTS.md` 归档例外同步更新：>100 MB 文件由"绝不入库"改为"按分卷约定入库"。
+
 ## 2026-09-03 — 已完成（文档同步：交接概要与归档约定成文）
 
 - `PROJECT_HANDOFF_SUMMARY.md` 更新至 2026-09-03 现状：当前最优改为 MS10 Ep2
