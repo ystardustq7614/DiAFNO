@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
-"""Profile the PRE u/v-to-rho preprocessing pipeline without touching production output.
+"""模块职责：对 PRE u/v->rho 预处理流水线做 CPU/GPU/I/O 计时剖析；只写专用
+scratch 目录，绝不触碰生产输出（u_rho.npy/v_rho.npy 等正式对齐产物）。
 
-Run from the repository root on the data server, for example:
+不负责：生成正式数据；不重复实现任何 kernel——CUDA 路径直接调用生产实现
+（pp.torch_extrema_summary、pp.torch_enforce_land_mask、pp.torch_colocate_u/v），
+保证剖析的就是生产 kernel 本身，计时结果不因重实现而失真。
 
-    python scripts/profile_preprocess_align_uv.py \
-        --src /data2/user/zyq/datasets/PRE/processed \
-        --scratch-root /data2/user/zyq/data_processed/PRE/profile_scratch \
-        --raw-dyn /data2/user/zyq/datasets/PRE/raw/dyn \
-        --profile-time-metadata \
+关键约束：
+- 在数据服务器上从仓库根目录运行，例如：
+
+    python scripts/profile_preprocess_align_uv.py \\
+        --src /data2/user/zyq/datasets/PRE/processed \\
+        --scratch-root /data2/user/zyq/data_processed/PRE/profile_scratch \\
+        --raw-dyn /data2/user/zyq/datasets/PRE/raw/dyn \\
+        --profile-time-metadata \\
         --report-json /data2/user/zyq/data_processed/PRE/profile_report.json
 
-The script samples complete chunks from the real mmap inputs and writes only
-chunk-sized scratch .npy files.  It times the same CPU stages as
-preprocess_align_uv.py: read, extrema, mask enforcement, colocation, write,
-flush, and output extrema.  Scratch data is deleted by default after a
-successful or failed run; pass --keep-scratch to retain it for inspection.
+- 从真实 mmap 输入采样完整 chunk，只写 chunk 大小的 scratch .npy；计时阶段与
+  preprocess_align_uv.py 相同：read、极值、mask 强制、共定位、write、flush、
+  输出极值。scratch 数据默认在成功或失败后删除；--keep-scratch 可保留供检查。
+- --gpu-compare 时，把一个采样的 RAM 驻留 chunk 送入生产 CUDA 实现，分别计时
+  H2D、GPU 各阶段与 D2H，同时做 NumPy 精确等价校验；同时报告 CUDA peak
+  allocated 与 peak reserved 显存；CPU/GPU 各阶段计时外推为完整 10591 天
+  运行的估计。
+- torch 只在 --gpu-compare 分支内延迟 import，其余路径不需要 CUDA。
 
-With --gpu-compare, it also runs one sampled RAM-resident chunk through the
-PRODUCTION CUDA implementation from preprocess_align_uv.py (torch_extrema_summary,
-torch_enforce_land_mask, torch_colocate_u/v — no kernels are duplicated here),
-separately timing host-to-device, GPU stages, and device-to-host transfer while
-checking exact NumPy equivalence. Both peak allocated and peak reserved CUDA
-memory are reported, and the CPU/GPU stage timings are extrapolated to a full
-10591-day run estimate.
+依赖关系：import 生产脚本 scripts.preprocess_align_uv（其 main 仅在
+__main__ 下执行，import 无副作用）；--gpu-compare 分支延迟 import torch。
 """
 from __future__ import annotations
 
@@ -43,7 +47,7 @@ import numpy as np
 
 try:
     import resource
-except ImportError:  # Windows has no resource module; the data server is Linux.
+except ImportError:  # Windows 没有 resource 模块；数据服务器是 Linux。
     resource = None
 
 
@@ -59,7 +63,7 @@ def seconds_since(start: float) -> float:
 
 
 def percentile(values: list[float], q: float) -> float:
-    """Linear-interpolated percentile without a pandas dependency."""
+    """线性插值百分位数，不引入 pandas 依赖。"""
     ordered = sorted(values)
     if not ordered:
         return 0.0
@@ -73,6 +77,7 @@ def percentile(values: list[float], q: float) -> float:
 
 
 def summarize_stage_runs(runs: list[dict[str, float]]) -> dict[str, dict[str, float]]:
+    """按阶段汇总多次运行的耗时统计（count/total/mean/median/p95），单位秒。"""
     values_by_stage: dict[str, list[float]] = {}
     for run in runs:
         for stage, value in run.items():
@@ -91,8 +96,9 @@ def summarize_stage_runs(runs: list[dict[str, float]]) -> dict[str, dict[str, fl
 
 
 def rss_mib() -> float:
-    # Linux ru_maxrss is KiB; macOS is bytes.  The data server is Linux, but
-    # keeping this portable makes local dry-runs less surprising.
+    """把 ru_maxrss 换算为 MiB；无 resource 模块时返回 0.0。"""
+    # Linux 的 ru_maxrss 单位是 KiB，macOS 是字节。数据服务器是 Linux，
+    # 但保持可移植可让本地 dry-run 的结果不意外。
     if resource is None:
         return 0.0
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -100,6 +106,7 @@ def rss_mib() -> float:
 
 
 def resource_snapshot() -> dict[str, float]:
+    """当前进程的资源用量快照（peak RSS、缺页计数、块 I/O 计数）；无 resource 模块时全为 0。"""
     if resource is None:
         return {
             "peak_rss_mib": 0.0,
@@ -119,6 +126,7 @@ def resource_snapshot() -> dict[str, float]:
 
 
 def resource_delta(before: dict[str, float]) -> dict[str, float]:
+    """快照差值：缺页与块 I/O 为区间增量；peak_rss_mib 是进程累计峰值而非差值。"""
     after = resource_snapshot()
     return {
         key: after[key] - before[key]
@@ -127,6 +135,7 @@ def resource_delta(before: dict[str, float]) -> dict[str, float]:
 
 
 def parse_chunk_indices(value: str, n_chunks: int) -> list[int]:
+    """argparse 类型函数：解析逗号分隔的 chunk 索引；不允许重复，且必须落在 [0, n_chunks)。"""
     try:
         indices = [int(part.strip()) for part in value.split(",") if part.strip()]
     except ValueError as exc:
@@ -143,6 +152,7 @@ def parse_chunk_indices(value: str, n_chunks: int) -> list[int]:
 
 
 def timed(stages: dict[str, float], name: str, fn: Callable[[], Any]) -> Any:
+    """计时执行 fn()，把耗时（秒）记入 stages[name]，并返回 fn() 的结果。"""
     started = time.perf_counter()
     result = fn()
     stages[name] = seconds_since(started)
@@ -150,24 +160,37 @@ def timed(stages: dict[str, float], name: str, fn: Callable[[], Any]) -> Any:
 
 
 def colocate_u(uc: np.ndarray) -> np.ndarray:
+    """CPU：u chunk (t, S, H, W-1) -> rho (t, S, H, W)；与 torch_colocate_u 同构，内部复用 pp.colocate。
+
+    输出 shape 从输入推导（末轴 +1），不绑定全局网格常量；全局 pp.S/H/W 仅由
+    main() 入口的完整网格断言保证与输入一致。
+    """
     tlen = uc.shape[0]
-    ub = np.empty((tlen, pp.S, pp.H, pp.W), np.float32)
-    ub[:, :, :, 1:pp.W - 1] = pp.colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
+    w_rho = uc.shape[-1] + 1
+    ub = np.empty(uc.shape[:3] + (w_rho,), np.float32)
+    ub[:, :, :, 1:w_rho - 1] = pp.colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
     ub[:, :, :, 0] = uc[:, :, :, 0]
-    ub[:, :, :, pp.W - 1] = uc[:, :, :, -1]
+    ub[:, :, :, w_rho - 1] = uc[:, :, :, -1]
     return ub
 
 
 def colocate_v(vc: np.ndarray) -> np.ndarray:
+    """CPU：v chunk (t, S, H-1, W) -> rho (t, S, H, W)；与 torch_colocate_v 同构，内部复用 pp.colocate。
+
+    输出 shape 从输入推导（倒数第二轴 +1），不绑定全局网格常量；全局 pp.S/H/W
+    仅由 main() 入口的完整网格断言保证与输入一致。
+    """
     tlen = vc.shape[0]
-    vb = np.empty((tlen, pp.S, pp.H, pp.W), np.float32)
-    vb[:, :, 1:pp.H - 1, :] = pp.colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
+    h_rho = vc.shape[-2] + 1
+    vb = np.empty(vc.shape[:2] + (h_rho, vc.shape[-1]), np.float32)
+    vb[:, :, 1:h_rho - 1, :] = pp.colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
     vb[:, :, 0, :] = vc[:, :, 0, :]
-    vb[:, :, pp.H - 1, :] = vc[:, :, -1, :]
+    vb[:, :, h_rho - 1, :] = vc[:, :, -1, :]
     return vb
 
 
 def load_masks(src: Path) -> tuple[np.ndarray, np.ndarray]:
+    """读取并校验 mask_rho/mask_u/mask_v 的 shape 与取值；返回原生 staggered 网格上的 (mask_u, mask_v) bool 数组。"""
     mask_rho = np.load(src / "stat_var" / "mask_rho.npy")
     mask_u = np.load(src / "stat_var" / "mask_u.npy")
     mask_v = np.load(src / "stat_var" / "mask_v.npy")
@@ -180,7 +203,11 @@ def load_masks(src: Path) -> tuple[np.ndarray, np.ndarray]:
 
 
 def profile_metadata(raw_dyn: Path) -> dict[str, float]:
-    """Measure the authoritative time metadata scan without saving its outputs."""
+    """对权威时间元数据扫描计时；只测耗时，不保存任何输出文件。
+
+    与生产一致：逐 NetCDF 读取 ocean_time（保持 datetime64[s] 精度）后再做
+    逐日间隔校验，两段分别计时。
+    """
     files = sorted(path for path in raw_dyn.iterdir() if path.suffix == ".nc")
     if len(files) != pp.T:
         raise RuntimeError(f"expected {pp.T} raw NetCDF files in {raw_dyn}, found {len(files)}")
@@ -214,7 +241,7 @@ def profile_compute_only(
     t0: int,
     repeats: int,
 ) -> list[dict[str, float]]:
-    """Time CPU work on already-RAM-resident input, excluding disk writes."""
+    """对已 RAM 驻留的输入计时纯 CPU 计算，不含磁盘写入；重复 repeats 次取分布。"""
     runs: list[dict[str, float]] = []
     for _ in range(repeats):
         stages: dict[str, float] = {}
@@ -239,7 +266,7 @@ def profile_compute_only(
 
 
 def numpy_extrema_signature(arr: np.ndarray) -> tuple[float, int, float, int]:
-    """NumPy reference; tuple order matches pp.torch_extrema_summary."""
+    """NumPy 参照实现；返回元组的顺序与 pp.torch_extrema_summary 一致。"""
     flat = arr.ravel()
     return (
         float(np.nanmin(flat)), int(np.nanargmin(flat)),
@@ -248,8 +275,8 @@ def numpy_extrema_signature(arr: np.ndarray) -> tuple[float, int, float, int]:
 
 
 def gpu_timed(stages: dict[str, float], name: str, fn: Callable[[], Any], torch: Any) -> Any:
-    # CUDA is asynchronous.  Synchronizing on both sides makes each timing an
-    # honest wall-clock stage measurement rather than a launch-time measurement.
+    # CUDA 调用是异步的：fn 前后各同步一次，每个阶段计时才是真实墙钟耗时，
+    # 而不是 kernel 启动时间。
     torch.cuda.synchronize()
     started = time.perf_counter()
     result = fn()
@@ -261,7 +288,11 @@ def gpu_timed(stages: dict[str, float], name: str, fn: Callable[[], Any], torch:
 def cpu_gpu_reference(
     u_base: np.ndarray, v_base: np.ndarray, mask_u: np.ndarray, mask_v: np.ndarray,
 ) -> dict[str, Any]:
-    """Create an exact NumPy reference for the GPU numerical-equivalence check."""
+    """为 GPU 数值等价校验生成精确的 NumPy 参照结果。
+
+    流程与生产一致：原始极值签名 -> mask 强制 -> 共定位；返回参照的极值签名、
+    丢弃计数与对齐场 ub/vb（后续用 NaN 相等的数组比较校验）。
+    """
     uc = u_base.copy()
     vc = v_base.copy()
     discarded: dict[str, int] = {}
@@ -279,6 +310,7 @@ def cpu_gpu_reference(
 
 
 def assert_gpu_matches_reference(reference: dict[str, Any], result: dict[str, Any]) -> None:
+    """GPU 结果与 NumPy 参照逐项比对（丢弃计数、极值签名、对齐场 NaN 相等）；不一致即抛 AssertionError。"""
     if reference["discarded"] != result["discarded"]:
         raise AssertionError(f"GPU discarded counts differ: {result['discarded']} != {reference['discarded']}")
     for name in ("raw", "aligned"):
@@ -297,13 +329,14 @@ def profile_gpu_once(
     mask_v: np.ndarray,
     torch: Any,
 ) -> tuple[dict[str, float], dict[str, Any]]:
+    """单次完整 GPU 流水线计时：H2D -> 各 GPU 阶段 -> D2H，并收集显存峰值。"""
     device_index = 0
     torch.cuda.set_device(device_index)
     device = torch.device("cuda", device_index)
     stages: dict[str, float] = {}
-    # PyTorch 2.4 builds in the target environment can reject a torch.device
-    # object in this allocator API even though tensor .to(device) accepts it.
-    # After selecting cuda:0 explicitly, the no-argument form is compatible.
+    # 目标环境的 PyTorch 2.4 构建中，这个显存分配器 API 会拒绝 torch.device
+    # 对象（张量的 .to(device) 则接受它）；显式选定 cuda:0 之后，无参数形式
+    # 是兼容的。
     torch.cuda.reset_peak_memory_stats()
     started = time.perf_counter()
     uc = gpu_timed(stages, "h2d_u_s", lambda: torch.from_numpy(u_base).to(device), torch)
@@ -346,6 +379,7 @@ def profile_gpu_compare(
     mask_v: np.ndarray,
     repeats: int,
 ) -> tuple[list[dict[str, float]], dict[str, Any]]:
+    """warmup + repeats 次 GPU 计时，每次都与 NumPy 参照精确比对；返回各次阶段计时与汇总信息。"""
     try:
         import torch
     except ImportError as exc:
@@ -354,7 +388,7 @@ def profile_gpu_compare(
         raise RuntimeError("--gpu-compare requested but torch.cuda.is_available() is False")
 
     reference = cpu_gpu_reference(u_base, v_base, mask_u, mask_v)
-    # One unreported run pays allocator/JIT setup cost before the actual trials.
+    # 预热运行不计入统计：先支付分配器/JIT 初始化成本，再开始正式计时。
     _, warmup = profile_gpu_once(u_base, v_base, mask_u, mask_v, torch)
     assert_gpu_matches_reference(reference, warmup)
     del warmup
@@ -393,6 +427,13 @@ def profile_chunk(
     trackers: tuple[pp.ExtremumTracker, pp.ExtremumTracker, pp.ExtremumTracker, pp.ExtremumTracker],
     validate_nan_pattern: bool,
 ) -> tuple[dict[str, Any], np.ndarray, np.ndarray]:
+    """对一个采样 chunk 完整跑一遍 CPU 流水线并逐阶段计时。
+
+    阶段与生产一致：read -> 原始极值 -> mask 强制 -> 共定位 ->
+    （validate_nan_pattern 为 True 时，即首个采样 chunk）NaN 图案断言 ->
+    scratch memmap write -> flush -> 对齐极值。返回 (result, uc 副本, vc 副本)，
+    副本供可选的 compute-only / GPU 对比基准复用。
+    """
     ts = chunk_index * chunk_days
     te = min(ts + chunk_days, pp.T)
     tlen = te - ts
@@ -422,12 +463,13 @@ def profile_chunk(
         validation_s = seconds_since(validation_started)
         stages["first_chunk_validation_s"] = validation_s
 
+    # scratch memmap 的 shape 直接取共定位结果（与输入 chunk 一致），不再绑定全局常量
     u_out = np.lib.format.open_memmap(
         scratch / f"u_rho_chunk{chunk_index:03d}.npy", mode="w+", dtype=np.float32,
-        shape=(tlen, pp.S, pp.H, pp.W))
+        shape=ub.shape)
     v_out = np.lib.format.open_memmap(
         scratch / f"v_rho_chunk{chunk_index:03d}.npy", mode="w+", dtype=np.float32,
-        shape=(tlen, pp.S, pp.H, pp.W))
+        shape=vb.shape)
     timed(stages, "write_u_s", lambda: u_out.__setitem__(slice(None), ub))
     timed(stages, "write_v_s", lambda: v_out.__setitem__(slice(None), vb))
     timed(stages, "flush_u_s", u_out.flush)
@@ -435,14 +477,15 @@ def profile_chunk(
     timed(stages, "aligned_extrema_s", lambda: (aligned_u.update(ub, ts), aligned_v.update(vb, ts)))
     stages["chunk_total_s"] = seconds_since(chunk_started)
 
-    logical_read_bytes = tlen * pp.S * (pp.H * (pp.W - 1) + (pp.H - 1) * pp.W) * np.dtype(np.float32).itemsize
-    logical_write_bytes = 2 * tlen * pp.S * pp.H * pp.W * np.dtype(np.float32).itemsize
+    # 字节数按实际数组统计（与 shape 推导一致，部分网格 chunk 下仍成立）
+    logical_read_bytes = uc.nbytes + vc.nbytes
+    logical_write_bytes = ub.nbytes + vb.nbytes
     read_s = stages["read_u_s"] + stages["read_v_s"]
     write_flush_s = (stages["write_u_s"] + stages["write_v_s"] +
                      stages["flush_u_s"] + stages["flush_v_s"])
 
-    # Return copies only for the optional compute-only benchmark.  Delete mmap
-    # handles before scratch cleanup can occur in the caller.
+    # 仅为可选的 compute-only 基准返回 chunk 拷贝；在调用方可能清理 scratch
+    # 之前，先用 del + gc.collect() 关闭 scratch memmap 句柄。
     result = {
         "chunk_index": chunk_index,
         "day_range": [ts, te],
@@ -462,6 +505,7 @@ def profile_chunk(
 
 
 def environment_info() -> dict[str, Any]:
+    """收集平台/Python/numpy/torch/CUDA 环境信息；torch 缺失时记录 None。"""
     info: dict[str, Any] = {
         "platform": platform.platform(),
         "python": sys.version,
@@ -481,6 +525,7 @@ def environment_info() -> dict[str, Any]:
 
 
 def print_summary(report: dict[str, Any]) -> None:
+    """把剖析报告按 CPU/GPU/元数据/全量外推四段以可读表格打印到终端。"""
     print("\nCPU chunk-stage summary (seconds):")
     print(f"{'stage':<30} {'count':>5} {'median':>10} {'p95':>10} {'total':>10} {'% wall':>8}")
     wall = sum(run["stages"]["chunk_total_s"] for run in report["chunks"])

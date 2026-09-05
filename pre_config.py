@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""Shared configuration for the PRE_ocean_data forecast task (imported by
-pre_trainer.py and pre_evaluate.py — keep this module side-effect free).
+"""模块职责：PRE_ocean_data 预报任务的共享配置（被 pre_trainer.py 与
+pre_evaluate.py 导入——本模块必须保持无副作用）。
 
-Also hosts the two small runtime helpers shared by trainer and evaluation:
-the training-objective configuration (diffusion vs deterministic
-persistence-residual) and the rank-0 terminal progress reporting
-(`ProgressReporter`: interactive tqdm bar + parseable PROGRESS key=value
-status lines; no monitoring service, no new dependency beyond tqdm).
+同时承载 trainer 与评估共享的两个运行时小件：训练目标配置（diffusion 与确定性
+persistence_residual）以及 rank-0 终端进度报告（`ProgressReporter`：交互 tqdm 条
++ 可解析的 PROGRESS key=value 状态行；不接监控服务，除 tqdm 外无新依赖）。
+
+不负责：数据集实现（pre_dataset.py）、模型、训练循环与评估循环本身；
+ProgressReporter 只做进度呈现，不承载任何训练语义。
+
+关键约束：import 时零副作用（不读环境变量、不建线程、不写盘）——所有环境变量
+读取都封装在函数内（static_mask_input / train_horizon / init_checkpoint），
+测试可以注入 env 参数而不触碰进程环境。
+
+依赖关系：标准库 + tqdm；被 pre_trainer.py、pre_evaluate.py、pre_smoke_test.py
+与多个 scripts/diag_*.py 导入。
 """
 import re
 import sys
@@ -18,25 +26,25 @@ from tqdm import tqdm
 OUT_ROOT = "/data2/user/zyq/checkpoints/PRE"
 
 PRESETS = {
-    # smoke test: verify the whole pipeline on the surface layer.
+    # 冒烟测试：在表层验证整条流水线。
     "surface_smoke": dict(
-        depth_index=29,            # 29 = sea surface (0 = bottom)
-        patch_size=(4, 3, 1),      # 400/4=100, 441/3=147, 1/1=1 -> 14,700 tokens
+        depth_index=29,            # 29 = 海表层（0 = 海底）
+        patch_size=(4, 3, 1),      # 400/4=100, 441/3=147, 1/1=1 -> 14,700 个 token
         embed_dim=180,
         implicit_layer=4,
         explicit_layer=4,
         batch_size=4,
         num_workers=4,
         num_epochs=10,
-        train_stride=1,            # window subsampling on train split
-        max_train_windows=None,    # set e.g. 2000 for a faster dry run
+        train_stride=1,            # 训练集窗口二次抽样步长
+        max_train_windows=None,    # 例如设 2000 可加快试运行
         sampling_steps=32,
-        val_windows=24,            # uniform val windows per epoch (whole val period)
+        val_windows=24,            # 每个 epoch 均匀抽取的验证窗口数（覆盖整个验证期）
         lr=1e-3,
     ),
-    # full 3D: 30 sigma layers, 400/4 x 441/3 x 30/2 = 100x147x15 = 220,500 tokens.
-    # memory-tight on a 24GB card: start with batch_size=1; if OOM, reduce embed_dim
-    # or implicit_layer before touching anything else.
+    # full3d：30 层 sigma，400/4 x 441/3 x 30/2 = 100x147x15 = 220,500 个 token。
+    # 24GB 显存吃紧：从 batch_size=1 起步；若 OOM，先降 embed_dim 或
+    # implicit_layer，再考虑其他参数。
     "full3d": dict(
         depth_index=None,
         patch_size=(4, 3, 2),
@@ -52,13 +60,11 @@ PRESETS = {
         val_windows=16,
         lr=1e-3,
     ),
-    # Work package 5 representative layers (experiment 11): MIDDLE (sigma
-    # index 14) and BOTTOM (sigma index 0). Architecture, patch, budget and
-    # protocol are IDENTICAL to surface_smoke — the ONLY difference is the
-    # probed depth index (never translate a sigma index into a fixed meter
-    # depth). Run tags: middle_smoke_*/bottom_smoke_*.
+    # 工作包 5 代表层（实验 11）：MIDDLE（sigma 索引 14）与 BOTTOM（sigma 索引 0）。
+    # 架构、patch、预算与协议与 surface_smoke 完全一致——唯一差别是探测的深度
+    # 索引（sigma 索引绝不换算成固定米深）。run 标签：middle_smoke_*/bottom_smoke_*。
     "middle_smoke": dict(
-        depth_index=14,            # middle representative sigma layer
+        depth_index=14,            # 中层代表 sigma 层
         patch_size=(4, 3, 1),
         embed_dim=180,
         implicit_layer=4,
@@ -73,7 +79,7 @@ PRESETS = {
         lr=1e-3,
     ),
     "bottom_smoke": dict(
-        depth_index=0,             # bottom representative sigma layer (seabed)
+        depth_index=0,             # 底层代表 sigma 层（海床）
         patch_size=(4, 3, 1),
         embed_dim=180,
         implicit_layer=4,
@@ -89,61 +95,60 @@ PRESETS = {
     ),
 }
 
-# Pipeline smoke runs keep the production architecture/grid but execute only a
-# handful of real optimizer steps per rank.  This catches data, memory, AMP,
-# sampling and checkpoint failures without creating a second toy model.
+# 流水线 smoke 运行保留生产架构/网格，但每个 rank 只执行少量真实优化器步数。
+# 用于在不造第二个玩具模型的前提下，暴露数据、显存、AMP、采样与 checkpoint 失败。
 SMOKE_BATCHES_PER_RANK = 4
 
-CONTEXT = 7        # condition days
-HORIZON = 15       # rollout days
-TARGET_CH = 2      # u, v
+CONTEXT = 7        # 条件窗口天数
+HORIZON = 15       # rollout 天数
+TARGET_CH = 2      # u、v 两个通道
 
-########## training objective ##########
+# 训练目标配置
 
-# "diffusion"            : conditional EDM (legacy default; legacy checkpoints
-#                          predate the objective field and always resolve here)
-# "persistence_residual" : deterministic PersistenceResidualIAFNO baseline
-#                          (prediction = last-day persistence + zero-init residual)
+# "diffusion"            ：条件 EDM（legacy 默认；不带 objective 字段的 legacy 检查点
+#                          一律归入此路径）
+# "persistence_residual" ：确定性 PersistenceResidualIAFNO 基线
+#                          （prediction = 末日持续性 + 零初始化残差头）
 OBJECTIVES = ("diffusion", "persistence_residual")
 DEFAULT_OBJECTIVE = "diffusion"
 
-# static mask input scheme recorded in checkpoints; only the bivariate rho
-# mask exists today (mask_u_rho + mask_v_rho as two channels)
+# 写入检查点的静态掩膜输入方案标识；当前只有双变量 rho 掩膜
+# （mask_u_rho 与 mask_v_rho 两个通道）
 MASK_SCHEME = "bivariate_rho"
 
-# constant sigma behind the deterministic model's c_noise time embedding
-# (time = 0.25 * log(time_sigma); no noise schedule exists, any fixed constant
-# is valid — the value is recorded in checkpoints for exact rebuilds)
+# 确定性模型 c_noise 时间嵌入背后的常数 sigma
+# （time = 0.25 * log(time_sigma)；不存在噪声 schedule，取任意固定常数均有效
+# ——该值写入检查点以便精确重建）
 RESIDUAL_TIME_SIGMA = 0.002
 
-# Phase-5 mask-input A/B (arm B): append the two bivariate rho mask channels
-# (mask_u_rho / mask_v_rho) to the backbone's condition. The DYNAMIC window
-# stays 14-channel everywhere (dataset, rollout sliding window, persistence
-# base); the masks are forwarded to the model separately via pre_rollout's
-# `static_cond`. Enabled per-run with DIAFNO_STATIC_MASK=1 and recorded in
-# checkpoint config as `static_mask_input` (run tag suffix "_MSK").
+# Phase-5 掩膜输入 A/B（B 臂）：把双变量 rho 掩膜的两个通道
+# （mask_u_rho / mask_v_rho）拼接到 backbone 条件。动态窗口在各处（dataset、
+# rollout 滑窗、持续性基）都保持 14 通道；掩膜经 pre_rollout 的 `static_cond`
+# 单独转发给模型。按运行以 DIAFNO_STATIC_MASK=1 启用，并以 `static_mask_input`
+# 记录在检查点 config 中（run 标签后缀 "_MSK"）。
 STATIC_MASK_ENV = "DIAFNO_STATIC_MASK"
 STATIC_MASK_CHANNELS = 2
 
 
 def static_mask_input(env=None):
-    """Read the DIAFNO_STATIC_MASK flag ("1"/"true"/"yes" -> True)."""
+    """读取 DIAFNO_STATIC_MASK 开关（"1"/"true"/"yes" -> True）。"""
     import os
     value = (env if env is not None else os.environ.get(STATIC_MASK_ENV, ""))
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
 def static_mask_from_checkpoint(ckpt_cfg, objective=None):
-    """Resolve the static-mask-input arm (experiment 08) from checkpoint config.
+    """功能：从检查点 config 解析静态掩膜输入臂（实验 08）。
 
-    Returns (static_mask_input, model_cond_chans): the flag and the backbone
-    condition channel count the checkpoint was TRAINED with, so evaluation can
-    rebuild the exact architecture. Legacy checkpoints without the fields are
-    the plain 14-channel path (False, 2*CONTEXT). Impossible or contradictory
-    metadata is refused instead of silently rebuilding a different model:
-      - a diffusion checkpoint with static_mask_input=True (the diffusion path
-        keeps its historical layout; the trainer never allows this arm);
-      - a recorded model_cond_chans that disagrees with the resolved flag.
+    返回：(static_mask_input, model_cond_chans)——开关标志与该检查点训练时使用的
+    backbone 条件通道数，评估据此重建完全一致的架构。缺失字段的 legacy 检查点
+    走普通 14 通道路径（False, 2*CONTEXT）。不可能或互相矛盾的元数据直接拒绝，
+    绝不静默重建出另一个模型：
+      - diffusion 检查点记录 static_mask_input=True（diffusion 路径保持历史
+        布局，trainer 从不允许该臂）；
+      - 记录的 model_cond_chans 与解析结果不符。
+
+    异常：上述两种矛盾各抛 RuntimeError。
     """
     ckpt_cfg = ckpt_cfg or {}
     flag = bool(ckpt_cfg.get("static_mask_input", False))
@@ -162,29 +167,30 @@ def static_mask_from_checkpoint(ckpt_cfg, objective=None):
     return flag, cond_ch
 
 
-########## detached multi-step training (work package 2; doc §5) ##########
+# 分离式多步训练（工作包 2；doc §5）
 
-# detached autoregressive multi-step horizon K ("MS{K}"): the trainer rolls the
-# model's OWN (no_grad, clamped) predictions forward for J-1 steps and
-# backpropagates only the J-th step (doc §5 pseudocode). K=1 is the exact
-# historical single-step teacher-forcing path. Only the deterministic
-# persistence_residual objective with static_mask_input=False is allowed.
+# 分离式自回归多步训练视界 K（"MS{K}"）：trainer 把模型自己的（no_grad、clamp
+# 后）预测前推 J-1 步，只反传第 J 步（doc §5 伪代码）。K=1 与历史单步
+# teacher-forcing 路径按位一致。仅允许确定性 persistence_residual 目标、
+# 且 static_mask_input 为 False。
 TRAIN_HORIZON_ENV = "DIAFNO_TRAIN_HORIZON"
 
-# weights-only initialization source (e.g. experiment-07 Ep10): model weights
-# are loaded, optimizer/scheduler/scaler/epoch/history are NOT (the source
-# cosine schedule is finished; MS runs start a fresh optimizer at a lower LR).
-# Mutually exclusive with DIAFNO_CHECKPOINT (full resume).
+# 仅权重初始化来源（如实验 07 的 Ep10）：只加载模型权重，optimizer/scheduler/
+# scaler/epoch/history 均不加载（来源的 cosine 调度已走完；MS 运行以更低 LR
+# 启动全新 optimizer）。与 DIAFNO_CHECKPOINT（完整 resume）互斥。
 INIT_CHECKPOINT_ENV = "DIAFNO_INIT_CHECKPOINT"
 
-# defaults applied ONLY when train_horizon > 1 (doc §6 WP3 frozen config:
-# fresh optimizer, LR 1e-4, at most 5 epochs; smoke mode still overrides the
-# epoch count). Recorded in checkpoint config like every other hyperparameter.
+# 仅在 train_horizon > 1 时应用的默认值（doc §6 WP3 冻结配置：全新 optimizer、
+# LR 1e-4、最多 5 个 epoch；smoke 模式仍会覆盖 epoch 数）。与其他超参数一样
+# 写入检查点 config。
 MS_DEFAULTS = dict(lr=1e-4, num_epochs=5)
 
 
 def train_horizon(env=None):
-    """Read DIAFNO_TRAIN_HORIZON ("MS{K}", int >= 1; default 1 = single-step)."""
+    """读取 DIAFNO_TRAIN_HORIZON（"MS{K}"，整数 >= 1；默认 1 = 单步）。
+
+    异常：非整数或小于 1 抛 ValueError（fail-fast，避免把非法视界带进训练）。
+    """
     import os
     value = (env if env is not None else os.environ.get(TRAIN_HORIZON_ENV, ""))
     value = str(value).strip()
@@ -200,7 +206,7 @@ def train_horizon(env=None):
 
 
 def init_checkpoint(env=None):
-    """Read DIAFNO_INIT_CHECKPOINT (weights-only init source; None by default)."""
+    """读取 DIAFNO_INIT_CHECKPOINT（仅权重初始化来源；默认 None）。"""
     import os
     value = (env if env is not None else os.environ.get(INIT_CHECKPOINT_ENV, ""))
     value = str(value).strip()
@@ -208,15 +214,15 @@ def init_checkpoint(env=None):
 
 
 def lead_for_batch(batch_index, train_horizon):
-    """Training lead J for a batch index (doc §5.1 fixed schedule).
+    """功能：按 batch 索引给出训练 lead J（doc §5.1 固定调度）。
 
-    K=1  -> always 1 (the historical single-step path, schedule inert).
-    K>1  -> even batch indices keep the day-1 anchor (50% of batches); odd
-            indices cycle 2..K, i.e. MS5 produces 1,2,1,3,1,4,1,5,1,2,...
+    K=1  -> 恒为 1（历史单步路径，调度不起作用）。
+    K>1  -> 偶数 batch 保持 day-1 锚点（占 50%）；奇数 batch 在 2..K 上轮换，
+            即 MS5 产生 1,2,1,3,1,4,1,5,1,2,...
 
-    Pure function of (batch_index, K): no RNG, no global state, so every DDP
-    rank derives the SAME J for the same step (all ranks have equal batch
-    counts because both the sampler and the loader use drop_last=True).
+    关键约束：J 是 (batch_index, K) 的纯函数——无 RNG、无全局状态，因此每个
+    DDP rank 对同一步推出相同的 J（sampler 与 loader 都用 drop_last=True，
+    各 rank 的 batch 数相同），collective-safe。
     """
     k = int(train_horizon)
     if k <= 1:
@@ -228,8 +234,8 @@ def lead_for_batch(batch_index, train_horizon):
 
 
 def lead_schedule_str(train_horizon):
-    """Canonical one-period schedule string for logs/checkpoint metadata
-    (e.g. MS5 -> "1,2,1,3,1,4,1,5"; K=1 -> "1")."""
+    """功能：生成规范的一个周期调度字符串，供日志与检查点元数据使用
+    （如 MS5 -> "1,2,1,3,1,4,1,5"；K=1 -> "1"）。"""
     k = int(train_horizon)
     if k <= 1:
         return "1"
@@ -237,15 +243,15 @@ def lead_schedule_str(train_horizon):
 
 
 def check_multistep_config(ckpt_cfg, train_horizon_now, schedule_now):
-    """Resume guard for the multi-step semantics recorded in a checkpoint.
+    """功能：resume 时校验检查点中记录的多步语义。
 
-    A checkpoint that was trained with (or without) detached multi-step
-    feedback must never be resumed under different semantics:
-      - train_horizon must match exactly; legacy checkpoints without the field
-        are only compatible with K=1 (they predate multi-step entirely);
-      - when BOTH sides record a lead schedule, the canonical strings must
-        match (a schedule change would silently alter the training
-        distribution of a resumed run).
+    带（或不带）分离式多步反馈训练出的检查点，绝不允许在不同语义下 resume：
+      - train_horizon 必须精确一致；缺失该字段的 legacy 检查点只与 K=1 兼容
+        （它们早于多步机制存在）；
+      - 两侧都记录 lead_schedule 时，规范字符串必须一致（调度变更会静默改变
+        resume 后的训练分布）。
+
+    异常：任何不匹配抛 RuntimeError。
     """
     ckpt_cfg = ckpt_cfg or {}
     recorded = ckpt_cfg.get("train_horizon")
@@ -271,19 +277,18 @@ def check_multistep_config(ckpt_cfg, train_horizon_now, schedule_now):
 
 
 def restore_worse_epochs(checkpoint):
-    """Early-stop counter from a checkpoint (resume semantics).
+    """功能：从检查点恢复早停计数器（resume 语义）。
 
-    `worse_epochs` counts consecutive epochs whose val_masked_relL2 was
-    strictly above the running best; the trainer stops early at 2. It must
-    survive a resume: a pre-existing worsening streak still counts.
-    Legacy checkpoints without the field keep the historical default 0.
+    `worse_epochs` 统计 val_masked_relL2 连续严格高于历史最佳的 epoch 数；
+    trainer 在达到 2 时提前停止。resume 后该计数必须存续：既有的变差连续段
+    仍然计入。缺失该字段的 legacy 检查点保持历史默认 0。
     """
     ckpt = checkpoint or {}
     return max(0, int(ckpt.get("worse_epochs", 0)))
 
 
 def validate_objective(objective):
-    """Normalize/validate a training-objective name."""
+    """功能：归一化并校验训练目标名称（未知名称抛 ValueError）。"""
     objective = str(objective).lower()
     if objective not in OBJECTIVES:
         raise ValueError(f"unknown objective {objective!r}; expected one of {OBJECTIVES}")
@@ -291,17 +296,19 @@ def validate_objective(objective):
 
 
 def objective_from_checkpoint(checkpoint, default=DEFAULT_OBJECTIVE):
-    """Objective recorded in a checkpoint (dict with optional "config").
+    """功能：读取检查点记录的训练目标（入参为含可选 "config" 的 dict）。
 
-    Legacy checkpoints predate the objective field and are always diffusion.
+    缺失 objective 字段的 legacy 检查点一律视为 diffusion。
     """
     cfg = (checkpoint or {}).get("config") or {}
     return validate_objective(cfg.get("objective", default))
 
 
 def ensure_objective_compatible(checkpoint, objective):
-    """Refuse to load a checkpoint into a model of the OTHER objective class
-    (resume or evaluation rebuild). Returns the checkpoint's objective."""
+    """功能：拒绝把检查点加载进另一类目标的模型（resume 或评估重建）。
+
+    返回检查点的 objective；不一致抛 RuntimeError。
+    """
     ckpt_obj = objective_from_checkpoint(checkpoint)
     if ckpt_obj != objective:
         raise RuntimeError(
@@ -311,16 +318,17 @@ def ensure_objective_compatible(checkpoint, objective):
 
 
 def check_norm_fingerprint(ckpt_cfg, lo, hi, mask_version_now, tol=1e-6):
-    """Verify a checkpoint's data-semantics fingerprint (normalization range +
-    ocean mask version) against the CURRENT stats/masks before resuming or
-    evaluating with it: a mismatch means the checkpoint was trained on
-    different normalization semantics than the run would now use, which must
-    never happen silently.
+    """功能：在 resume 或评估使用检查点之前，校验其数据语义指纹（归一化范围 +
+    海洋掩膜版本）与当前 stats/masks 是否一致：不一致说明该检查点训练时的归一化
+    语义与本次运行将使用的不同，绝不允许静默发生。
 
-    Raises RuntimeError on any mismatch; RETURNS a list of WARNING strings for
-    legacy checkpoints that predate the recorded fields (cannot be verified —
-    the caller must log them). `lo`/`hi` are the current per-variable stats
-    (any sequence of floats); `mask_version_now` is pre_dataset.mask_version().
+    异常 / 前置条件：
+    - 任何不匹配抛 RuntimeError；
+    - 对缺失记录字段的 legacy 检查点返回 WARNING 字符串列表（无法校验——调用方
+      必须打印它们）。
+
+    参数：`lo`/`hi` 为当前逐变量统计（任意浮点序列）；`mask_version_now` 为
+    pre_dataset.mask_version()。
     """
     ckpt_cfg = ckpt_cfg or {}
     warnings = []
@@ -354,10 +362,12 @@ def check_norm_fingerprint(ckpt_cfg, lo, hi, mask_version_now, tol=1e-6):
 
 
 def check_residual_time_sigma(ckpt_cfg, time_sigma):
-    """The deterministic model's constant time embedding is part of its
-    semantics: refuse to resume from a persistence-residual checkpoint recorded
-    with a different (or unrecorded) time_sigma. (Evaluation ADOPTS the
-    checkpoint's own value, so this guard is for training resume only.)"""
+    """功能：确定性模型的常数时间嵌入是其语义的一部分：拒绝从记录了不同（或未
+    记录）time_sigma 的 persistence-residual 检查点 resume。（评估侧采用检查点
+    自身的值，因此该防线只用于训练 resume。）
+
+    异常：缺失 time_sigma 或与当前值偏差超过 1e-9 抛 RuntimeError。
+    """
     ckpt_cfg = ckpt_cfg or {}
     if "time_sigma" not in ckpt_cfg:
         raise RuntimeError(
@@ -369,28 +379,26 @@ def check_residual_time_sigma(ckpt_cfg, time_sigma):
             f"{float(time_sigma)!r}; the residual time embedding changed — "
             "refusing to resume")
 
-# EDM sigma_data lives in the image space that ElucidatedDiffusion actually
-# uses: diffusion.py normalizes training images with `images * 2 - 1`, i.e.
-# the data distribution seen by the EDM is [-1, 1], whose std is TWICE the
-# std of the [0, 1]-normalized stats cache. stats["sigma"] keeps storing the
-# [0, 1]-space value; training and evaluation MUST both go through
-# sigma_data_from_stats() / sigma_data_from_checkpoint() below.
+# EDM 的 sigma_data 生活在 ElucidatedDiffusion 实际使用的图像空间：diffusion.py
+# 用 `images * 2 - 1` 归一化训练图像，即 EDM 看到的数据分布是 [-1, 1]，其标准差
+# 是 [0, 1] 归一化统计缓存标准差的两倍。stats["sigma"] 继续存 [0, 1] 空间的值；
+# 训练与评估必须都经由下方的 sigma_data_from_stats() / sigma_data_from_checkpoint()。
 SIGMA_DATA_SCALE = 2.0
 
 
 def sigma_data_from_stats(stats_sigma):
-    """[0,1]-space pooled sigma -> EDM sigma_data in the [-1,1] image space."""
+    """功能：[0,1] 空间的池化 sigma -> [-1,1] 图像空间的 EDM sigma_data。"""
     return SIGMA_DATA_SCALE * float(stats_sigma)
 
 
 def sigma_data_from_checkpoint(checkpoint, stats_sigma):
-    """Resolve the EDM sigma_data for a checkpoint.
+    """功能：解析检查点使用的 EDM sigma_data。
 
-    Priority: the checkpoint's own config["sigma_data"] (written by the
-    fixed-scale trainer). Legacy checkpoints (no config / no sigma_data field)
-    fall back to the OLD scale `stats["sigma"]` (NOT the doubled value) and
-    report used_checkpoint=False so the caller can print an explicit notice.
-    Returns (sigma_data: float, used_checkpoint_value: bool).
+    优先级：检查点自身的 config["sigma_data"]（定尺度 trainer 写入）。缺失
+    config 或字段的 legacy 检查点回退到旧尺度 stats["sigma"]（不是加倍值），并
+    返回 used_checkpoint=False 供调用方显式告警。
+
+    返回：(sigma_data: float, used_checkpoint_value: bool)。
     """
     cfg = (checkpoint or {}).get("config") or {}
     if "sigma_data" in cfg:
@@ -399,16 +407,18 @@ def sigma_data_from_checkpoint(checkpoint, stats_sigma):
 
 
 def resume_sigma_decision(sd_ckpt, sd_current, policy):
-    """Decide which sigma_data a resume run must use.
+    """功能：决定 resume 运行必须使用的 sigma_data。
 
-    sd_ckpt: the checkpoint's sigma_data (resolved via
-        sigma_data_from_checkpoint). sd_current: the current run's sigma_data
-        (sigma_data_from_stats). policy is one of:
-        "error"   (default): mismatch -> RuntimeError; never mix scales silently.
-        "migrate"           : explicit scale migration — keep sd_current.
-        "adopt"             : explicit legacy continuation — use sd_ckpt.
-    Returns (sigma_data: float, adopted: bool). Matching scales always return
-    (sd_current, False) regardless of policy.
+    参数：
+    - sd_ckpt：检查点的 sigma_data（经 sigma_data_from_checkpoint 解析）；
+    - sd_current：当前运行的 sigma_data（sigma_data_from_stats）；
+    - policy 三选一：
+      "error"   （默认）：不一致 -> RuntimeError；绝不静默混用尺度。
+      "migrate"           ：显式尺度迁移——沿用 sd_current。
+      "adopt"             ：显式 legacy 延续——沿用 sd_ckpt。
+
+    返回：(sigma_data: float, adopted: bool)。尺度一致时无论 policy 一律返回
+    (sd_current, False)。未知 policy 抛 ValueError。
     """
     sd_ckpt = float(sd_ckpt)
     sd_current = float(sd_current)
@@ -431,16 +441,16 @@ def resume_sigma_decision(sd_ckpt, sd_current, policy):
 
 
 def training_config(preset, mode="full", world_size=1, train_horizon=1):
-    """Return an isolated mutable config for a smoke or full training run.
+    """功能：为 smoke 或 full 训练返回隔离的可变 config 副本。
 
-    ``batch_size`` remains the per-device batch size.  A smoke run contains
-    exactly ``SMOKE_BATCHES_PER_RANK`` full batches on every DDP rank, uses one
-    epoch and short sampling, while preserving the selected preset's model
-    architecture and physical grid.
+    ``batch_size`` 保持 per-device 语义。smoke 运行在每个 DDP rank 上恰好包含
+    ``SMOKE_BATCHES_PER_RANK`` 个完整 batch，使用 1 个 epoch 与短采样，同时保留
+    所选预设的模型架构与物理网格。
 
-    A detached multi-step run (train_horizon > 1) uses the frozen MS_DEFAULTS
-    (lr/num_epochs) instead of the preset's single-step values; smoke mode
-    still reduces the epoch count afterwards.
+    分离式多步运行（train_horizon > 1）改用冻结的 MS_DEFAULTS（lr/num_epochs），
+    不取预设的单步值；smoke 模式仍随后缩减 epoch 数。
+
+    异常：未知 preset/mode、world_size < 1 或 train_horizon < 1 抛 ValueError。
     """
     if preset not in PRESETS:
         raise ValueError(f"unknown preset {preset!r}; expected one of {tuple(PRESETS)}")
@@ -469,14 +479,11 @@ def training_config(preset, mode="full", world_size=1, train_horizon=1):
 
 def run_tag_for(preset, sd2=True, config=None, objective=DEFAULT_OBJECTIVE,
                 static_mask=False, train_horizon=1):
-    """Checkpoint/output dir tag. sd2=True appends the fixed-scale suffix so a
-    re-trained run NEVER shares a directory with the legacy (sd1) runs.
-    objective="persistence_residual" additionally appends "_RES" so the
-    deterministic baseline never shares a directory with a diffusion run.
-    static_mask=True appends "_MSK" so the Phase-5 mask-input arm never shares
-    a directory with the 14-channel baseline. train_horizon > 1 appends
-    "_MS{K}" so a detached multi-step run never shares a directory with a
-    single-step run (K=1 keeps the historical tag unchanged)."""
+    """功能：检查点/输出目录标签。sd2=True 追加定尺度后缀，使重训运行绝不与
+    legacy（sd1）运行共享目录；objective="persistence_residual" 追加 "_RES"，
+    使确定性基线绝不与 diffusion 运行共享目录；static_mask=True 追加 "_MSK"，
+    使 Phase-5 掩膜输入臂绝不与 14 通道基线共享目录；train_horizon > 1 追加
+    "_MS{K}"，使分离式多步运行绝不与单步运行共享目录（K=1 保持历史标签不变）。"""
     cfg = PRESETS[preset] if config is None else config
     tag = (f"{preset}_BS{cfg['batch_size']}_EMD{cfg['embed_dim']}"
            f"_I{cfg['implicit_layer']}_E{cfg['explicit_layer']}"
@@ -495,7 +502,8 @@ def run_tag_for(preset, sd2=True, config=None, objective=DEFAULT_OBJECTIVE,
 def training_run_tag(preset, config, mode="full", world_size=1,
                      objective=DEFAULT_OBJECTIVE, static_mask=False,
                      train_horizon=1):
-    """Run tag with smoke/DDP isolation; single-GPU full tags stay legacy-compatible."""
+    """功能：带 smoke/DDP 隔离的 run 标签；单卡 full 标签与 legacy 保持兼容。
+    smoke 追加 "_SMOKE"；多进程追加 "_DDP{world_size}"。"""
     tag = run_tag_for(preset, config=config, objective=objective,
                       static_mask=static_mask, train_horizon=train_horizon)
     if mode == "smoke":
@@ -505,26 +513,25 @@ def training_run_tag(preset, config, mode="full", world_size=1,
     return tag
 
 
-########## rank-0 terminal progress (trainer + evaluation) ##########
+# rank-0 终端进度报告（trainer + evaluation）
 
-# minimum spacing between periodic PROGRESS status lines while a phase runs
-# (start/close/failed lines are ALWAYS emitted, even inside this interval)
+# 阶段运行期间周期性 PROGRESS 状态行之间的最小间隔
+#（start/close/failed 行总是发出，不受该间隔限制）
 PROGRESS_INTERVAL_S = 30.0
 
 
 def _progress_value(value):
-    """key=value tokens must contain NO whitespace at all: every run of
-    spaces/newlines/tabs becomes a single underscore, so even a multi-line
-    exception message keeps the status line single-line and parseable."""
+    """功能：key=value token 不得含任何空白：所有连续空格/换行/制表符折叠为单个
+    下划线，使多行异常消息也保持状态行单行可解析。"""
     return re.sub(r"\s+", "_", str(value))
 
 
 def format_progress(phase, status, **fields):
-    """One parseable status line, e.g.
+    """功能：生成一行可解析状态行，例如
     'PROGRESS phase=train epoch=1/4 step=120/2101 elapsed_s=91.2 eta_s=1506.4
-    step_per_s=1.31 sample_per_s=5.24 loss=0.0187 lr=1e-4 status=running'.
-    `phase` is always the first field and `status` always the last, so both
-    simple split() and per-token key=value parsing stay stable."""
+    step_per_s=1.31 sample_per_s=5.24 loss=0.0187 lr=1e-4 status=running'。
+    `phase` 恒为首字段、`status` 恒为末字段，因此简单 split() 与逐 token 的
+    key=value 解析都保持稳定。"""
     parts = ["PROGRESS", f"phase={_progress_value(phase)}"]
     for key, value in fields.items():
         parts.append(f"{key}={_progress_value(value)}")
@@ -533,37 +540,35 @@ def format_progress(phase, status, **fields):
 
 
 class ProgressReporter:
-    """Rank-0 progress for ONE phase (a training epoch, a validation pass, an
-    evaluation run). Not a logging framework: a thin tqdm wrapper plus the
-    agent-readable PROGRESS lines required for non-interactive runs.
+    """表示：单个阶段（一个训练 epoch、一次验证、一次评估运行）的 rank-0 进度
+    报告。不是日志框架：tqdm 薄包装加上非交互运行所需的 PROGRESS 行。
 
-    Interactive TTY (stream.isatty()): a single-line tqdm bar (desc, count/
-    total, rate, ETA) plus a postfix string built from each update()'s fields.
+    交互式 TTY（stream.isatty()）：单行 tqdm 进度条（desc、count/total、rate、
+    ETA）加由每次 update() 字段构成的后缀。
 
-    Non-interactive (pipe/file redirect/monitoring agent): NO bar and no
-    carriage-return animation; instead a complete, newline-terminated and
-    immediately flushed `PROGRESS key=value` line is emitted at start, at
-    close, on failure, and at least every `interval` seconds while running.
-    The periodic line is TIME-DRIVEN, not update-driven: a daemon heartbeat
-    thread emits it even when a single batch/rollout step blocks the caller
-    for longer than `interval` (no mid-batch silence).
+    非交互（管道/文件重定向/监控代理）：无进度条、无回车动画；改为在 start、
+    close、失败时以及运行期间至少每 `interval` 秒发出一条完整、换行结束且立即
+    flush 的 `PROGRESS key=value` 行。周期行由时间驱动而非更新驱动：守护心跳
+    线程在单次 batch/rollout 步阻塞调用方超过 `interval` 时也会发出（批中不会
+    沉默）。
 
-    Status vocabulary (stable parsing contract):
-      start       phase started (both modes, always)
-      running     periodic heartbeat / update-driven progress line
-      phase_done  THIS reporter's phase finished (intermediate: one training
-                  epoch, the eval rollout loop) — NOT the end of the script
-      failed      the run aborted (any exception)
-    `status=completed` is reserved for the script-level end and is emitted by
-    the entrypoints themselves (pre_trainer/pre_evaluate), never by a
-    per-phase reporter, so a monitor can never mistake an epoch boundary for
-    the end of the run.
+    状态词表（稳定的解析契约）：
+      start       阶段启动（两种模式、必定发出）
+      running     周期心跳/更新驱动的进度行
+      phase_done  本 reporter 的阶段结束（中间态：一个训练 epoch、评估的
+                  rollout 循环）——不是脚本结束
+      failed      运行中止（任何异常）
+    `status=completed` 保留给脚本级结束，由入口脚本（pre_trainer/pre_evaluate）
+    自己发出，绝不由单阶段 reporter 发出，监控端因此不会把 epoch 边界误判为
+    运行结束。
 
-    Both modes always emit the start/close/failed lines (so even a sub-30s
-    smoke run produces status=start and a terminal status). `enabled=False`
-    (non-rank-0 DDP ranks) makes everything a silent no-op. `stream` and
-    `clock` are injectable for tests; `context` fields are merged into every
-    emitted line (e.g. epoch=k/n, split=test, scope=rank0_shard_of_4).
+    两种模式总是发出 start/close/failed 行（即使不足 30 秒的 smoke 运行也有
+    status=start 与一条终止状态）。`enabled=False`（非 rank-0 的 DDP rank）使
+    一切变为静默空操作。`stream` 与 `clock` 可注入用于测试；`context` 字段合并
+    进每条发出的行（如 epoch=k/n、split=test、scope=rank0_shard_of_4）。
+
+    线程安全：全部状态变更与发射都在 `self._lock` 内；心跳是 daemon 线程，由
+    close() 经 _stop_evt 停止。
     """
 
     def __init__(self, phase, total, stream=None, clock=None,
@@ -587,7 +592,7 @@ class ProgressReporter:
         self._last_emit = None
         self._bar = None
         self._closed = False
-        self._last_fields = {}          # most recent update()'s metric fields
+        self._last_fields = {}          # 最近一次 update() 的指标字段
         self._lock = threading.Lock()
         self._stop_evt = threading.Event()
         self._hb_thread = None
@@ -600,18 +605,19 @@ class ProgressReporter:
                              dynamic_ncols=True, leave=False, file=self.stream)
         else:
             self._last_emit = self._t0
-            # time-driven heartbeat: emits status=running when `interval`
-            # elapses without an update() call (daemon; stopped by close())
+            # 时间驱动心跳：interval 内没有 update() 调用也发出 status=running
+            #（daemon 线程；close() 停止）
             self._hb_thread = threading.Thread(
                 target=self._heartbeat_loop, daemon=True,
                 name=f"progress-heartbeat-{phase}")
             self._hb_thread.start()
 
-    # ------------------------------------------------------------------ core
+    # 内部实现
 
     def _heartbeat_loop(self):
-        """Daemon: emit a running line whenever `interval` passed since the
-        last emission, even if the caller is blocked inside one batch."""
+        """守护线程：距上次发射超过 `interval` 就发出一条 running 行，即使调用方
+        阻塞在单个 batch 内也不沉默。轮询周期取 interval/4，夹在 [0.05, 5] 秒
+        之间，避免高频自旋或漏检。"""
         poll = min(max(self.interval / 4.0, 0.05), 5.0)
         while not self._stop_evt.wait(poll):
             with self._lock:
@@ -623,11 +629,11 @@ class ProgressReporter:
                     self._emit_nolock("running")
 
     def _throughput_fields(self, now, status_fields):
-        """Progress + elapsed/ETA/rate fields shared by every emitted line.
+        """功能：构成每条发射行共享的进度 + elapsed/ETA/rate 字段。
 
-        The most recent update()'s metric fields (loss, lr, d1_rmse, ...) are
-        merged in so close/failed lines carry the last known metrics; fields
-        passed to the emitting call itself win over them."""
+        最近一次 update() 的指标字段（loss、lr、d1_rmse、...）合并进来，使
+        close/failed 行也携带最后已知指标；本次发射调用显式传入的字段优先。
+        """
         fields = dict(self.context)
         fields[self.unit] = f"{self.done}/{self.total}"
         elapsed = max(now - self._t0, 0.0)
@@ -644,7 +650,7 @@ class ProgressReporter:
         return fields
 
     def _emit_nolock(self, status, **fields):
-        """Format + write one status line. Caller must hold `self._lock`."""
+        """功能：格式化并写出一条状态行。调用方必须已持有 `self._lock`。"""
         line = format_progress(self.phase, status,
                                **self._throughput_fields(self.clock(), fields))
         if self._bar is not None:
@@ -652,15 +658,14 @@ class ProgressReporter:
         else:
             print(line, file=self.stream, flush=True)
 
-    # ------------------------------------------------------------------ API
+    # 对外 API
 
     def update(self, n=1, **fields):
-        """Advance the counter and refresh the postfix / periodic status line.
+        """功能：推进计数并刷新后缀/周期状态行。
 
-        `fields` (e.g. loss, lr, updates, d1_rmse) appear in the interactive
-        postfix immediately and in periodic PROGRESS lines verbatim. `n` must
-        count the reporter's OWN unit faithfully (e.g. actual windows in a
-        possibly-partial final batch), not the number of calls.
+        `fields`（如 loss、lr、updates、d1_rmse）立即出现在交互后缀中，并按
+        原文出现在周期 PROGRESS 行里。`n` 必须如实按 reporter 自身单位计数
+        （如部分满的末 batch 里的实际窗口数），而不是调用次数。
         """
         if not self.enabled or self._closed:
             return
@@ -681,8 +686,8 @@ class ProgressReporter:
                 self._emit_nolock("running", **fields)
 
     def note(self, message):
-        """Print a regular line without corrupting an active bar (tqdm.write);
-        a plain flush-immediate print in non-interactive mode."""
+        """功能：打印普通行而不破坏活动进度条（经 tqdm.write）；非交互模式下为
+        立即 flush 的普通 print。"""
         if not self.enabled or self._closed:
             return
         with self._lock:
@@ -692,9 +697,8 @@ class ProgressReporter:
                 print(str(message), file=self.stream, flush=True)
 
     def close(self, status="phase_done", **fields):
-        """Emit the terminal status line for this phase (default
-        `phase_done` — the script-level `completed` is emitted by the
-        entrypoints themselves) and stop the heartbeat thread. Idempotent."""
+        """功能：发出本阶段的终止状态行（默认 `phase_done`——脚本级 `completed`
+        由入口脚本自己发出）并停止心跳线程。幂等。"""
         if not self.enabled or self._closed:
             return
         with self._lock:
@@ -706,47 +710,47 @@ class ProgressReporter:
                 self._bar = None
 
     def fail(self, **fields):
-        """Emit status=failed (fields typically error=..., stage=...) and close."""
+        """功能：发出 status=failed（字段通常为 error=...、stage=...）并关闭。"""
         self.close(status="failed", **fields)
 
 
-########## standard failure reporting for UNGUARDED script sections ##########
+# 未受保护脚本段的统一失败上报
 
-# one failure per process: guarded-block handlers set this via
-# mark_progress_failed() before emitting their own line, so the fallback hook
-# below never duplicates it
+# 每进程最多一条失败行：受保护块的 handler 在自己发行前先经
+# mark_progress_failed() 置位，因此下方兜底 hook 不会重复。
 _PROGRESS_FAILURE_REPORTED = False
 
 
 def mark_progress_failed():
-    """Record that a standard `status=failed` PROGRESS line was already emitted
-    for this process (see install_progress_failure_hook)."""
+    """功能：记录本进程已发出过标准 `status=failed` PROGRESS 行（见
+    install_progress_failure_hook），使兜底 hook 去重。"""
     global _PROGRESS_FAILURE_REPORTED
     _PROGRESS_FAILURE_REPORTED = True
 
 
 def reset_progress_failure_state():
-    """Clear the dedup flag (test seam; no production caller)."""
+    """功能：清除去重标志（测试缝隙；无生产调用方）。"""
     global _PROGRESS_FAILURE_REPORTED
     _PROGRESS_FAILURE_REPORTED = False
 
 
 def install_progress_failure_hook(phase, stage=None, stream=None, fallback=None):
-    """Install a `sys.excepthook` fallback that emits ONE standard
-    `PROGRESS ... status=failed` line for exceptions that escape a script's
-    guarded blocks — initialization, data/model setup, pre-flight refusals and
-    post-processing failures have no live reporter of their own.
+    """功能：安装一个 `sys.excepthook` 兜底，为逃出脚本受保护块的异常发出唯一
+    一条标准 `PROGRESS ... status=failed` 行——初始化、数据/模型搭建、
+    pre-flight 拒绝与后处理失败没有自己的活跃 reporter。
 
-    phase: the PROGRESS phase field (e.g. "train" / "eval").
-    stage: static stage name, or a zero-arg callable read AT FAILURE TIME so a
-           script can track its current section (e.g. setup -> rollout ->
-           postprocess) via a mutable variable.
-    stream/fallback: injectable for tests (fallback defaults to the original
-           sys.__excepthook__, which still prints the full traceback).
+    参数：
+    - phase：PROGRESS 的 phase 字段（如 "train" / "eval"）；
+    - stage：静态阶段名，或零参 callable——在失败时刻读取，使脚本能经可变
+      变量跟踪当前段（setup -> rollout -> postprocess）；
+    - stream/fallback：测试可注入（fallback 默认 sys.__excepthook__，仍打印
+      完整 traceback）。
 
-    Deduplicated: silent if mark_progress_failed() was already called (the
-    guarded block reported its own failure). Call only on the reporting rank
-    (rank 0 / single-process entrypoints). Returns the installed hook.
+    副作用：替换 sys.excepthook。去重：mark_progress_failed() 已调用时保持
+    沉默（受保护块已报告自身失败）。只在负责上报的 rank（rank 0 / 单进程
+    入口）调用。
+
+    返回：安装的 hook。
     """
     def _hook(exc_type, exc, tb):
         if not _PROGRESS_FAILURE_REPORTED:

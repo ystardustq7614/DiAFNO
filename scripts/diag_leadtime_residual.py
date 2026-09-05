@@ -1,23 +1,34 @@
-"""Lead-time error diagnosis for the persistence-residual baseline (Ep10).
+"""模块职责：persistence-residual 基线的 lead-time 误差诊断。
 
-Replays the official test rollout protocol (same checkpoint / split / seed /
-remask semantics as pre_evaluate.py) on a strided subset of windows and
-accumulates per-lead-day native-grid statistics the evaluation NPZ does not
-store: signed bias, pooled variance ratio (pred/truth; <1 = blur) and
-per-window spatial pattern correlation, separately for the model and the
-persistence baseline.
+在窗口 stride 抽样子集上复现正式 test rollout 协议（与 pre_evaluate.py
+相同的 checkpoint 装载 / split / 逐窗口种子 / remask 语义），累计正式评估
+NPZ 不存的逐 lead 日原生网格统计：带符号 bias、pooled 方差比
+（pred/truth；<1 表示预测比真值"平"，即模糊化）与逐窗口空间模式相关，
+model 与 persistence 基线分别累计。
 
-Script — run from repo root:
+不负责：不重训模型、不修改任何训练/评估产物；数据集与 checkpoint 只读。
+唯一写盘是 checkpoint 同目录下两个诊断输出（已存在则拒绝运行）。
+脚本为 module top-level（同 pre_evaluate.py），只能从仓库根目录运行，
+禁止作为模块 import（顶层即执行全部诊断）。
+
+关键约束（NPZ 键名勘误，必须与现状一致）：
+- 键为 f"{{m|p}}_{{field}}_{{var}}"（如 m_rmse_u / p_rmse_u），m=model、
+  p=persistence，两种数组永不撞键（见 build_npz_payload）；
+- 历史格式 f"{{field}}_{{var}}" 曾让 persistence 数组在同键下静默覆盖
+  model 数组 —— 2026-09-01 之前归档的 PNG/终端统计仍有效，但其 NPZ 文件
+  不可复用（不得拿旧 NPZ 再作图）。
+
+依赖关系：pre_config（CONTEXT / RESIDUAL_TIME_SIGMA / PRESETS /
+check_norm_fingerprint）；pre_dataset（PREUVDataset / NativeUVReader /
+双变量掩膜 / stats 与 mask 版本指纹）；pre_metrics.rho_to_native；
+pre_rollout（ensemble_rollout / ensemble_mean）；pre_models.
+PersistenceResidualIAFNO 与 IAFNO.IAFNODiff（按 checkpoint config 重建）。
+
+脚本 —— 从仓库根目录运行：
     CUDA_VISIBLE_DEVICES=<gpu> python scripts/diag_leadtime_residual.py
 
-Outputs next to the checkpoint (refused if they already exist):
+输出（写到 checkpoint 旁，已存在则拒绝）：
     leadtime_diag_ckpt<stem>.npz / leadtime_diag_ckpt<stem>.png
-
-NPZ keys are f"{m|p}_{field}_{var}" (e.g. m_rmse_u / p_rmse_u) so the model
-and persistence arrays can never collide. The historical format
-f"{field}_{var}" silently let the persistence array overwrite the model array
-under the same key — archived PNG/terminal statistics of runs before 2026-09-01
-are valid, but their NPZ files are NOT (do not reuse them).
 """
 import os
 import sys
@@ -54,11 +65,18 @@ REMASK_FEEDBACK = False
 
 
 def accumulate(pred, truth, mask, store, corrs):
-    """Accumulate masked per-lead-day moments; per-window correlation list.
+    """按 lead 日累计掩膜内矩统计；逐窗口相关系数单独入列表。
 
-    pred/truth: (B, L, H, W, Z=1) physical native grids; mask: (H, W) native.
+    pred/truth：shape (B, L, H, W, Z=1) 的原生 staggered 网格物理场
+    （m/s，u 与 v 各自的 (H, W-1)/(H-1, W) 网格）；mask：(H, W) 原生布尔掩膜。
+    store 的各键均为 (L,) 数组：n=有效格点计数，se=Σ误差²，se_signed=Σ误差
+    （带符号 bias 用），sp/sp2=预测和与平方和，st/st2=真值和与平方和。
+    掩膜外误差/预测/真值一律置 0 后求和，n 恰好累加 B×掩膜内格点数；
+    分子分母先分开累计、finalize 才合成指标，避免对小样本先取均值/比值。
+    逐窗口相关：仅当窗口内 pred 与 truth 的 std 都 > 1e-12 才计入
+    corrs[l]（退化常值窗口不进相关统计），l 为 0 起 lead 索引。
     """
-    m = np.asarray(mask, bool)[:, :, None]              # (H, W, 1)
+    m = np.asarray(mask, bool)[:, :, None]              # 形状 (H, W, 1)：预留 Z 轴以便广播
     B = pred.shape[0]
     pred = np.asarray(pred, np.float64)
     truth = np.asarray(truth, np.float64)
@@ -82,6 +100,12 @@ def accumulate(pred, truth, mask, store, corrs):
 
 
 def finalize(store, corrs):
+    """由累计器合成逐 lead 指标：rmse / bias / var_ratio / corr_mean / corr_med / n。
+
+    rmse=sqrt(se/n)；bias=se_signed/n（带符号）；方差比 var_ratio=
+    (sp2/n-(sp/n)²) / max(st2/n-(st/n)², 1e-12)（<1 = 预测方差塌缩）；
+    corr_mean/corr_med 为逐窗口空间相关的均值/中位数，窗口列表为空时为 NaN。
+    """
     n = store["n"]
     rmse = np.sqrt(store["se"] / n)
     bias = store["se_signed"] / n
@@ -95,13 +119,13 @@ def finalize(store, corrs):
 
 
 def build_npz_payload(res, L, meta):
-    """key -> array payload for np.savez.
+    """生成 np.savez 的键 -> 数组 payload。
 
-    Keys are f"{m|p}_{field}_{var}" (e.g. m_rmse_u / p_rmse_u): the source
-    prefix is KEPT so model ("m") and persistence ("p") arrays can never
-    collide (the historical f"{field}_{var}" keys silently let persistence
-    overwrite model). `res` maps "m{u|v}"/"p{u|v}" to the finalize() dicts;
-    `meta` is a dict of scalar/array metadata fields added verbatim.
+    键为 f"{{m|p}}_{{field}}_{{var}}"（如 m_rmse_u / p_rmse_u）：来源前缀
+    保留在键内，model（"m"）与 persistence（"p"）数组永不撞键（历史键
+    f"{{field}}_{{var}}" 曾让 persistence 静默覆盖 model）。`res` 把
+    "m{u|v}" / "p{u|v}" 映射到 finalize() 字典；`meta` 是逐条原样并入的
+    标量/数组元数据。另加 "lead" = 1..L。
     """
     payload = {f"{name}_{field}_{var}": res[f"{name}{var}"][field]
                for var in ("u", "v")
@@ -113,13 +137,15 @@ def build_npz_payload(res, L, meta):
 
 
 def main():
-    torch.manual_seed(123)
+    torch.manual_seed(123)   # 模块级种子与正式评估约定一致；实际 rollout 用逐窗口种子
 
     cfg = PRESETS[PRESET]
     H, W = 400, 441
     Z = 30 if cfg["depth_index"] is None else 1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # 按正式评估规则重建模型：objective 不符直接拒绝；归一化/掩膜指纹漂移
+    # 打 WARNING（legacy checkpoint 无法验证时）
     ckpt = torch.load(CHECKPOINT, map_location=device, weights_only=True)
     ckpt_cfg = ckpt.get("config") or {}
     if ckpt_cfg.get("objective") != "persistence_residual":
@@ -145,6 +171,7 @@ def main():
     y_lo = torch.tensor(stats["lo"], device=device).reshape(1, 2, 1, 1, 1)
     y_hi = torch.tensor(stats["hi"], device=device).reshape(1, 2, 1, 1, 1)
 
+    # 诊断窗口：horizon=ROLLOUT_DAYS、stride=EVAL_STRIDE 的确定性抽样子集
     ds = PREUVDataset(SPLIT, {"lo": stats["lo"], "hi": stats["hi"]}, context=CONTEXT,
                       horizon=ROLLOUT_DAYS, depth_index=cfg["depth_index"],
                       stride=EVAL_STRIDE, max_windows=None)
@@ -160,6 +187,8 @@ def main():
 
     L = ROLLOUT_DAYS
     FIELDS = ("n", "se", "se_signed", "sp", "sp2", "st", "st2")
+    # 累计器：键 {m|p}{u|v} -> {field: (L,) float64}；corr 同键 -> 每 lead
+    # 一个逐窗口相关列表（长度不等，finalize 时取均值/中位数）
     acc = {f"{name}{var}": {k: np.zeros(L) for k in FIELDS}
            for name in ("m", "p") for var in ("u", "v")}
     corr = {f"{name}{var}": [[] for _ in range(L)]
@@ -169,7 +198,7 @@ def main():
     t0 = time.perf_counter()
     with torch.no_grad():
         for bi, (cond, target, starts) in enumerate(loader):
-            cond = cond.to(device)                          # (B,14,H,W,Z) normalized
+            cond = cond.to(device)                          # 形状 (B,14,H,W,Z)：归一化 [0,1] 条件窗口
             starts_np = np.asarray(starts)
             window_starts.extend(int(s) for s in starts_np)
 
@@ -179,6 +208,7 @@ def main():
                                      clamp=True,
                                      remask_feedback=REMASK_FEEDBACK,
                                      ocean_mask=ocean_mask)
+            # ensemble 均值反归一化回物理 m/s（仍为 rho 网格），再映射到原生网格
             rho_pred = (ensemble_mean(preds) * (y_hi - y_lo) + y_lo).cpu().numpy()
             u_pred, v_pred = rho_to_native(rho_pred)
 
@@ -190,6 +220,8 @@ def main():
             tu_t = np.stack(tu)
             tv_t = np.stack(tv)
 
+            # 持续性基线：窗口末天（s+CONTEXT-1）作为全部 lead 的同一持续性源；
+            # broadcast_to 返回只读 view，不复制数据
             pu, pv = [], []
             for s in starts_np:
                 u_s, v_s = reader.get(int(s) + CONTEXT - 1, 1)
@@ -230,6 +262,8 @@ def main():
                   f"{pu['bias'][l]:+.4f} | {mu['var_ratio'][l]:.3f} | "
                   f"{mu['corr_mean'][l]:.3f} | {pu['corr_mean'][l]:.3f}")
 
+    # u/v 合并的 pooled RMSE（平方和再开方）与 model/persistence 逐 lead 比值；
+    # cross = 首个比值 > 1 的 lead 日（无则 None）
     m_all = np.sqrt(res["mu"]["rmse"] ** 2 + res["mv"]["rmse"] ** 2)
     p_all = np.sqrt(res["pu"]["rmse"] ** 2 + res["pv"]["rmse"] ** 2)
     ratio = m_all / p_all

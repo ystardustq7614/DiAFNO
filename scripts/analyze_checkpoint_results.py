@@ -1,5 +1,29 @@
 #!/usr/bin/env python3
-"""Generate evidence plots for the PRE surface-smoke checkpoints (read-only)."""
+"""模块职责：为 PRE surface_smoke 的历史 checkpoint 生成证据图（只读分析）。
+
+数据全部取自仓库内快照 checkpoints/PRE/（旧 sigma 尺度 vs SD2 的 eval
+NPZ、loss.dat，以及 diag_noGo_20260828 的条件探针 NPZ 与日志），复算
+pooled 指标并绘制两张证据图：07_sd2_result_overview.png（训练/验证曲线
++ day-1 消融 + 15 天 test 对照 + 逐 lead 比值）与 08_sd2_diagnosis.png
+（"任务有信号、condition 通路过弱"的诊断证据）。
+
+不负责：只读 checkpoints/（不重算评估、不重建模型、不改任何训练产物）；
+唯一写盘是 plots/ 下两张 PNG（OUT 目录自动创建，同名文件直接覆盖，
+无拒绝覆盖保护）。
+
+关键约束（防选错 checkpoint/NPZ 的断言）：
+- main() 先断言旧/新 eval NPZ 的 window_start_indices 完全一致、
+  rmse_persistence 逐元素近似相等 —— 两次评估必须是同协议同窗口集合，
+  否则对照图不成立，直接抛异常；
+- pooled 公式与 pre_evaluate / RESULTS.md 一致：rmse 类键
+  sqrt(Σ rmse²·count / Σcount)（按 lead 或全池化），其余键为
+  Σ value·count / Σcount（加权算术平均）。
+
+依赖关系：numpy / matplotlib；eval NPZ 的键结构由 pre_evaluate.py 写出
+（rmse_model / rmse_persistence / rmse_zero / valid_count，形状
+(L, 2, Z)：L=lead 天、2=u/v、Z=sigma 层）；本脚本不 import 任何正式
+PRE 模块。
+"""
 
 from pathlib import Path
 import re
@@ -25,6 +49,13 @@ LINEAR_LOG = PRE / "diag_noGo_20260828" / "results" / "probe_linear.log"
 
 
 def pooled_by_lead(z, key):
+    """按 lead 日池化：rmse 类键 = sqrt(Σ rmse²·count / Σcount)，其余键 =
+    Σ value·count / Σcount。
+
+    z[key] 为 (L, 2, Z)（lead×u/v×sigma 层），valid_count 同形状；
+    axis=(1, 2) 对 u/v 与层求和 -> (L,)。逐 lead 池化，不做逐层 RMSE
+    的算术平均。
+    """
     values = z[key].astype(float)
     count = z["valid_count"].astype(float)
     if key.startswith("rmse_"):
@@ -33,6 +64,7 @@ def pooled_by_lead(z, key):
 
 
 def pooled_overall(z, key):
+    """全池化（lead+变量+层一起）：公式同 pooled_by_lead，返回标量。"""
     values = z[key].astype(float)
     count = z["valid_count"].astype(float)
     if key.startswith("rmse_"):
@@ -41,6 +73,8 @@ def pooled_overall(z, key):
 
 
 def one_day(path):
+    """取 h1 评估 NPZ 的 day-1（lead 索引 0）pooled RMSE：
+    (model, persistence, zero) 三元组。"""
     with np.load(path) as z:
         return (
             pooled_by_lead(z, "rmse_model")[0],
@@ -50,6 +84,8 @@ def one_day(path):
 
 
 def first_number(pattern, text):
+    """在文本中按多行正则找第一个捕获组并转 float；找不到即抛
+    ValueError（fail-fast，防止把日志解析失败画成空图）。"""
     match = re.search(pattern, text, flags=re.MULTILINE)
     if not match:
         raise ValueError(f"pattern not found: {pattern}")
@@ -57,6 +93,9 @@ def first_number(pattern, text):
 
 
 def result_overview(old_test, new_test):
+    """图 07：旧/新训练曲线、day-1 消融、15 天 test RMSE 对照与逐 lead
+    model/persistence 比值；返回保存路径。"""
+    # loss.dat 每行 = (耗时 s, train_loss, val_masked_relL2)；reshape(-1, 3) 按行解析
     old_loss = np.loadtxt(OLD / "loss.dat").reshape(-1, 3)
     new_loss = np.loadtxt(NEW / "loss.dat").reshape(-1, 3)
     lead = np.arange(1, len(new_test["rmse_model"]) + 1)
@@ -78,6 +117,7 @@ def result_overview(old_test, new_test):
     ax.grid(alpha=0.2)
 
     ax = axes[0, 1]
+    # day-1 val 消融：churn / ensemble / sigma_max 各配置的 pooled day-1 RMSE
     cases = [
         ("Ep2", NEW / "eval_val_h1_ch0_e1_s123_ckptEp2.npz"),
         ("Ep3", NEW / "eval_val_h1_ch0_e1_s123_ckptEp3.npz"),
@@ -110,6 +150,8 @@ def result_overview(old_test, new_test):
     ax.grid(alpha=0.2)
 
     ax = axes[1, 1]
+    # 第 4 格：逐 lead 的 u / v / pooled 三条 model/persistence 比值曲线，
+    # 全部须 < 1（"No lead day beats persistence" 的验收口径）
     model = new_test["rmse_model"][:, :, 0]
     persistence = new_test["rmse_persistence"][:, :, 0]
     ax.plot(lead, model[:, 0] / persistence[:, 0], "o-", label="u", color="#4472C4")
@@ -128,6 +170,9 @@ def result_overview(old_test, new_test):
 
 
 def diagnosis_figure():
+    """图 08：条件探针诊断证据（线性探针 / 条件错配 / 空间相关 /
+    近岸放大）；探针 NPZ 含字符串元数据，需 allow_pickle=True 读取；
+    日志数值按正则逐项解析。返回保存路径。"""
     probe = np.load(COND_PROBE, allow_pickle=True)
     probe_log = COND_LOG.read_text(encoding="utf-8", errors="replace")
     linear_log = LINEAR_LOG.read_text(encoding="utf-8", errors="replace")
@@ -137,6 +182,7 @@ def diagnosis_figure():
     fig.suptitle("Why SD2 still fails — diagnostic evidence", fontsize=16, weight="bold")
 
     ax = axes[0, 0]
+    # 探针 RMSE 的 [0] 均取 day-1（lead 索引 0）
     names = ["linear\ncondition-only", "persistence", "diffusion\ntrue condition", "zero field"]
     values = [ridge, probe["rmse_pers"][0], probe["rmse_a"][0], probe["rmse_zero"][0]]
     bars = ax.bar(names, values, color=["#70AD47", "#4472C4", "#C00000", "#7030A0"])
@@ -184,6 +230,7 @@ def diagnosis_figure():
 def main():
     OUT.mkdir(exist_ok=True)
     with np.load(OLD_TEST) as old_test, np.load(NEW_TEST) as new_test:
+        # 同窗口同协议才可对照：窗口起点或 persistence 指标不一致说明取错了 NPZ 对
         assert np.array_equal(old_test["window_start_indices"], new_test["window_start_indices"])
         assert np.allclose(old_test["rmse_persistence"], new_test["rmse_persistence"])
         overview = result_overview(old_test, new_test)

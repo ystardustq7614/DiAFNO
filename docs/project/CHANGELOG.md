@@ -11,15 +11,83 @@
 
 ### Proposed
 
-- 代码中文注释规范化（计划已形成，尚未实施）：按
-  [`CODE_COMMENT_STANDARDIZATION_PLAN_20260905.md`](./CODE_COMMENT_STANDARDIZATION_PLAN_20260905.md)
-  分批审查 24 个 Python 文件，将自然语言注释/docstring 统一为中文，并补齐 Tensor、
-  ndarray、memmap、mask、checkpoint 和统计累计器的 shape/type/所有权/梯度契约。
 - full3d 重启前置项（Path B，待独立预算落实后执行）：单步峰值显存（22.6 GB）与
   逐 epoch 评估成本（val h15 ≈2 h05m）压缩方案；per-band 归一化复核（底层归一化
   std ≈ 海面 1/3，见实验 06 RESULTS）。
 - 分支再评估触发项：若未来工作专攻 u 分量 d15 rebound（surface u 0.906）并产生
   新的 u/v 不对称证据，loss weighting 可按新预注册重开（方向文档 §6）。
+- 服务器端归档重生成：含 `norm_p1_p99_width` 键的诊断归档 NPZ/CSV/MD（60/60 为
+  负值符号错误）需重跑 `scripts/diag_uv_predictability.py` 重生成（修复见
+  2026-09-05 复审修复条目）。
+
+## 2026-09-05 — 已完成（代码中文注释规范化 WP0–WP5 实施）
+
+- **WP0**：新增 `scripts/check_comment_language.py`（仅标准库 tokenize/ast；缺省扫描
+  根目录/scripts/presentation 共 24 个业务文件，豁免 shebang/编码声明/pragma/URL 引用/
+  注释掉的可执行代码）。基线核对：注释 token 925（与计划一致）、英文 docstring 114
+  （一致）；895 个英文自然语言注释中 20 个为豁免项（13 shebang、4 编码声明、1 noqa、
+  1 URL、1 URL 引用），875 个为待清零违规。另建仓库外 AST 对比工具（去除 docstring 后
+  对比 git HEAD 的 `ast.dump`）作为行为基线。
+- **WP1–WP5**：24 个 Python 文件全部完成注释/docstring 中文规范化（仅注释与 docstring，
+  零代码改动）。按计划 4/5/7 节执行：模块 docstring 四字段（职责/不负责/关键约束/
+  依赖关系）、公共接口契约 docstring、数据结构强制清单（shape 逐轴/dtype/device/
+  掩膜语义/所有权/梯度与随机性/副作用/失败语义）、统一中文术语与 shape 记号、
+  装饰性分隔线改中文短标题、删除 `# print(emb.shape)` 等 1 处调试注释。
+  diffusion.py 被 AGENTS.md 保护的自条件禁用注释代码块原样保留。
+- **验证**：全仓 24 文件 + 扫描器 `python scripts/check_comment_language.py` →
+  `TOTAL: english_comments=0 english_docstrings=0`；30 个被跟踪 .py 全部
+  `AST-STRIPPED IDENTICAL`（与 HEAD 对比）；`python -m py_compile` 全部通过；
+  `git diff --check` 干净；diff 通读抽查（IAFNO padding、diffusion mask 契约、
+  pre_trainer autocast 反馈帧、pre_dataset 切分/交错通道）与代码及 AGENTS.md 一致。
+- **遗留（原待服务器端，已闭环）**：计划 8.2 的 `python smoke_test.py` /
+  `python pre_smoke_test.py` 已在本地 `diafno` 环境（torch 2.4.1+cpu）复跑，
+  分别为 CPU smoke passed 与 59/59 PASS（见下一条目）。
+- **实施中发现并仅报告、未修复的疑似问题**（详见各文件注释）：IAFNO.py `ex_layer!=1 & nlayer==1`
+  链式比较优先级陷阱（当前配置休眠）；diffusion.py `sample_using_dpmpp` 初始 shape
+  缺 Z 维且无调用方；scripts/diag_uv_predictability.py `norm_p1_p99_width` 值为
+  负（p1-p99，键名语义相反）；utilities3.py `MatReader` 裸 `except:` 与
+  LpLoss.abs 的 h 因子假设；trainer.py `torch.amin/amax(axis=)` 关键字与
+  `count` 先赋值再被 200 覆盖的死赋值；scripts/profile_preprocess_align_uv.py
+  输出 shape 硬编码常量（部分网格 chunk 时才暴露）。
+  → **同日复审后 6 处确认缺陷已全部修复，见下一条目；`axis=` 复审裁定不构成
+  问题（torch 2.4.1 实测可用），仅保留跨版本兼容注释。**
+
+## 2026-09-05 — 已完成（注释规范化复审修复：6 处确认缺陷 + 本地 smoke 闭环）
+
+- **复审裁定**：注释实施报告的 7 处疑似问题中 6 处确认存在并修复；`trainer.py`
+  的 `amin/amax(axis=)` 在 torch 2.4.1（本仓锁定版本，+cpu/+cu124）实测可用，
+  不记为故障，仅落"跨版本若报 TypeError 改回 dim="的注释。真正污染既有产物的
+  只有诊断宽度符号问题，其余为闲置/legacy/特定输入触发。
+- **修复清单（均同步中文注释）**：
+  1. `scripts/diag_uv_predictability.py`：`norm_p1_p99_width` 改为
+     `(p99-p1)/(hi-lo)`，键回归正的归一化 p1–p99 宽度。**产物影响**：已归档
+     NPZ/CSV/MD 中该键 60/60 为负值（-0.3273..-0.0695），幅值仍是真宽度；
+     归档产物按勘误纪律不复用，需在服务器重跑该脚本重生成。
+  2. `diffusion.py sample_using_dpmpp`：初始噪声补 z 轴为 `(b,c,h,w,z)`，并把
+     `self_cond` 逐步透传给网络（旧实现漏传）。小网格 CPU 验证：输出 shape 与
+     Heun `sample()` 一致，条件变化输出随之变化。仍无生产调用方（正式评估走 Heun）。
+  3. `IAFNO.py forward_features`：`ex_layer!=1 & nlayer==1` 链式比较修为
+     `(ex_layer!=1) and (nlayer==1)`；真值表确认行为差异仅限"ex_layer!=1 且
+     nlayer 为奇数>1"（如 (2,3)/(4,3)），全部既有配置（nlayer=2/4、冒烟 1/1）
+     新旧同支，行为不变。
+  4. `utilities3.py MatReader._load_file`：裸 `except:` 收窄为
+     `except NotImplementedError`（scipy 判定 v7.3 的唯一信号）；文件缺失现在
+     原样抛 `FileNotFoundError`，权限/损坏/中断不再被吞。
+  5. `utilities3.py LpLoss.abs`：h 因子改按展平后总点数 N 取 `1/(N-1)`，并改用
+     `reshape`（非连续输入安全）；实测 (1,6)、(1,2,3)、(1,3,2) 三种布局结果一致
+     （0.145558），转置不再翻转。仓库无 `abs()` 调用方（只走 `rel()`）。
+  6. `trainer.py`：删除 `count = data.shape[1]` 死赋值（随即被 `count=200`
+     覆盖、从未读取）；`axis=` 注释记录实测结论。
+  7. `scripts/profile_preprocess_align_uv.py`：`colocate_u/colocate_v` 输出
+     shape 从输入推导（末/倒数第二轴 +1），scratch memmap shape 与读写字节
+     统计同步改为按实际数组；main() 的完整网格断言保留（当前支持路径自洽）。
+- **验证**：仓库外 scratch 脚本 5 组针对性检查全部通过（IAFNO 真值表 /
+  dpmpp 5D+条件消费 / LpLoss.abs 转置不变 / MatReader 错误传播 / profiler
+  全网格等价+部分网格）；全仓扫描器 `TOTAL: english_comments=0
+  english_docstrings=0`；与 HEAD 的 AST 对比——6 个修复文件按预期不同，其余
+  24 文件逐位一致；`python smoke_test.py`（CPU smoke passed）与
+  `python pre_smoke_test.py`（59/59 PASS）在本地 `diafno` 环境
+  （torch 2.4.1+cpu）全部通过——计划 8.2 里程碑闭环。
 
 ## 2026-09-05 — 已完成（入口文档同步与实验 11 Ep4 正式产物归档）
 

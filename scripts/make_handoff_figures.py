@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
-"""Generate compact, data-independent figures for the PRE handoff report."""
+"""模块职责：生成交接报告用的紧凑图表（与具体数据文件无关，图中数值
+为写作时刻固化的快照/结论）。
+
+不负责：不读取任何 NPZ/数据集 —— 图内数字全部硬编码在函数体中
+（来自归档审计与实验结论）；不依赖任何正式 PRE 模块。
+
+关键约束：
+- 输出 plots/05_handoff_overview.png 与 plots/06_legacy_failure.png
+  （OUT 目录在导入时创建，同名文件直接覆盖，无拒绝覆盖保护）；
+- 06_legacy_failure 是"历史失败基线"：标题已注明不得当作修复后模型的
+  结果展示（u/v 比值与验证相对 L2 曲线均为归档数值）；
+- 中文字体依赖本机 Microsoft YaHei / SimHei 等，缺失时由 matplotlib
+  回退到其他字体，中文可能显示为方框。
+
+依赖关系：matplotlib / numpy（仅作图，不读数据）。
+"""
 
 from pathlib import Path
 

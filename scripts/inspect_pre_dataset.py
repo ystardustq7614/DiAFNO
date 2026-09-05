@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Inspect the PRE_ocean_data (GBA) dataset: file inventory, array shapes/dtypes,
-missing-value rates, per-variable statistics and land-mask analysis.
+"""模块职责：PRE_ocean_data（珠三角）数据集巡检：文件清单、数组
+shape/dtype、缺测率、逐变量统计与陆地掩膜分析。
 
-All checks are read-only. Large .npy files are opened via mmap and only
-sampled, so this script is safe to run repeatedly on the 4.1 TB dataset.
+不负责：全部检查只读 —— 大 .npy 一律 mmap 打开且仅抽样，可在 4.1 TB
+数据集上安全重复运行；不写盘、不改数据、不依赖任何正式 PRE 模块。
 
-Usage:
+关键约束：
+- 默认每变量抽 200 个时间步；--full 时按 10% 时间步抽样（单个大文件
+  约 22 GB 读量）；统计量来自时间+空间子样本（空间每 4 格取 1），
+  仅作量级参考，不是全量精确值；
+- 缺测率在抽样窗口上计算；
+- 某目录/文件缺失时打印 MISSING/ERR 并继续，不中断巡检。
+
+用法：
     python scripts/inspect_pre_dataset.py [--full]
-    --full: also compute min/max/mean/std over a larger time sample
-            (10% of time steps per variable, ~22 GB read per big file).
 """
 
 import os
@@ -49,7 +53,12 @@ def fmt_shape(a):
 
 
 def probe_stats(arr, t_sample=200, subsample=4):
-    """NaN rate + min/max/mean/std over a time-sample and a spatial subsample."""
+    """时间抽样 + 空间子采样上的 NaN 率与 min/max/mean/std。
+
+    返回 (nan_rate, (min, max, mean, std))；抽样窗口全 NaN 时四元组为
+    (None,)*4。抽样点按 linspace 在时间轴上等距取 t_sample 个，其余各轴
+    每 subsample 个取 1 个；统计只代表子样本，不是全量精确值。
+    """
     t = min(t_sample, arr.shape[0])
     idx_t = np.linspace(0, arr.shape[0] - 1, t, dtype=int)
     sl = (idx_t,) + (slice(None, None, subsample),) * (arr.ndim - 1)
@@ -75,7 +84,7 @@ def main():
     print(f"root: {DATA_ROOT}  size: {human(sum(os.path.getsize(os.path.join(DATA_ROOT,f)) for f in os.listdir(DATA_ROOT) if os.path.isfile(os.path.join(DATA_ROOT,f))))}")
     print("=" * 78)
 
-    # ---------- 1. raw dynamic files ----------
+    # 第 1 部分：raw/dyn/ 每日 COAWST/ROMS 平均文件
     print("\n[1] raw/dyn/ : daily COAWST/ROMS averages")
     if os.path.isdir(RAW_DYN):
         files = sorted(f for f in os.listdir(RAW_DYN) if f.endswith(".nc"))
@@ -89,7 +98,7 @@ def main():
     else:
         print(f"    MISSING {RAW_DYN}")
 
-    # ---------- 2. processed dynamic variables ----------
+    # 第 2 部分：processed/dyn_var/ 合并 .npy 动态变量
     print("\n[2] processed/dyn_var/ : merged .npy files")
     dyn_dir = os.path.join(PROCESSED, "dyn_var")
     n_sample_t = 200 if not args.full else max(100, int(10591 * 0.1))
@@ -104,7 +113,7 @@ def main():
         print(f"    {var:<16} {fmt_shape(arr)}  {human(size):>8}  NaN={nan_rate*100:6.2f}%"
               + (f"  min={mn:.4g} max={mx:.4g} mean={mu:.4g} std={sd:.4g}" if mn is not None else "  (all NaN)"))
 
-    # ---------- 3. processed static variables ----------
+    # 第 3 部分：processed/stat_var/ 静态场
     print("\n[3] processed/stat_var/ : static fields")
     stat_dir = os.path.join(PROCESSED, "stat_var")
     for var in STATIC_VARS:
@@ -117,7 +126,7 @@ def main():
         except ValueError as e:
             print(f"    {var:<16} ERR: {e}")
 
-    # ---------- 4. land mask analysis ----------
+    # 第 4 部分：陆地掩膜与水深（rho 网格）
     print("\n[4] land mask & bathymetry (rho grid)")
     mask_fp = os.path.join(stat_dir, "mask_rho.npy")
     h_fp = os.path.join(stat_dir, "h.npy")
@@ -139,7 +148,7 @@ def main():
             if wet.any():
                 print(f"    wet-area lon: {lon[wet].min():.3f}..{lon[wet].max():.3f}  lat: {lat[wet].min():.3f}..{lat[wet].max():.3f}")
 
-    # ---------- 5. sigma vertical coordinate ----------
+    # 第 5 部分：垂向 sigma 坐标
     print("\n[5] vertical coordinate (sigma layers)")
     for v in ["s_rho", "s_w", "Cs_r", "Cs_w", "hc", "Tcline", "theta_s", "theta_b"]:
         fp = os.path.join(stat_dir, f"{v}.npy")
@@ -150,7 +159,7 @@ def main():
             except ValueError as e:
                 print(f"    {v:<8} ERR: {e}")
 
-    # ---------- 6. docs / metadata sanity ----------
+    # 第 6 部分：文档与元数据健全性
     print("\n[6] docs & metadata")
     for fp in [os.path.join(DATA_ROOT, "metadata.json" if os.path.exists(os.path.join(DATA_ROOT,"metadata.json")) else "raw/metadata.json")]:
         if os.path.exists(fp):

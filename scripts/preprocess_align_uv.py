@@ -1,61 +1,57 @@
 #!/usr/bin/env python3
-"""Plan A preprocessing: collocate raw staggered C-grid u/v onto the rho grid.
+"""模块职责：Plan A 预处理——把原生 ROMS Arakawa-C staggered u/v 场共定位到
+rho 网格，产出 rho 网格场、双变量有效性掩膜和经验证的时间轴；本脚本是
+pre_dataset.py 读入的 u_rho/v_rho 训练数据的唯一生产者。
 
-Raw fields (ROMS Arakawa-C):
-    u: (T, s, 400, 440)  -- u[r,c] sits between rho(r,c) and rho(r,c+1)
-    v: (T, s, 399, 441)  -- v[r,c] sits between rho(r,c) and rho(r+1,c)
+不负责：训练/评估/采样逻辑；不做 east/north 旋转——u_rho/v_rho 保留原始网格
+xi/eta 方向分量的物理语义，只把采样位置移到 rho 点（Plan A 的核心决策，
+下游所有网格换算都依赖该语义）。
 
-Colocation (NaN-aware mean of the two adjacent faces; one-sided at boundaries):
-    u_rho[r,c] = mean_valid(u[r,c-1], u[r,c])   (c=1..439)
-    u_rho[r,0] = u[r,0];  u_rho[r,440] = u[r,439]
-    v_rho[r,c] = mean_valid(v[r-1,c], v[r,c])   (r=1..398)
-    v_rho[0,c] = v[0,c];  v_rho[399,c] = v[398,c]
+关键约束：
+- 原生输入（T 为天数，s 为 sigma 层轴）：
+    u: (T, s, 400, 440)  u[r, c] 位于 rho(r, c) 与 rho(r, c+1) 之间
+    v: (T, s, 399, 441)  v[r, c] 位于 rho(r, c) 与 rho(r+1, c) 之间
+- rho 共定位 stencil：对相邻两个面元取 NaN 感知均值；边界单侧复制：
+    u_rho[r, c] = mean_valid(u[r, c-1], u[r, c])   (c = 1..439)
+    u_rho[r, 0] = u[r, 0];  u_rho[r, 440] = u[r, 439]
+    v_rho[r, c] = mean_valid(v[r-1, c], v[r, c])   (r = 1..398)
+    v_rho[0, c] = v[0, c];  v_rho[399, c] = v[398, c]
+- mask 是权威有效性来源。双变量掩膜用与场相同的 stencil 从 mask_u/mask_v 推导
+  （rho 点有效当且仅当相邻两个面元中至少一个有效，边界单侧复制），因此对齐后的
+  NaN 图案与 mask==0 严格相等：
+    mask_u_rho.npy : (400, 441)  u_rho 的有效性
+    mask_v_rho.npy : (400, 441)  v_rho 的有效性
+    mask_uv.npy    : mask_u_rho & mask_v_rho & mask_rho（仅为兼容保留）
+- mask 策略（所给 mask 即权威）：
+    * mask==1（海洋格）处出现 NaN 属于动态缺测数据：在首个 (t, s, r, c) 硬失败，
+      逐日逐层检查，绝不静默掩除；
+    * mask==0（陆地格，如本数据集 45 个静态陆地边界 u 面元）处出现数值属于丢弃值：
+      在共定位前置为 NaN 并计数，结束时按变量报告总量。
+  强制执行后，对齐场的 NaN 图案 == mask==0（首个 chunk 上断言）。mask 的
+  shape/取值、场的 dtype 与输入 shape 均有断言。
+- ocean_time 必须恰好为 T 个严格递增、间隔精确 24 h 的时间戳（verify_daily_time）。
+- 原始与对齐 u/v 的极值连同其 (day, layer, row, col) 位置和数值一起记录；
+  极值不自动当作离群值处理。
+- 输出（陆地保持 NaN，float32）写入 <DST>：u_rho.npy/v_rho.npy 为
+  (10591, 30, 400, 441)；三个掩膜为 uint8；ocean_time.npy 为 (10591,)
+  datetime64[D] 日期视图，来自原始 NetCDF 的权威 ocean_time 元数据并经
+  "严格递增 + 精确 24 h" 验证；ocean_time_seconds.npy 为 (10591,)
+  datetime64[s] 精确经验证时间（验证前绝不降精度到日）。open_memmap 以 "w+"
+  打开，已存在的对齐输出会被截断重写。
+- 分块流水线在单块 CUDA GPU 上运行（逻辑索引 cuda:0，遵守
+  CUDA_VISIBLE_DEVICES；无 CPU 回退路径）。每个 chunk 按序执行：
+    mmap read (CPU) -> H2D -> 原始极值 -> 权威 mask 强制 -> NaN 感知共定位 ->
+    首 chunk NaN 图案断言 -> 对齐极值 -> D2H -> memmap write -> flush
+  只有标量（数值, 首个展平索引）摘要回传 CPU 供极值追踪器使用，整块数据绝不在
+  CPU 上扫描。本文件中的 NumPy helper（colocate、u_rho_mask、v_rho_mask、
+  enforce_land_mask、ExtremumTracker.update）只保留作单元测试参照与差分基线，
+  主流水线一律走 torch_* CUDA 等价实现。
+- 所有 GPU 计算均为 float32（不使用 AMP）；CUDA 显存在 chunk 间复用，mask
+  只上传一次。
 
-No rotation is applied: u_rho/v_rho keep the raw grid-xi/eta component
-semantics, only the sampling location moves to the rho points.
-
-Bivariate validity masks are derived from mask_u/mask_v with the SAME stencil
-(a rho point is valid iff at least one of its two adjacent face cells is
-valid, one-sided at the boundary), so aligned NaN pattern == mask == 0 exactly:
-    mask_u_rho.npy : (400, 441) validity of u_rho
-    mask_v_rho.npy : (400, 441) validity of v_rho
-    mask_uv.npy    : mask_u_rho & mask_v_rho & mask_rho (kept for compatibility)
-
-Output (land kept as NaN, float32):
-    <DST>/u_rho.npy, <DST>/v_rho.npy : (10591, 30, 400, 441)
-    <DST>/mask_u_rho.npy, <DST>/mask_v_rho.npy, <DST>/mask_uv.npy
-    <DST>/ocean_time.npy             : (10591,) datetime64[D] date view, verified from
-                                      the authoritative ocean_time metadata of the
-                                      raw NetCDF files (strictly increasing,
-                                      exactly 24 h apart).
-    <DST>/ocean_time_seconds.npy     : (10591,) datetime64[s] precise verified times
-                                      (never downcast to days before verification).
-
-Mask policy (the provided masks are authoritative):
-    * NaN where mask == 1 (ocean cell without data) is DYNAMIC MISSING DATA:
-      fail hard at the first (t, s, r, c), checked for every day and layer.
-    * a value where mask == 0 (e.g. the 45 static land-boundary u-faces of
-      this dataset) is DISCARDED (set to NaN before colocation) and counted;
-      per-variable totals are reported at the end. After enforcement the
-      aligned NaN pattern == mask == 0 exactly (asserted on the first chunk).
-    * mask shapes/values, field dtypes and input shapes are asserted.
-    * the ocean_time series must contain exactly T strictly increasing
-      timestamps spaced by exactly 24 h (verify_daily_time).
-
-The raw and aligned u/v extrema are recorded WITH their (day, layer, row, col)
-location and value; extrema are not automatically treated as outliers.
-
-The chunk pipeline runs on a single CUDA GPU (logical cuda:0, honoring
-CUDA_VISIBLE_DEVICES; NO CPU fallback). Per chunk, in order:
-    mmap read (CPU) -> H2D -> raw extrema -> authoritative mask enforcement ->
-    NaN-aware colocation -> first-chunk NaN-pattern assert -> aligned extrema ->
-    D2H -> memmap write -> flush
-Only scalar (value, first flat index) summaries cross back to the CPU for the
-trackers; full chunks are never scanned on the CPU. The NumPy helpers above
-(colocate, u_rho_mask, v_rho_mask, enforce_land_mask, ExtremumTracker.update)
-are retained as unit-test references and differential baselines only. All GPU
-work is float32 (no AMP). CUDA memory is reused across chunks; the mask is
-uploaded once.
+依赖关系：numpy / netCDF4 / torch；被 scripts/profile_preprocess_align_uv.py
+以模块方式复用（main 仅在 __main__ 下执行，import 无副作用）；输出是
+pre_dataset.py 的唯一数据源。
 """
 import os
 import time
@@ -72,14 +68,18 @@ RAW_DYN_CANDIDATES = [
     "/data/PRE_ocean_data/raw/dyn",
 ]
 DST = "/data2/user/zyq/data_processed/PRE/aligned"
-CHUNK = 50  # days per chunk
-DEVICE_INDEX = 0  # logical CUDA index; honors CUDA_VISIBLE_DEVICES
+CHUNK = 50  # 每 chunk 天数
+DEVICE_INDEX = 0  # 逻辑 CUDA 索引；遵守 CUDA_VISIBLE_DEVICES
 
+# T=总天数，S=sigma 层数，(H, W)=rho 网格尺寸
 T, S, H, W = 10591, 30, 400, 441
 
 
 def colocate(a, b):
-    """NaN-aware mean of two same-shape float32 arrays; NaN where both are NaN."""
+    """两个同 shape float32 数组的 NaN 感知均值（单元测试参照；主流水线走 torch_colocate）。
+
+    逐元素统计有效计数：只有一侧有效时直接取该值，两侧均 NaN 才输出 NaN。
+    """
     na = ~np.isnan(a)
     nb = ~np.isnan(b)
     cnt = na.astype(np.float32) + nb.astype(np.float32)
@@ -90,7 +90,7 @@ def colocate(a, b):
 
 
 def u_rho_mask(mask_u):
-    """(R, C-1) u-grid mask -> (R, C) rho mask under the u colocation stencil."""
+    """(R, C-1) 的 u 面元掩膜 -> (R, C) 的 rho 掩膜；stencil 与 u 共定位一致（内部取 OR，边界单侧复制）。"""
     R, C = mask_u.shape
     out = np.empty((R, C + 1), np.bool_)
     out[:, 1:C] = mask_u[:, :-1] | mask_u[:, 1:]
@@ -100,7 +100,7 @@ def u_rho_mask(mask_u):
 
 
 def v_rho_mask(mask_v):
-    """(R-1, C) v-grid mask -> (R, C) rho mask under the v colocation stencil."""
+    """(R-1, C) 的 v 面元掩膜 -> (R, C) 的 rho 掩膜；stencil 与 v 共定位一致（内部取 OR，边界单侧复制）。"""
     R, C = mask_v.shape
     out = np.empty((R + 1, C), np.bool_)
     out[1:R, :] = mask_v[:-1, :] | mask_v[1:, :]
@@ -110,20 +110,19 @@ def v_rho_mask(mask_v):
 
 
 class ExtremumTracker:
-    """Global min/max of a streaming array plus the location of each extremum.
+    """流式数组的全局极值追踪器：记录全局 min/max 及其首次出现的全局位置。
 
-    arr chunks have shape (t_len, S, R, C); the global (t, s, r, c) of the first
-    occurrence is recorded. NaN cells (land) are ignored.
-    update() takes a NumPy chunk (reference path); update_summary() takes the
-    scalar (value, first flat index) summaries produced on the GPU, so whole
-    chunks never need to cross back to the CPU.
+    每个 chunk 的 shape 为 (t_len, S, R, C)，t0 为该 chunk 的起始绝对日；极值
+    位置换算为全局 (t, s, r, c)。NaN（陆地）格被忽略。update() 接收 NumPy
+    chunk（参照路径）；update_summary() 接收 GPU 上算好的标量（数值, 首个
+    展平索引）摘要，整块数据因此无需回传 CPU。
     """
 
     def __init__(self, name):
         self.name = name
         self.min_val = np.inf
         self.max_val = -np.inf
-        self.min_loc = None  # (t, s, r, c)
+        self.min_loc = None  # 首次出现的全局 (t, s, r, c)
         self.max_loc = None
 
     def update(self, arr, t0):
@@ -143,11 +142,11 @@ class ExtremumTracker:
 
     def update_summary(self, min_value, min_flat_index,
                        max_value, max_flat_index, shape, t0):
-        """GPU path: fold a chunk's scalar extrema into the global trackers.
+        """GPU 路径：把一个 chunk 的标量极值并入全局追踪器。
 
-        min_flat_index/max_flat_index are C-order indices into the chunk's own
-        raveled layout (ties keep the first occurrence); shape is the chunk
-        shape (t_len, S, R, C) used to recover the global (t, s, r, c).
+        min_flat_index/max_flat_index 是该 chunk 自身展平布局（C 序）中的索引，
+        并列时取首次出现（与 NumPy 一致）；shape 为 chunk 形状 (t_len, S, R, C)，
+        用于换算全局 (t, s, r, c)。
         """
         if min_value < self.min_val:
             self.min_val = float(min_value)
@@ -177,18 +176,16 @@ class ExtremumTracker:
 
 
 def enforce_land_mask(arr, mask, name, t0, discarded):
-    """Enforce the (authoritative) land mask on a raw chunk, in place.
+    """在原始 chunk 上就地强制（权威）陆地掩膜；返回 arr。
 
-    Two mismatch directions are handled differently:
-      * NaN where mask == 1 (ocean cell without data): dynamic missing data —
-        fail hard with the first (t, s, r, c); never masked away silently.
-      * value where mask == 0 (land cell carrying a value, e.g. static
-        boundary/river u-faces): discarded (set to NaN) and counted in
-        `discarded[name]`; the aligned output keeps NaN == (mask == 0).
+    两种不匹配方向的处理不同：
+      * mask==1（海洋格）处为 NaN：动态缺测数据——在首个 (t, s, r, c) 硬失败，
+        绝不静默掩除；
+      * mask==0（陆地格）处有数值（如静态边界/河道 u 面元）：丢弃（置 NaN）并
+        计入 `discarded[name]`；对齐输出保持 NaN == (mask == 0)。
 
-    `arr` must be an in-memory chunk (t, s, R, C), NOT a mmap slice (it is
-    modified in place). `discarded` is a dict accumulating per-variable counts.
-    Returns arr.
+    `arr` 必须是已在内存中的 chunk (t, s, R, C)，不能是 mmap 切片（本函数就地
+    修改）；`discarded` 是按变量累计丢弃数的 dict。
     """
     nan = np.isnan(arr)
     ocean = mask != 0
@@ -212,13 +209,12 @@ def enforce_land_mask(arr, mask, name, t0, discarded):
 
 
 def torch_extrema_summary(arr):
-    """CUDA equivalent of nanmin/nanargmin/nanmax/nanargmax over a chunk.
+    """chunk 上 nanmin/nanargmin/nanmax/nanargmax 的 CUDA 等价实现。
 
-    Returns (min_value, min_flat_index, max_value, max_flat_index); the flat
-    indices are C-order positions in the chunk's own raveled layout and, like
-    numpy, ties keep the FIRST occurrence. Raises ValueError on an all-NaN
-    chunk, matching np.nanmin/np.nanmax. Only these scalars are copied back to
-    the CPU.
+    返回 (min_value, min_flat_index, max_value, max_flat_index)；展平索引是该
+    chunk 自身展平布局（C 序）中的位置，与 NumPy 一样并列时取首次出现。整块
+    全 NaN 时抛 ValueError，与 np.nanmin/np.nanmax 一致。只有这四个标量回传
+    CPU。
     """
     flat = arr.reshape(-1)
     nan = torch.isnan(flat)
@@ -233,17 +229,17 @@ def torch_extrema_summary(arr):
 
 
 def torch_enforce_land_mask(arr, mask, name, t0, discarded):
-    """GPU equivalent of enforce_land_mask: identical policy and error message.
+    """enforce_land_mask 的 GPU 等价实现：策略与报错信息完全一致。
 
-    `arr` is a CUDA chunk (t, s, R, C) modified in place; `mask` is the
-    (R, C) boolean GPU mask. Returns arr.
+    `arr` 是 (t, s, R, C) 的 CUDA chunk，就地修改；`mask` 是 (R, C) 的布尔 GPU
+    掩膜。返回 arr。
     """
     nan = torch.isnan(arr)
     ocean = mask != 0
     missing = nan & ocean[None, None]
     if bool(missing.any().item()):
-        # torch.argmax is not implemented for Bool tensors; nonzero returns the
-        # first True in C order, matching np.argmax on the NumPy side.
+        # torch.argmax 不支持 Bool 张量；nonzero 按 C 序返回首个 True，
+        # 与 NumPy 侧 np.argmax 的取首语义一致。
         index = int(torch.nonzero(missing.reshape(-1))[0].item())
         t_len, s, r, c = arr.shape
         t, rem = divmod(index, s * r * c)
@@ -262,7 +258,7 @@ def torch_enforce_land_mask(arr, mask, name, t0, discarded):
 
 
 def torch_colocate(a, b):
-    """CUDA equivalent of colocate: NaN-aware mean; NaN where both are NaN."""
+    """colocate 的 CUDA 等价实现：NaN 感知均值；两侧均 NaN 才输出 NaN。"""
     na = ~torch.isnan(a)
     nb = ~torch.isnan(b)
     cnt = na.to(torch.float32) + nb.to(torch.float32)
@@ -274,7 +270,7 @@ def torch_colocate(a, b):
 
 
 def torch_colocate_u(uc):
-    """GPU: (t, s, r, c) u chunk -> (t, s, r, c+1) rho u (shape from input)."""
+    """GPU：u chunk (t, s, r, c) -> rho u (t, s, r, c+1)（输出 shape 由输入推导）。"""
     t, s, r, c = uc.shape
     ub = torch.empty((t, s, r, c + 1), dtype=uc.dtype, device=uc.device)
     ub[:, :, :, 1:c] = torch_colocate(uc[:, :, :, :-1], uc[:, :, :, 1:])
@@ -284,7 +280,7 @@ def torch_colocate_u(uc):
 
 
 def torch_colocate_v(vc):
-    """GPU: (t, s, r, c) v chunk -> (t, s, r+1, c) rho v (shape from input)."""
+    """GPU：v chunk (t, s, r, c) -> rho v (t, s, r+1, c)（输出 shape 由输入推导）。"""
     t, s, r, c = vc.shape
     vb = torch.empty((t, s, r + 1, c), dtype=vc.dtype, device=vc.device)
     vb[:, :, 1:r, :] = torch_colocate(vc[:, :, :-1, :], vc[:, :, 1:, :])
@@ -294,12 +290,11 @@ def torch_colocate_v(vc):
 
 
 def verify_daily_time(times):
-    """Fail hard unless `times` is a 1-D datetime64 array of exactly daily steps.
+    """校验 `times` 是间隔恰好为一日的一维 datetime64 数组，否则硬失败。
 
-    Adjacent timestamps must differ by EXACTLY 24 h (checked at datetime64[s]
-    precision, so 23/25-hour gaps fail). On success returns `times` unchanged.
-    The error reports the failing index, the two neighbouring timestamps and
-    the actual interval.
+    相邻时间戳必须精确相差 24 h（在 datetime64[s] 精度上检查，23/25 小时的
+    间隔都会失败）；成功时原样返回 `times`。报错信息包含失败索引、相邻两个
+    时间戳与实际间隔。
     """
     times = np.asarray(times)
     if times.ndim != 1 or times.size == 0:
@@ -317,14 +312,15 @@ def verify_daily_time(times):
 
 
 def extract_and_verify_time():
-    """Read authoritative ocean_time from every raw NetCDF and cache the times.
+    """读取每个原始 NetCDF 的权威 ocean_time 并缓存到 DST。
 
-    Verifies exactly T timestamps, strictly increasing, exactly 24 h apart.
-    Raw times are kept at datetime64[s] precision (never downcast to days
-    before verification); the date view is saved separately:
-        ocean_time.npy         : (T,) datetime64[D]  date view (compat)
-        ocean_time_seconds.npy : (T,) datetime64[s]  precise verified times
-    Returns the precise (T,) datetime64[s] array.
+    校验恰好 T 个时间戳、严格递增、间隔精确 24 h。原始时间保持 datetime64[s]
+    精度（验证之前绝不降为日）；日期视图单独保存：
+        ocean_time.npy         : (T,) datetime64[D]  日期视图（兼容）
+        ocean_time_seconds.npy : (T,) datetime64[s]  精确且经验证的时间
+    返回精确的 (T,) datetime64[s] 数组。
+
+    副作用：向 DST 写入上述两个 .npy 文件。
     """
     files = sorted(f for f in os.listdir(RAW_DYN) if f.endswith(".nc"))
     if len(files) != T:
@@ -391,7 +387,7 @@ def main():
     assert mask_v.shape == (H - 1, W), f"mask_v shape {mask_v.shape}"
     for name, m in (("mask_rho", mask_rho), ("mask_u", mask_u), ("mask_v", mask_v)):
         assert set(np.unique(m)).issubset({0, 1}), f"{name} values {np.unique(m)}"
-    # stored masks are float64 {0., 1.}; bitwise stencil ops below need booleans
+    # 落盘 mask 存的是 float64 {0., 1.}；下面的 stencil 用到 | 与 &，必须先转 bool
     mask_rho = mask_rho.astype(bool)
     mask_u = mask_u.astype(bool)
     mask_v = mask_v.astype(bool)
@@ -405,10 +401,9 @@ def main():
     print(f"[mask] mask_u_rho ocean pts: {m_u_rho.sum()}  "
           f"mask_v_rho: {m_v_rho.sum()}  mask_uv: {m_uv.sum()}", flush=True)
 
-    # --- early probe on day 0 layer 0: fail fast on dynamic missing data and
-    #     preview land-cell discards before the long pipeline starts (the probe
-    #     slices are throwaway copies; their counts are NOT added to the final
-    #     per-variable totals, which only accumulate over the main loop) ---
+    # 在流水线开始前对第 0 天第 0 层做早期探针：动态缺测尽早硬失败，并预览
+    # 陆地格丢弃数。探针作用在一次性拷贝上，其计数不会并入最终按变量统计的
+    # 丢弃总量（总量只在主循环中累计）。
     probe = {}
     enforce_land_mask(np.array(u[0:1, 0:1]), mask_u, "u", 0, probe)
     enforce_land_mask(np.array(v[0:1, 0:1]), mask_v, "v", 0, probe)
@@ -427,7 +422,7 @@ def main():
     tr_ur, tr_vr = ExtremumTracker("u_rho"), ExtremumTracker("v_rho")
     discarded = {}
 
-    # upload the (authoritative) masks ONCE; reused by every chunk
+    # 权威 mask 只上传 GPU 一次（bool 张量），供之后每个 chunk 复用
     gpu_mask_u = torch.as_tensor(mask_u, dtype=torch.bool, device=device)
     gpu_mask_v = torch.as_tensor(mask_v, dtype=torch.bool, device=device)
     gpu_mask_u_rho = torch.as_tensor(m_u_rho, dtype=torch.bool, device=device)
@@ -438,13 +433,13 @@ def main():
     with torch.inference_mode():
         for ci, ts in enumerate(range(0, T, CHUNK)):
             te = min(ts + CHUNK, T)
-            # mmap read (CPU) -> H2D. uc: (t,s,400,440), vc: (t,s,399,441)
+            # mmap 读（CPU）-> H2D：np.array 把只读 mmap 切片物化为 CPU 副本，
+            # from_numpy 共享该副本，.to(device) 完成 H2D。uc: (t,s,400,440)，vc: (t,s,399,441)
             uc = torch.from_numpy(np.array(u[ts:te])).to(device)
             vc = torch.from_numpy(np.array(v[ts:te])).to(device)
 
-            # raw extrema describe the ORIGINAL chunk BEFORE mask enforcement;
-            # enforcement then fails hard on dynamic missing ocean data and sets
-            # land-cell values to NaN so colocation sees the masked fields.
+            # 原始极值在 mask 强制之前记录，描述的是原始 chunk；随后 mask 强制
+            # 对海洋格动态缺测硬失败、把陆地格数值置 NaN，使共定位看到掩膜后的场。
             mn, mi, mx, xi = torch_extrema_summary(uc)
             tr_u.update_summary(mn, mi, mx, xi, uc.shape, ts)
             mn, mi, mx, xi = torch_extrema_summary(vc)
@@ -456,6 +451,7 @@ def main():
             ub = torch_colocate_u(uc)
             vb = torch_colocate_v(vc)
 
+            # 首 chunk 自检：对齐 NaN 图案与 rho 掩膜严格相等（掩膜权威性的断言）
             if ci == 0:
                 assert (torch.isnan(ub) == (gpu_mask_u_rho == 0)[None, None]).all().item(), \
                     "u_rho NaN pattern does not match mask_u_rho"
@@ -467,7 +463,8 @@ def main():
             mn, mi, mx, xi = torch_extrema_summary(vb)
             tr_vr.update_summary(mn, mi, mx, xi, vb.shape, ts)
 
-            # D2H -> memmap write -> flush (output stays float32)
+            # D2H -> memmap write -> flush：.cpu() 产生 CPU float32 副本并完成
+            # D2H 拷贝，写入磁盘 memmap 后 flush 落盘（输出保持 float32）
             ub_cpu = ub.cpu().numpy()
             vb_cpu = vb.cpu().numpy()
             u_out[ts:te] = ub_cpu

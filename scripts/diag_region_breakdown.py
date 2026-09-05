@@ -1,17 +1,35 @@
-"""Region breakdown (coastal vs open-ocean) for the persistence-residual arms.
+"""模块职责：persistence-residual 双臂的 coastal / 开阔海域分区对比。
 
-Replays the official validation day-1 protocol (same checkpoint load rules as
-pre_evaluate.py, SPLIT="val", ROLLOUT_DAYS=1, deterministic sample) for a list
-of checkpoints and reports pooled native-grid RMSE split into coastal and
-open-ocean cells. Coastal = valid cells within COASTAL_BUFFER cells of land
-(binary dilation of the complement of each native mask), open-ocean = the
-rest. Model and persistence are reported for each region.
+对 CHECKPOINTS 列表中的每个 checkpoint 复现正式 validation day-1 协议
+（SPLIT="val"、ROLLOUT_DAYS=1、确定性采样；checkpoint 装载规则与
+pre_evaluate.py 相同），报告按 coastal / 开阔海域拆分、逐区域池化的
+原生网格 RMSE（model 与 persistence 各自累计）。coastal = 距陆地
+COASTAL_BUFFER 格以内的有效格点（对每个原生掩膜补集做 binary_dilation），
+开阔海域 = 其余格点。
 
-Script (module top-level, like pre_evaluate.py) — run from repo root:
+不负责：不重训模型、不修改任何训练/评估产物；数据集与 checkpoint 只读。
+唯一写盘是每个 checkpoint 同目录的 region_diag_ckpt<stem>.npz（已存在则
+拒绝运行）；对比表只打到 stdout。脚本为 module top-level（同
+pre_evaluate.py），只能从仓库根目录运行，禁止作为模块 import（顶层即
+执行全部诊断）。
+
+关键约束：
+- region_sums 丢弃尾部 Z 轴必须用 [..., 0]：[:, :, 0] 切的是 W 轴，
+  会把陆地 NaN 涂满每行、污染误差和（详见该函数 docstring）；
+- 双臂重建由 checkpoint config 驱动：static_mask_input=True 时
+  cond_chans 加入 STATIC_MASK_CHANNELS=2 个静态掩膜通道（经 static_cond
+  传入 sample，动态滑窗仍是纯 14 通道条件）；
+- 归一化/掩膜指纹漂移只打 WARNING（legacy checkpoint 无法验证时）。
+
+依赖关系：pre_config（CONTEXT / RESIDUAL_TIME_SIGMA /
+STATIC_MASK_CHANNELS / PRESETS / check_norm_fingerprint）；pre_dataset
+（NativeUVReader / PREUVDataset / build_mask_tensor /
+compute_or_load_stats / mask_version / native_masks）；
+pre_metrics.rho_to_native；pre_models.PersistenceResidualIAFNO；
+IAFNO.IAFNODiff；scipy.ndimage（陆地掩膜膨胀）。
+
+脚本 —— 从仓库根目录运行：
     CUDA_VISIBLE_DEVICES=<gpu> python scripts/diag_region_breakdown.py
-
-Outputs one region_diag_ckpt<stem>.npz next to each checkpoint (refused if it
-already exists); the comparison table goes to stdout.
 """
 import os
 import sys
@@ -44,8 +62,9 @@ CHECKPOINTS = [
 SPLIT = "val"
 EVAL_STRIDE = 7
 BATCH_SIZE = 4
-COASTAL_BUFFER = 5        # cells to land within a cell counts as coastal
+COASTAL_BUFFER = 5        # 距陆地的格数阈值：格点在该范围内算 coastal
 
+# 与正式评估一致的模块级种子（top-level 执行即生效）
 torch.manual_seed(123)
 
 cfg = PRESETS[PRESET]
@@ -60,7 +79,13 @@ reader = NativeUVReader(cfg["depth_index"])
 
 
 def region_masks(mask2d):
-    """(H, W) native mask -> (coastal, offshore) boolean cell masks."""
+    """(H, W) 原生掩膜 -> (coastal, offshore) 两个布尔格点掩膜。
+
+    coastal = 距陆地 COASTAL_BUFFER 格以内的有效格点：陆地取掩膜补集，
+    用 scipy.ndimage 默认十字结构元 binary_dilation 迭代 COASTAL_BUFFER
+    次（与陆地的 L1 距离 <= COASTAL_BUFFER）；offshore = 其余有效格点。
+    口径与 scripts/diag_uv_predictability.py 一致，只是作用在原生网格。
+    """
     valid = np.asarray(mask2d, bool)
     land = ~valid
     near_land = ndimage.binary_dilation(land, iterations=COASTAL_BUFFER)
@@ -75,15 +100,17 @@ regions["coastal"]["v"], regions["offshore"]["v"] = region_masks(mask_v)
 
 
 def region_sums(pred, truth, cell_mask):
-    """Signed/squared error sums over the given boolean cell mask (H, W).
+    """在给定布尔格点掩膜 (H, W) 内累计带符号/平方误差和。
 
-    pred/truth: (B, 1, H, W, Z=1) native grids — the trailing Z axis (and the
-    lead axis, already sliced by the caller) is dropped with [..., 0], NEVER
-    with [:, :, 0] (which would slice the W axis and smear land NaN across
-    each row).
+    pred/truth：(B, 1, H, W, Z=1) 原生网格物理场（m/s）。丢弃尾部 Z 轴
+    （以及调用方已切掉的 lead 轴）必须用 [..., 0]，绝不能用 [:, :, 0]：
+    后者切的是 W 轴，会把陆地 NaN 涂满每一行、污染全部误差统计。
+
+    返回 (e.sum(), (e**2).sum(), B*cell_mask.sum())：误差和 / 平方和 /
+    有效格点计数（掩膜外格点贡献恒为 0）。
     """
-    pred = np.asarray(pred, np.float64)[..., 0]       # (B, H, W)
-    truth = np.asarray(truth, np.float64)[..., 0]     # (B, H, W)
+    pred = np.asarray(pred, np.float64)[..., 0]       # 形状 (B, H, W)：尾部 Z=1 轴已丢弃
+    truth = np.asarray(truth, np.float64)[..., 0]     # 形状 (B, H, W)：同上
     e = np.where(cell_mask[None], pred - truth, 0.0)
     return e.sum(), (e ** 2).sum(), int(pred.shape[0]) * int(cell_mask.sum())
 
@@ -119,7 +146,8 @@ for ckpt_path, label in CHECKPOINTS:
                                          num_workers=2, pin_memory=True)
     n_windows = len(ds)
 
-    # accumulators: region -> var -> [n, se_m, se_signed_m, se_p]
+    # 累计器：region -> var -> [n, se_m, se_signed_m, se_p] 四元素 float 数组；
+    # RMSE 在循环外由 sqrt(se/n) 合成，绝不先取分段 RMSE 再平均
     acc = {r: {v: np.zeros(4) for v in ("u", "v")} for r in regions}
     t0 = time.perf_counter()
     starts_all = []
@@ -134,8 +162,9 @@ for ckpt_path, label in CHECKPOINTS:
                 else:
                     pred = model.sample(cond, num_sample_steps=1, clamp=True,
                                         static_cond=static_cond)
+            # 反归一化回物理 m/s（rho 网格），再映射到原生 staggered 网格
             rho_pred = (pred.float() * (y_hi - y_lo) + y_lo).cpu().numpy()
-            u_pred, v_pred = rho_to_native(rho_pred[:, None])  # add L=1 dim
+            u_pred, v_pred = rho_to_native(rho_pred[:, None])  # 补 L=1 维，凑成 (B, L, 2, H, W, Z)
             tu, tv = [], []
             pu, pv = [], []
             for s in starts_np:
@@ -146,6 +175,8 @@ for ckpt_path, label in CHECKPOINTS:
                 pu.append(u_p)
                 pv.append(v_p)
             tu_t, tv_t = np.stack(tu), np.stack(tv)
+            # 持续性基线：窗口末天（s+CONTEXT-1）作为 day-1 的同一持续性源；
+            # broadcast_to 返回只读 view，不复制数据
             pu_t = np.broadcast_to(np.stack(pu), (len(starts_np), 1, H, W - 1, Z))
             pv_t = np.broadcast_to(np.stack(pv), (len(starts_np), 1, H - 1, W, Z))
             for r in regions:
@@ -173,6 +204,8 @@ for ckpt_path, label in CHECKPOINTS:
     npz_path = os.path.join(out_dir, f"region_diag_ckpt{stem}.npz")
     if os.path.exists(npz_path):
         raise RuntimeError(f"{npz_path} already exists")
+    # 输出 NPZ：{coastal|offshore}_{u|v} 各存四元素 [n, se_m, se_signed_m, se_p]，
+    # 另加 coastal_buffer / n_windows / window_start_indices 溯源字段；已存在则拒绝
     np.savez(npz_path,
              coastal_buffer=np.int64(COASTAL_BUFFER),
              n_windows=np.int64(n_windows),

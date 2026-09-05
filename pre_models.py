@@ -1,35 +1,30 @@
 #!/usr/bin/env python3
-"""Deterministic persistence-residual model for the PRE forecast task (imported
-by pre_trainer.py and pre_evaluate.py — keep this module side-effect free).
+"""模块职责：PRE 任务确定性"持续性-残差"模型（PersistenceResidualIAFNO）与掩膜
+MSE 损失（masked_mse_loss）；被 pre_trainer.py 与 pre_evaluate.py 导入使用。
 
-`PersistenceResidualIAFNO` wraps the SAME IAFNODiff backbone used by the
-conditional EDM as a condition-only deterministic regressor:
+不负责：扩散目标与采样（diffusion.py）；数据加载、归一化与统计缓存
+（pre_dataset.py）；rollout 循环（pre_rollout.py 按鸭子类型调用 sample()）。
 
-    prediction = base + residual,     base = condition[:, -target_ch:]
+关键约束：
+- 本模块必须保持无副作用：导入即执行的部分只允许定义，不触碰数据、
+  设备与 checkpoint。
+- prediction = base + residual，base = condition[:, -target_ch:]（day-major
+  u/v 条件的最后一天，即持续性基线）；残差头零初始化，未训练的 forward()
+  输出恰为持续性。零权重使首个优化步只更新 head（更深层首步梯度为 0），
+  更深层从第二步开始收到梯度。
+- 条件经 IAFNODiff 的 x_self_cond 槽位进入（历史接口，禁止按名称"修正"）：
+  residual = net(x=全零 target, time=常数 c_noise, x_self_cond=cond)，
+  patch-embed 看到 cond(14 通道) + 全零(2 通道) = in_chans(16 通道)，与扩散
+  路径的通道布局逐位一致。
+- time 为 EDM c_noise 形式的常数 0.25·log(time_sigma)；确定性模型没有噪声
+  调度，任何固定常数都成立，time_sigma 记录进 checkpoint 供重建校验。
+- sample() 按鸭子类型兼容 rollout：num_sample_steps 接受并忽略，
+  clamp=True 时把 [0,1] 归一化预测钳制到 [0,1]。
+- masked_mse_loss 与 ElucidatedDiffusion.forward 的掩膜口径一致：掩膜可
+  广播、1=有效海洋 0=陆地，逐样本只在有效元素取均值，再对 batch 取均值。
 
-`base` is the last-day persistence (the final target_ch channels of the
-day-major u/v condition). The backbone's patch head is zero-initialized, so an
-UNTRAINED model is EXACTLY persistence — the first optimizer step only moves
-the head, and deeper layers start receiving gradients from the second step.
-
-Data flow note (do NOT "fix" this): IAFNODiff.forward(x, time, x_self_cond)
-concatenates `x_self_cond` with `x`, and in the diffusion path the "self_cond"
-slot actually CARRIES THE 14-CHANNEL CONDITION (`ElucidatedDiffusion.sample`
-passes the condition there). The wrapper mirrors that layout exactly:
-    residual = net(x=zeros(target_ch), time=const c_noise, x_self_cond=cond)
-so the patch-embed sees cond (14 ch) + zeros (2 ch) = in_chans (16 ch),
-identical to the diffusion path. `time` is the constant EDM c_noise embedding
-of `time_sigma` (0.25 * log(time_sigma)); the deterministic model has no noise
-schedule, so any fixed constant is valid and is recorded in checkpoints.
-
-`sample()` is rollout-compatible by duck typing: `pre_rollout` calls
-`model.sample(cur, num_sample_steps=..., clamp=...)`; the deterministic
-implementation ignores `num_sample_steps` and clamps to [0, 1] like the EDM
-sampler's unnormalized output.
-
-`masked_mse_loss` mirrors the masked semantics of
-`ElucidatedDiffusion.forward`: per-sample mean over VALID elements only
-(broadcastable mask, 1 = ocean), then a mean over the batch.
+依赖关系：IAFNO.IAFNODiff（须 self_condition=True，in_chans = target 通道 +
+条件通道）；包装后的状态字典为 net.* 前缀，键布局与 ElucidatedDiffusion 一致。
 """
 import math
 
@@ -38,12 +33,13 @@ import torch.nn as nn
 
 
 def masked_mse_loss(pred, target, mask):
-    """Masked MSE: per-sample mean over valid elements, then batch mean.
+    """掩膜 MSE：逐样本只在有效元素上取均值，再对 batch 取均值。
 
-    pred/target: (B, C, H, W, Z); mask broadcastable to that shape with
-    1 = valid (ocean) and 0 = land. Land cells contribute nothing and the
-    denominator is each sample's own valid-element count (same convention as
-    diffusion.ElucidatedDiffusion.forward with a mask).
+    pred/target 形状 (B, C, H, W, Z)（B=窗口数，C=通道，H/W 为 rho 网格
+    空间轴，Z 为 sigma 层数）；mask 可广播到该形状，1=有效海洋、0=陆地。
+    陆地格不产生损失，分母是每个样本自己的有效元素计数（clamp(min=1)
+    防空掩膜除零），与 diffusion.ElucidatedDiffusion.forward 的掩膜分支
+    同一口径。
     """
     mse = (pred - target) ** 2
     m = mask.expand_as(mse)
@@ -52,12 +48,14 @@ def masked_mse_loss(pred, target, mask):
 
 
 class PersistenceResidualIAFNO(nn.Module):
-    """Thin deterministic wrapper: last-day persistence + zero-init IAFNO residual.
+    """薄确定性包装：最后日持续性 + 零初始化 IAFNO 残差。
 
-    `net` must be an IAFNODiff with self_condition=True and in_chans equal to
-    target channels + external condition channels, exactly as built for the
-    conditional EDM. The state dict is `net.*` under this wrapper, matching the
-    ElucidatedDiffusion layout.
+    net 必须是为条件 EDM 构建的 IAFNODiff：self_condition=True 且
+    in_chans 等于 target 通道 + 外部条件通道，与扩散路径的构建完全一致。
+    包装后的状态字典为 net.* 前缀，键布局与 ElucidatedDiffusion 一致。
+
+    异常 / 前置条件：net.self_condition 为 False，或 in_chans 在 target
+    通道之外没有剩余条件通道时，构造即抛 ValueError（fail-fast）。
     """
 
     def __init__(self, net, time_sigma=0.002):
@@ -76,18 +74,22 @@ class PersistenceResidualIAFNO(nn.Module):
                 f"channels beyond out_chans={net.out_chans}")
         self.time_sigma = float(time_sigma)
         self.residual_base = "last_day"
-        # zero-init the residual head: untrained forward() is EXACTLY `base`
+        # 残差头零初始化：未训练的 forward() 输出恰为 base；零权重使首个
+        # 优化步只更新 head，更深层从第二步开始收到梯度
         nn.init.zeros_(net.head.weight)
 
     def forward(self, cond, static_cond=None):
-        """(B, cond_ch, H, W, Z) normalized condition -> (B, target_ch, H, W, Z).
+        """(B, cond_ch, H, W, Z) 归一化条件 -> (B, target_ch, H, W, Z) 预测。
 
-        With `static_cond` (Phase-5 mask-input A/B, e.g. (1, 2, H, W, Z)
-        bivariate rho masks broadcast over the batch) the backbone's
-        x_self_cond slot receives `cat([cond, static_cond], dim=1)` — the
-        DYNAMIC window must stay pure so `base = cond[:, -target_ch:]` is
-        always the last-day persistence. Without `static_cond` the behaviour
-        is bitwise identical to the historical 14-channel path.
+        传入 static_cond 时（静态掩膜输入实验 08 的 B 臂，如 (1, 2, H, W, Z)
+        的双变量 rho 掩膜，沿 batch 广播）：先做形状校验（5 维、batch 为 1
+        或与 cond 一致、空间形状一致），batch=1 时 expand 为广播 view（不
+        复制内存），再 cat([cond, static_cond], dim=1) 送入骨干的 x_self_cond
+        槽位；动态滑窗条件保持纯净，base = cond[:, -target_ch:] 始终是最后
+        日持续性。不传 static_cond 时行为与历史 14 通道路径逐位一致。
+
+        异常 / 前置条件：static_cond 形状不可广播或条件通道数不符时抛
+        AssertionError（fail-fast，防止错配条件被当作正常输入）。
         """
         if static_cond is not None:
             if static_cond.dim() != 5 or \
@@ -108,19 +110,22 @@ class PersistenceResidualIAFNO(nn.Module):
             raise AssertionError(
                 f"condition channels {x_self_cond.shape[1]} != expected "
                 f"{self.cond_chans}")
-        base = cond[:, -self.target_ch:]
+        base = cond[:, -self.target_ch:]  # 持续性基线：day-major 条件的最后一天（最后 target_ch 通道）
         batch = cond.shape[0]
+        # 常数 c_noise（=0.25·log σ 的 EDM 形式）：确定性路径无噪声调度，
+        # 固定常数即可，time_sigma 已记录进 checkpoint
         time = torch.full((batch,), 0.25 * math.log(self.time_sigma),
                           device=cond.device)
+        # target 槽位传全零、条件走 x_self_cond 槽位：与扩散路径的
+        # [条件, 全零 target] 通道布局一致（见模块 docstring）
         residual = self.net(torch.zeros_like(base), time, x_self_cond)
         return base + residual
 
     def sample(self, cond, batch_size=None, num_sample_steps=None, clamp=True,
                static_cond=None):
-        """Deterministic prediction; `num_sample_steps` is accepted and ignored
-        (rollout compatibility with the EDM sampler's call signature). With
-        clamp=True the normalized prediction is clamped to [0, 1], matching the
-        EDM sampler output range."""
+        """确定性预测；num_sample_steps 仅接受并忽略（与 EDM 采样器的调用
+        签名兼容，pre_rollout 按鸭子类型调用）。clamp=True 时把 [0,1] 归一化
+        预测钳制到 [0,1]，与 EDM 采样器反归一化后的输出值域一致。"""
         pred = self.forward(cond, static_cond=static_cond)
         if clamp:
             pred = pred.clamp(0., 1.)

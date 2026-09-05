@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
-"""组会汇报图表生成：presentation/figures/ 下 7 张 PNG（300 dpi）。
+"""模块职责：组会汇报图表生成 —— presentation/figures/ 下 7 张 PNG
+（300 dpi）。
 
-数据来源全部为本地 `checkpoints/PRE/` 快照 NPZ（口径与各 RESULTS.md 一致：
-pooled = sqrt(sum rmse^2 * count / sum count)）。非 NPZ 数字集中在
-CONSTANTS 并逐条注明出处。每张图的关键数值与 RESULTS.md 期望值对照，
-不一致即 AssertionError —— 防止用错 checkpoint/NPZ。
+数据来源全部为本地归档快照 checkpoints/PRE/<run_tag>/ 下的 eval NPZ
+（test h15 / val h1）与 leadtime_diag NPZ，取数目录见 F1_FILES、
+ABL_FILES、LAYER_FILES、DIAG_FILES 各常量；非 NPZ 的数字集中在
+COND_BARS 等常量并逐条注明出处（实验 05 RESULTS）。
 
-运行（repo 根目录）：  python presentation/make_figures.py
+不负责：只读归档 —— 不重算评估、不重建模型、不触碰训练产物；唯一写盘
+是 presentation/figures/ 下 7 张 PNG（目录已存在则直接覆盖同名文件，
+无拒绝覆盖保护）；不 import 任何正式 PRE 模块。
+
+关键约束（防选错 checkpoint/NPZ）：
+- pooled 口径与 pre_evaluate / RESULTS.md 一致：
+  pooled = sqrt(Σ rmse²·count / Σcount)；per_lead_ratio 把 (L, 2, Z) 的
+  rmse_model / rmse_persistence 沿 (u/v, Z) 轴池化成 (L,)，再逐 lead 相除；
+- 每张图的关键数值都与 RESULTS.md 期望值逐项对照（check()/assert），
+  不一致即 AssertionError —— 断言失败时优先怀疑选错了 checkpoint/NPZ；
+- F6 诊断图只接受键名修复后的 diag NPZ（必须含 m_rmse_u 等 m_/p_ 前缀
+  键；旧键 NPZ 是坏档，加载时直接 assert 拒绝）；
+- F5 的 Middle 层优先采用正式 Ep4 test NPZ，否则回退 Ep2 探索性档并显式
+  标注（LAYER_EXPECT 同步切换）。
+
+运行（repo 根目录）：
+    python presentation/make_figures.py
 """
 import os
 import glob
@@ -35,29 +52,34 @@ BOT_MS5 = os.path.join(CKPT, "bottom_smoke_BS4_EMD180_I4_E4_S32_C7_SD2_RES_MS5")
 
 
 def one(pattern, base):
+    """返回唯一匹配的归档 NPZ 路径；匹配数 != 1 即 AssertionError（防选错档）。"""
     hits = sorted(glob.glob(os.path.join(base, pattern)))
     assert len(hits) == 1, f"expected exactly 1 match for {pattern} in {base}, got {hits}"
     return hits[0]
 
 
 def optional_one(pattern, base):
+    """返回至多一个匹配；0 个匹配返回 None（用于可选的正式档回退）。"""
     hits = sorted(glob.glob(os.path.join(base, pattern)))
     assert len(hits) <= 1, f"expected at most 1 match for {pattern} in {base}, got {hits}"
     return hits[0] if hits else None
 
 
 def load(path):
+    """读取归档 NPZ；allow_pickle=True 是因为存有字符串元数据。"""
     return np.load(path, allow_pickle=True)
 
 
 def pooled(rmse, count):
+    """pooled = sqrt(Σ rmse²·count / Σcount)：与 RESULTS.md 同口径的标量池化。"""
     rmse = np.asarray(rmse, float)
     count = np.asarray(count, float)
     return float(np.sqrt((rmse ** 2 * count).sum() / count.sum()))
 
 
 def per_lead_ratio(d):
-    """(L,2,Z) -> (L,) pooled model/persistence ratio per lead."""
+    """(L,2,Z) -> (L,)：把 rmse_model / rmse_persistence 沿 (u/v, Z) 轴
+    池化成逐 lead 的 (L,)，再逐 lead 相除得 model/persistence 比值。"""
     m, p, n = d["rmse_model"], d["rmse_persistence"], d["valid_count"]
     lm = np.sqrt((m ** 2 * n).sum(axis=(1, 2)) / n.sum(axis=(1, 2)))
     lp = np.sqrt((p ** 2 * n).sum(axis=(1, 2)) / n.sum(axis=(1, 2)))
@@ -65,16 +87,19 @@ def per_lead_ratio(d):
 
 
 def overall_ratio(d):
+    """15 天 overall 比值：两个全池化标量（model/persistence）之比。"""
     m, p, n = d["rmse_model"], d["rmse_persistence"], d["valid_count"]
     return pooled(m, n) / pooled(p, n)
 
 
 def day1_ratio(d):
+    """day-1 比值：多 lead NPZ 取 per_lead_ratio 首项；单 lead NPZ 退化为 overall_ratio。"""
     return per_lead_ratio(d)[0] if d["rmse_model"].ndim == 3 and d["rmse_model"].shape[0] > 1 \
         else overall_ratio(d)
 
 
 def check(name, got, want, tol=5e-3):
+    """与 RESULTS.md 期望值对照（默认容差 5e-3）；超差即 AssertionError。"""
     ok = abs(got - want) <= tol
     print(f"  [{'PASS' if ok else 'FAIL'}] {name}: computed {got:.4f} vs RESULTS {want}")
     assert ok, f"{name} mismatch: {got} != {want}"
@@ -240,6 +265,8 @@ LAYER_EXPECT = {  # (单步, MS5) — docs/experiments/07、10、11 RESULTS.md
 
 
 def check_middle_ep4_test(d):
+    """校验 Middle 正式 Ep4 test NPZ 的元数据指纹：split/preset/rollout/
+    objective/checkpoint 任一不符即 AssertionError（防回退档/选错档）。"""
     scalar = lambda key: np.asarray(d[key]).reshape(-1)[0].item()
     assert scalar("split") == "test"
     assert scalar("preset") == "middle_smoke"
